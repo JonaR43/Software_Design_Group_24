@@ -2,76 +2,10 @@ import React, { useState } from "react";
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
-  const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    remember: false
-  });
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [isLoading, setIsLoading] = useState(false);
 
-  // Validation function
-  const validateForm = () => {
-    const newErrors: Record<string, string> = {};
-    
-    // Email validation
-    if (!formData.email) {
-      newErrors.email = 'Email is required';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Please enter a valid email address';
-    }
-    
-    // Password validation
-    if (!formData.password) {
-      newErrors.password = 'Password is required';
-    } else if (formData.password.length < 8) {
-      newErrors.password = 'Password must be at least 8 characters long';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  // Handle input changes
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }));
-    
-    // Clear error when user starts typing
-    if (errors[name]) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: ''
-      }));
-    }
-  };
-
-  // Handle form submission
-  const handleSubmit = async (e: React.FormEvent) => {
+ /*  const onSubmit = (e) => {
     e.preventDefault();
-    
-    if (!validateForm()) {
-      return;
-    }
-
-    setIsLoading(true);
-    
-    // TODO: Replace with actual API call
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      console.log('Login data:', formData);
-      // Redirect to dashboard on success
-      window.location.href = '/dashboard';
-    } catch (error) {
-      setErrors({ general: 'Invalid credentials. Please try again.' });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  }; */
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-indigo-200 via-violet-200 to-slate-100 text-slate-800 flex flex-col">
@@ -140,34 +74,21 @@ export default function LoginPage() {
           <section className="w-full flex justify-center">
             <div className="w-full max-w-md bg-white/90 border border-indigo-100 rounded-2xl p-6 sm:p-8 shadow-2xl backdrop-blur">
               <h2 className="text-2xl font-semibold tracking-wide mb-6 bg-gradient-to-r from-indigo-700 to-sky-700 bg-clip-text text-transparent">Login</h2>
-              
-              {errors.general && (
-                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-                  {errors.general}
-                </div>
-              )}
-
-              <form className="space-y-5" onSubmit={handleSubmit}>
+              <form className="space-y-5">
                 <div className="space-y-2">
-                  <label htmlFor="email" className="text-sm text-slate-700">Email Address *</label>
+                  <label htmlFor="username" className="text-sm text-slate-700">Username or Email</label>
                   <input
-                    id="email"
-                    name="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
+                    id="username"
+                    type="text"
                     autoComplete="username"
                     placeholder="you@example.org"
-                    className={`w-full rounded-xl bg-white border px-4 py-3 outline-none focus:ring-4 ring-indigo-300/40 transition ${
-                      errors.email ? 'border-red-300 focus:border-red-600 ring-red-300/40' : 'border-slate-200 focus:border-indigo-600'
-                    }`}
+                    className="w-full rounded-xl bg-white border border-slate-200 px-4 py-3 outline-none focus:ring-4 ring-indigo-300/40 focus:border-indigo-600"
                   />
-                  {errors.email && <p className="text-sm text-red-600">{errors.email}</p>}
                 </div>
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <label htmlFor="password" className="text-sm text-slate-700">Password *</label>
+                    <label htmlFor="password" className="text-sm text-slate-700">Password</label>
                     <button
                       type="button"
                       onClick={() => setShowPassword((s) => !s)}
@@ -178,29 +99,16 @@ export default function LoginPage() {
                   </div>
                   <input
                     id="password"
-                    name="password"
                     type={showPassword ? "text" : "password"}
-                    value={formData.password}
-                    onChange={handleInputChange}
                     autoComplete="current-password"
                     placeholder="••••••••"
-                    className={`w-full rounded-xl bg-white border px-4 py-3 outline-none focus:ring-4 ring-indigo-300/40 transition ${
-                      errors.password ? 'border-red-300 focus:border-red-600 ring-red-300/40' : 'border-slate-200 focus:border-indigo-600'
-                    }`}
+                    className="w-full rounded-xl bg-white border border-slate-200 px-4 py-3 outline-none focus:ring-4 ring-indigo-300/40 focus:border-indigo-600"
                   />
-                  {errors.password && <p className="text-sm text-red-600">{errors.password}</p>}
                 </div>
 
                 <div className="flex items-center justify-between text-sm">
                   <label className="inline-flex items-center gap-2 cursor-pointer select-none">
-                    <input 
-                      id="remember" 
-                      name="remember"
-                      type="checkbox" 
-                      checked={formData.remember}
-                      onChange={handleInputChange}
-                      className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-400" 
-                    />
+                    <input id="remember" type="checkbox" className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-400" />
                     <span className="text-slate-700">Remember me</span>
                   </label>
                   <a href="#" className="text-indigo-700 hover:text-indigo-600">Forgot password?</a>
@@ -208,10 +116,9 @@ export default function LoginPage() {
 
                 <button
                   type="submit"
-                  disabled={isLoading}
-                  className="w-full rounded-xl bg-gradient-to-r from-indigo-700 via-violet-700 to-sky-700 text-white font-semibold py-3 shadow-lg hover:from-indigo-600 hover:via-violet-600 hover:to-sky-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full rounded-xl bg-gradient-to-r from-indigo-700 via-violet-700 to-sky-700 text-white font-semibold py-3 shadow-lg hover:from-indigo-600 hover:via-violet-600 hover:to-sky-600 transition"
                 >
-                  {isLoading ? 'Signing In...' : 'Log In'}
+                  Log In
                 </button>
 
                 <div className="relative">
@@ -224,10 +131,10 @@ export default function LoginPage() {
                 </div>
 
                 <a
-                  href="/register"
+                  href="#"
                   className="w-full inline-flex justify-center rounded-xl bg-gradient-to-r from-sky-600 to-fuchsia-600 text-white font-semibold py-3 shadow-lg hover:from-sky-500 hover:to-fuchsia-500 transition"
                 >
-                  Create New Account
+                  Register
                 </a>
 
                 <p className="text-xs text-slate-600 text-center">
