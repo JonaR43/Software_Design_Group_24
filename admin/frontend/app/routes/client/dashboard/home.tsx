@@ -1,6 +1,6 @@
 export default function Home() {
   return (
-    <div className="space-y-6">
+    <div className="max-w-6xl mx-auto space-y-6">
       {/* Welcome Header */}
       <div className="bg-gradient-to-r from-indigo-50 to-violet-50 rounded-xl p-6 border border-indigo-100">
         <h1 className="text-3xl font-semibold text-slate-900 mb-2">Welcome back!</h1>

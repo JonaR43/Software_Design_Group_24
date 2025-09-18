@@ -30,7 +30,7 @@ export default function Schedule() {
   const completedEvents = scheduleItems.filter(item => item.type === 'completed');
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-6xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -93,7 +93,7 @@ export default function Schedule() {
       {/* Upcoming Events */}
       <div>
         <h2 className="text-xl font-semibold text-slate-900 mb-4">Upcoming Events</h2>
-        <div className="space-y-3">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {upcomingEvents.map((event) => (
             <div key={event.id} className="card p-4">
               <div className="flex items-center justify-between">
@@ -133,7 +133,7 @@ export default function Schedule() {
       {/* Recent Activity */}
       <div>
         <h2 className="text-xl font-semibold text-slate-900 mb-4">Recent Activity</h2>
-        <div className="space-y-3">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {completedEvents.map((event) => (
             <div key={event.id} className="card p-4 bg-green-50 border-green-200">
               <div className="flex items-center justify-between">
