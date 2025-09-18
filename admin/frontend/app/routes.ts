@@ -12,15 +12,15 @@ export default [
     route("home", "routes/client/dashboard/home.tsx"),
     route("events", "routes/client/dashboard/events.tsx"),
     route("schedule", "routes/client/dashboard/schedule.tsx"),
-    route("profile", "routes/client/dashboard/profile1.tsx"),
-    //route("history", "routes/client/dashboard/volunteer-history.tsx"), // New history page
+    route("profile1", "routes/client/dashboard/profile1.tsx"), // Assignment 2 compliant profile
+    route("profile", "routes/client/dashboard/profile.tsx"), // Original profile (backup)
+    route("history", "routes/client/dashboard/volunteer-history.tsx"), // Volunteer history page
     
     // Admin-only routes
-    /* route("admin", "routes/client/dashboard/admin/admin-layout.tsx", [
+    route("admin", "routes/client/dashboard/admin/admin-layout.tsx", [
       route("events", "routes/client/dashboard/admin/event-management.tsx"),
       route("create-event", "routes/client/dashboard/admin/create-event.tsx"),
-      route("edit-event/:eventId", "routes/client/dashboard/admin/edit-event.tsx"),
       route("matching", "routes/client/dashboard/admin/volunteer-matching.tsx"),
-    ]), */
+    ]),
   ]),
 ] satisfies RouteConfig;

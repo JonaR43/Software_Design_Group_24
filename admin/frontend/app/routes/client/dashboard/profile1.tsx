@@ -213,7 +213,7 @@ export default function Profile() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-7xl mx-auto px-4 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -236,238 +236,253 @@ export default function Profile() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-8">
-        {/* Personal Information Section */}
-        <div className="card p-6">
-          <h2 className="title-gradient mb-6">Personal Information</h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Full Name */}
-            <div className="md:col-span-2">
-              <label htmlFor="fullName" className="label">Full Name *</label>
-              <input
-                id="fullName"
-                name="fullName"
-                type="text"
-                maxLength={50}
-                value={profile.fullName}
-                onChange={handleInputChange}
-                placeholder="Enter your full name"
-                className={`input ${errors.fullName ? 'border-red-300 focus:border-red-600' : ''}`}
-              />
-              {errors.fullName && <p className="text-sm text-red-600 mt-1">{errors.fullName}</p>}
-              <p className="text-xs text-slate-500 mt-1">{profile.fullName.length}/50 characters</p>
-            </div>
-
-            {/* Address 1 */}
-            <div className="md:col-span-2">
-              <label htmlFor="address1" className="label">Address 1 *</label>
-              <input
-                id="address1"
-                name="address1"
-                type="text"
-                maxLength={100}
-                value={profile.address1}
-                onChange={handleInputChange}
-                placeholder="Street address, P.O. box, company name, c/o"
-                className={`input ${errors.address1 ? 'border-red-300 focus:border-red-600' : ''}`}
-              />
-              {errors.address1 && <p className="text-sm text-red-600 mt-1">{errors.address1}</p>}
-              <p className="text-xs text-slate-500 mt-1">{profile.address1.length}/100 characters</p>
-            </div>
-
-            {/* Address 2 */}
-            <div className="md:col-span-2">
-              <label htmlFor="address2" className="label">Address 2 (Optional)</label>
-              <input
-                id="address2"
-                name="address2"
-                type="text"
-                maxLength={100}
-                value={profile.address2 || ''}
-                onChange={handleInputChange}
-                placeholder="Apartment, suite, unit, building, floor, etc."
-                className={`input ${errors.address2 ? 'border-red-300 focus:border-red-600' : ''}`}
-              />
-              {errors.address2 && <p className="text-sm text-red-600 mt-1">{errors.address2}</p>}
-              <p className="text-xs text-slate-500 mt-1">{(profile.address2 || '').length}/100 characters</p>
-            </div>
-
-            {/* City */}
-            <div>
-              <label htmlFor="city" className="label">City *</label>
-              <input
-                id="city"
-                name="city"
-                type="text"
-                maxLength={100}
-                value={profile.city}
-                onChange={handleInputChange}
-                placeholder="Enter your city"
-                className={`input ${errors.city ? 'border-red-300 focus:border-red-600' : ''}`}
-              />
-              {errors.city && <p className="text-sm text-red-600 mt-1">{errors.city}</p>}
-              <p className="text-xs text-slate-500 mt-1">{profile.city.length}/100 characters</p>
-            </div>
-
-            {/* State */}
-            <div>
-              <label htmlFor="state" className="label">State *</label>
-              <select
-                id="state"
-                name="state"
-                value={profile.state}
-                onChange={handleInputChange}
-                className={`input ${errors.state ? 'border-red-300 focus:border-red-600' : ''}`}
-              >
-                <option value="">Select a state</option>
-                {US_STATES.map(state => (
-                  <option key={state.code} value={state.code}>
-                    {state.name}
-                  </option>
-                ))}
-              </select>
-              {errors.state && <p className="text-sm text-red-600 mt-1">{errors.state}</p>}
-            </div>
-
-            {/* Zip Code */}
-            <div>
-              <label htmlFor="zipCode" className="label">Zip Code *</label>
-              <input
-                id="zipCode"
-                name="zipCode"
-                type="text"
-                maxLength={10}
-                value={profile.zipCode}
-                onChange={handleInputChange}
-                placeholder="12345 or 12345-6789"
-                className={`input ${errors.zipCode ? 'border-red-300 focus:border-red-600' : ''}`}
-              />
-              {errors.zipCode && <p className="text-sm text-red-600 mt-1">{errors.zipCode}</p>}
-              <p className="text-xs text-slate-500 mt-1">At least 5 digits required</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Skills Section */}
-        <div className="card p-6">
-          <h2 className="title-gradient mb-6">Skills *</h2>
-          <p className="text-sm text-slate-600 mb-4">Select all skills that apply to you (multi-select dropdown)</p>
-          
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-64 overflow-y-auto border border-slate-200 rounded-lg p-4">
-            {AVAILABLE_SKILLS.map(skill => (
-              <label key={skill} className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-2 rounded">
-                <input
-                  type="checkbox"
-                  checked={profile.skills.includes(skill)}
-                  onChange={() => handleSkillToggle(skill)}
-                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-400"
-                />
-                <span className="text-sm text-slate-700">{skill}</span>
-              </label>
-            ))}
-          </div>
-          
-          {profile.skills.length > 0 && (
-            <div className="mt-4">
-              <p className="text-sm text-slate-600 mb-2">Selected skills ({profile.skills.length}):</p>
-              <div className="flex flex-wrap gap-2">
-                {profile.skills.map(skill => (
-                  <span key={skill} className="px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-sm font-medium flex items-center gap-2">
-                    {skill}
-                    <button
-                      type="button"
-                      onClick={() => handleSkillToggle(skill)}
-                      className="text-indigo-600 hover:text-indigo-800"
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-          
-          {errors.skills && <p className="text-sm text-red-600 mt-2">{errors.skills}</p>}
-        </div>
-
-        {/* Preferences Section */}
-        <div className="card p-6">
-          <h2 className="title-gradient mb-6">Preferences (Optional)</h2>
-          <p className="text-sm text-slate-600 mb-4">Tell us about your volunteer preferences, interests, or any special considerations</p>
-          
-          <textarea
-            name="preferences"
-            value={profile.preferences || ''}
-            onChange={handleInputChange}
-            rows={4}
-            placeholder="e.g., I prefer outdoor activities, working with children, weekend events only, etc."
-            className="input"
-          />
-          <p className="text-xs text-slate-500 mt-1">{(profile.preferences || '').length} characters</p>
-        </div>
-
-        {/* Availability Section */}
-        <div className="card p-6">
-          <h2 className="title-gradient mb-6">Availability *</h2>
-          <p className="text-sm text-slate-600 mb-4">Select multiple dates when you're available to volunteer (next 60 days)</p>
-          
-          <div className="grid grid-cols-7 gap-2 max-h-64 overflow-y-auto border border-slate-200 rounded-lg p-4">
-            {/* Calendar Header */}
-            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-              <div key={day} className="text-center text-sm font-medium text-slate-600 p-2">
-                {day}
-              </div>
-            ))}
-            
-            {/* Calendar Dates */}
-            {calendarDates.map(date => {
-              const isSelected = profile.availability.some(d => d.toDateString() === date.toDateString());
-              const isToday = date.toDateString() === new Date().toDateString();
+      <form onSubmit={handleSubmit} className="space-y-4 lg:space-y-6">
+        {/* 3-Column Layout: Personal Info | Skills & Availability | Preferences */}
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 md:gap-6 lg:gap-8 xl:gap-10">
+          {/* Personal Information Section - Left Column */}
+          <div className="xl:col-span-4">
+            <div className="card p-4 md:p-5 lg:p-6 xl:p-7 h-full">
+              <h2 className="title-gradient mb-3 md:mb-4 lg:mb-5 xl:mb-6">Personal Information</h2>
               
-              return (
-                <button
-                  key={date.toDateString()}
-                  type="button"
-                  onClick={() => handleAvailabilityToggle(date)}
-                  className={`p-2 text-sm rounded border transition ${
-                    isSelected 
-                      ? 'bg-indigo-600 text-white border-indigo-600' 
-                      : isToday
-                      ? 'bg-slate-100 border-slate-300 text-slate-900 font-medium'
-                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                  }`}
-                >
-                  {date.getDate()}
-                </button>
-              );
-            })}
+              <div className="space-y-3 md:space-y-4 lg:space-y-5 xl:space-y-6">
+                {/* Full Name */}
+                <div>
+                  <label htmlFor="fullName" className="label">Full Name *</label>
+                  <input
+                    id="fullName"
+                    name="fullName"
+                    type="text"
+                    maxLength={50}
+                    value={profile.fullName}
+                    onChange={handleInputChange}
+                    placeholder="Enter your full name"
+                    className={`input ${errors.fullName ? 'border-red-300 focus:border-red-600' : ''}`}
+                  />
+                  {errors.fullName && <p className="text-sm text-red-600 mt-1">{errors.fullName}</p>}
+                  <p className="text-xs text-slate-500 mt-1">{profile.fullName.length}/50 characters</p>
+                </div>
+
+                {/* Address 1 */}
+                <div>
+                  <label htmlFor="address1" className="label">Address 1 *</label>
+                  <input
+                    id="address1"
+                    name="address1"
+                    type="text"
+                    maxLength={100}
+                    value={profile.address1}
+                    onChange={handleInputChange}
+                    placeholder="Street address, P.O. box, company name, c/o"
+                    className={`input ${errors.address1 ? 'border-red-300 focus:border-red-600' : ''}`}
+                  />
+                  {errors.address1 && <p className="text-sm text-red-600 mt-1">{errors.address1}</p>}
+                  <p className="text-xs text-slate-500 mt-1">{profile.address1.length}/100 characters</p>
+                </div>
+
+                {/* Address 2 */}
+                <div>
+                  <label htmlFor="address2" className="label">Address 2 (Optional)</label>
+                  <input
+                    id="address2"
+                    name="address2"
+                    type="text"
+                    maxLength={100}
+                    value={profile.address2 || ''}
+                    onChange={handleInputChange}
+                    placeholder="Apartment, suite, unit, building, floor, etc."
+                    className={`input ${errors.address2 ? 'border-red-300 focus:border-red-600' : ''}`}
+                  />
+                  {errors.address2 && <p className="text-sm text-red-600 mt-1">{errors.address2}</p>}
+                  <p className="text-xs text-slate-500 mt-1">{(profile.address2 || '').length}/100 characters</p>
+                </div>
+
+                {/* City, State, Zip in a grid */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-3 lg:gap-4">
+                  {/* City */}
+                  <div>
+                    <label htmlFor="city" className="label">City *</label>
+                    <input
+                      id="city"
+                      name="city"
+                      type="text"
+                      maxLength={100}
+                      value={profile.city}
+                      onChange={handleInputChange}
+                      placeholder="Enter your city"
+                      className={`input ${errors.city ? 'border-red-300 focus:border-red-600' : ''}`}
+                    />
+                    {errors.city && <p className="text-sm text-red-600 mt-1">{errors.city}</p>}
+                    <p className="text-xs text-slate-500 mt-1">{profile.city.length}/100 characters</p>
+                  </div>
+
+                  {/* State */}
+                  <div>
+                    <label htmlFor="state" className="label">State *</label>
+                    <select
+                      id="state"
+                      name="state"
+                      value={profile.state}
+                      onChange={handleInputChange}
+                      className={`input ${errors.state ? 'border-red-300 focus:border-red-600' : ''}`}
+                    >
+                      <option value="">Select a state</option>
+                      {US_STATES.map(state => (
+                        <option key={state.code} value={state.code}>
+                          {state.name}
+                        </option>
+                      ))}
+                    </select>
+                    {errors.state && <p className="text-sm text-red-600 mt-1">{errors.state}</p>}
+                  </div>
+
+                  {/* Zip Code */}
+                  <div>
+                    <label htmlFor="zipCode" className="label">Zip Code *</label>
+                    <input
+                      id="zipCode"
+                      name="zipCode"
+                      type="text"
+                      maxLength={10}
+                      value={profile.zipCode}
+                      onChange={handleInputChange}
+                      placeholder="12345 or 12345-6789"
+                      className={`input ${errors.zipCode ? 'border-red-300 focus:border-red-600' : ''}`}
+                    />
+                    {errors.zipCode && <p className="text-sm text-red-600 mt-1">{errors.zipCode}</p>}
+                    <p className="text-xs text-slate-500 mt-1">At least 5 digits required</p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-          
-          {profile.availability.length > 0 && (
-            <div className="mt-4">
-              <p className="text-sm text-slate-600 mb-2">Selected dates ({profile.availability.length}):</p>
-              <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
-                {profile.availability
-                  .sort((a, b) => a.getTime() - b.getTime())
-                  .map(date => (
-                  <span key={date.toDateString()} className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium flex items-center gap-2">
-                    {date.toLocaleDateString()}
+
+          {/* Skills and Availability Section - Middle Column */}
+          <div className="xl:col-span-5 space-y-4 md:space-y-5 lg:space-y-6 xl:space-y-7">
+            {/* Skills Section */}
+            <div className="card p-4 md:p-5 lg:p-6 xl:p-7">
+              <h2 className="title-gradient mb-3 md:mb-4 lg:mb-5 xl:mb-6">Skills *</h2>
+              <p className="text-sm text-slate-600 mb-3 md:mb-4">Select all skills that apply to you (multi-select dropdown)</p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-3 max-h-40 md:max-h-48 lg:max-h-56 overflow-y-auto border border-slate-200 rounded-lg p-2 md:p-3 lg:p-4">
+                {AVAILABLE_SKILLS.map(skill => (
+                  <label key={skill} className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-2 rounded">
+                    <input
+                      type="checkbox"
+                      checked={profile.skills.includes(skill)}
+                      onChange={() => handleSkillToggle(skill)}
+                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-400"
+                    />
+                    <span className="text-sm text-slate-700">{skill}</span>
+                  </label>
+                ))}
+              </div>
+              
+              {profile.skills.length > 0 && (
+                <div className="mt-4">
+                  <p className="text-sm text-slate-600 mb-2">Selected skills ({profile.skills.length}):</p>
+                  <div className="flex flex-wrap gap-2">
+                    {profile.skills.map(skill => (
+                      <span key={skill} className="px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-sm font-medium flex items-center gap-2">
+                        {skill}
+                        <button
+                          type="button"
+                          onClick={() => handleSkillToggle(skill)}
+                          className="text-indigo-600 hover:text-indigo-800"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {errors.skills && <p className="text-sm text-red-600 mt-2">{errors.skills}</p>}
+            </div>
+
+            {/* Availability Section */}
+            <div className="card p-4 md:p-5 lg:p-6 xl:p-7">
+              <h2 className="title-gradient mb-3 md:mb-4 lg:mb-5 xl:mb-6">Availability *</h2>
+              <p className="text-sm text-slate-600 mb-3 md:mb-4">Select multiple dates when you're available to volunteer (next 60 days)</p>
+              
+              <div className="grid grid-cols-7 gap-1 md:gap-2 max-h-40 md:max-h-48 lg:max-h-56 overflow-y-auto border border-slate-200 rounded-lg p-2 md:p-3 lg:p-4">
+                {/* Calendar Header */}
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                  <div key={day} className="text-center text-sm font-medium text-slate-600 p-2">
+                    {day}
+                  </div>
+                ))}
+                
+                {/* Calendar Dates */}
+                {calendarDates.map(date => {
+                  const isSelected = profile.availability.some(d => d.toDateString() === date.toDateString());
+                  const isToday = date.toDateString() === new Date().toDateString();
+                  
+                  return (
                     <button
+                      key={date.toDateString()}
                       type="button"
                       onClick={() => handleAvailabilityToggle(date)}
-                      className="text-green-600 hover:text-green-800"
+                      className={`p-2 text-sm rounded border transition ${
+                        isSelected 
+                          ? 'bg-indigo-600 text-white border-indigo-600' 
+                          : isToday
+                          ? 'bg-slate-100 border-slate-300 text-slate-900 font-medium'
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                      }`}
                     >
-                      ×
+                      {date.getDate()}
                     </button>
-                  </span>
-                ))}
+                  );
+                })}
               </div>
+              
+              {profile.availability.length > 0 && (
+                <div className="mt-4">
+                  <p className="text-sm text-slate-600 mb-2">Selected dates ({profile.availability.length}):</p>
+                  <div className="flex flex-wrap gap-1 md:gap-2 max-h-20 md:max-h-24 overflow-y-auto">
+                    {profile.availability
+                      .sort((a, b) => a.getTime() - b.getTime())
+                      .map(date => (
+                      <span key={date.toDateString()} className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium flex items-center gap-2">
+                        {date.toLocaleDateString()}
+                        <button
+                          type="button"
+                          onClick={() => handleAvailabilityToggle(date)}
+                          className="text-green-600 hover:text-green-800"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {errors.availability && <p className="text-sm text-red-600 mt-2">{errors.availability}</p>}
             </div>
-          )}
-          
-          {errors.availability && <p className="text-sm text-red-600 mt-2">{errors.availability}</p>}
+          </div>
+
+          {/* Preferences Section - Right Column */}
+          <div className="xl:col-span-3">
+            <div className="card p-4 md:p-5 lg:p-6 xl:p-7 h-full">
+              <h2 className="title-gradient mb-3 md:mb-4 lg:mb-5 xl:mb-6">Preferences (Optional)</h2>
+              <p className="text-sm text-slate-600 mb-3 md:mb-4">Tell us about your volunteer preferences, interests, or any special considerations</p>
+              
+              <textarea
+                name="preferences"
+                value={profile.preferences || ''}
+                onChange={handleInputChange}
+                rows={12}
+                placeholder="e.g., I prefer outdoor activities, working with children, weekend events only, etc."
+                className="input resize-none w-full max-h-[400px] md:max-h-[450px] lg:max-h-[500px] xl:max-h-[550px]"
+                style={{ height: 'calc(100% - 120px)', minHeight: '300px' }}
+              />
+              <p className="text-xs text-slate-500 mt-1">{(profile.preferences || '').length} characters</p>
+            </div>
+          </div>
         </div>
+
 
         {/* Submit Button */}
         <div className="flex justify-end">

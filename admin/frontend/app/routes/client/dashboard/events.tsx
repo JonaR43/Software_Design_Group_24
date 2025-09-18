@@ -42,7 +42,7 @@ export default function Events() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-6xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -55,7 +55,7 @@ export default function Events() {
       </div>
 
       {/* Events List */}
-      <div className="space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
         {events.map((event) => (
           <div key={event.id} className="card p-6">
             <div className="flex items-start justify-between mb-4">
