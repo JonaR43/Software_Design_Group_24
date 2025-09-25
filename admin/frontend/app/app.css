@@ -5,9 +5,14 @@
 
 /* Ensure full height layout */
 html, body, #root {
-  height: 100%;
   margin: 0;
   padding: 0;
+}
+
+/* Ensure consistent background on body */
+body {
+  background: linear-gradient(to bottom, #e0e7ff, #ddd6fe, #f1f5f9);
+  min-height: 100vh;
 }
 
 @layer components {
@@ -50,7 +55,10 @@ html, body, #root {
 
 .bg-ornament {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   background:
     radial-gradient(820px 440px at 10% -10%, rgba(99, 102, 241, 0.30), transparent 60%),
     radial-gradient(720px 400px at 100% 110%, rgba(56, 189, 248, 0.24), transparent 60%),
