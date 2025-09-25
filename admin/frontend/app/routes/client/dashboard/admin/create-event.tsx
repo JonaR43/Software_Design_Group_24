@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 interface EventFormData {
   eventName: string;
@@ -7,6 +7,7 @@ interface EventFormData {
   requiredSkills: string[];
   urgency: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
   eventDate: string;
+  eventTime: string;
   volunteersNeeded: number;
 }
 
@@ -17,6 +18,7 @@ interface FormErrors {
   requiredSkills?: string;
   urgency?: string;
   eventDate?: string;
+  eventTime?: string;
   volunteersNeeded?: string;
 }
 
@@ -28,8 +30,31 @@ export default function CreateEventPage() {
     requiredSkills: [],
     urgency: 'MEDIUM',
     eventDate: '',
+    eventTime: '09:00',
     volunteersNeeded: 1
   });
+
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const datePickerRef = useRef<HTMLDivElement>(null);
+
+  // Close date picker when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (datePickerRef.current && !datePickerRef.current.contains(event.target as Node)) {
+        setShowDatePicker(false);
+      }
+    };
+
+    if (showDatePicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showDatePicker]);
 
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -78,6 +103,10 @@ export default function CreateEventPage() {
         today.setHours(0, 0, 0, 0);
         if (selectedDate < today) return 'Event date cannot be in the past';
         return null;
+
+      case 'eventTime':
+        if (!value) return 'Event time is required';
+        return null;
       
       case 'volunteersNeeded':
         if (!value || value < 1) return 'At least 1 volunteer is required';
@@ -103,8 +132,182 @@ export default function CreateEventPage() {
     const newSkills = currentSkills.includes(skill)
       ? currentSkills.filter(s => s !== skill)
       : [...currentSkills, skill];
-    
+
     handleInputChange('requiredSkills', newSkills);
+  };
+
+  // Enhanced date picker functions
+  const getDaysInMonth = (month: number, year: number) => {
+    return new Date(year, month + 1, 0).getDate();
+  };
+
+  const getFirstDayOfMonth = (month: number, year: number) => {
+    return new Date(year, month, 1).getDay();
+  };
+
+  const handleDateSelect = (day: number) => {
+    const selectedDate = new Date(selectedYear, selectedMonth, day);
+    const dateString = selectedDate.toISOString().split('T')[0];
+    handleInputChange('eventDate', dateString);
+    setShowDatePicker(false);
+  };
+
+  const handleMonthChange = (direction: 'prev' | 'next') => {
+    if (direction === 'prev') {
+      if (selectedMonth === 0) {
+        setSelectedMonth(11);
+        setSelectedYear(selectedYear - 1);
+      } else {
+        setSelectedMonth(selectedMonth - 1);
+      }
+    } else {
+      if (selectedMonth === 11) {
+        setSelectedMonth(0);
+        setSelectedYear(selectedYear + 1);
+      } else {
+        setSelectedMonth(selectedMonth + 1);
+      }
+    }
+  };
+
+  const formatDisplayDate = (dateString: string) => {
+    if (!dateString) return 'Select date';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
+  const renderCalendar = () => {
+    const daysInMonth = getDaysInMonth(selectedMonth, selectedYear);
+    const firstDay = getFirstDayOfMonth(selectedMonth, selectedYear);
+    const today = new Date();
+    const currentDate = formData.eventDate ? new Date(formData.eventDate) : null;
+
+    const days = [];
+    const monthNames = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+
+    // Add empty cells for days before the first day of the month
+    for (let i = 0; i < firstDay; i++) {
+      days.push(<div key={`empty-${i}`} className="w-8 h-8"></div>);
+    }
+
+    // Add the actual days
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(selectedYear, selectedMonth, day);
+      const isToday = date.toDateString() === today.toDateString();
+      const isSelected = currentDate && date.toDateString() === currentDate.toDateString();
+      const isPast = date < new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+      days.push(
+        <button
+          key={day}
+          type="button"
+          onClick={() => !isPast && handleDateSelect(day)}
+          disabled={isPast}
+          className={`w-8 h-8 text-sm rounded-full transition-colors ${
+            isSelected
+              ? 'bg-indigo-600 text-white'
+              : isToday
+              ? 'bg-blue-100 text-blue-600 font-semibold'
+              : isPast
+              ? 'text-slate-300 cursor-not-allowed'
+              : 'text-slate-700 hover:bg-slate-100'
+          }`}
+        >
+          {day}
+        </button>
+      );
+    }
+
+    return (
+      <div ref={datePickerRef} className="absolute top-full left-0 mt-2 bg-white border border-slate-300 rounded-lg shadow-lg p-4 z-50">
+        {/* Calendar Header */}
+        <div className="flex items-center justify-between mb-4">
+          <button
+            type="button"
+            onClick={() => handleMonthChange('prev')}
+            className="p-1 text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <div className="flex space-x-2">
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+              className="text-sm border border-slate-300 rounded px-2 py-1"
+            >
+              {monthNames.map((month, index) => (
+                <option key={index} value={index}>{month}</option>
+              ))}
+            </select>
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+              className="text-sm border border-slate-300 rounded px-2 py-1"
+            >
+              {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() + i).map(year => (
+                <option key={year} value={year}>{year}</option>
+              ))}
+            </select>
+          </div>
+          <button
+            type="button"
+            onClick={() => handleMonthChange('next')}
+            className="p-1 text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Calendar Grid */}
+        <div className="mb-3">
+          <div className="grid grid-cols-7 gap-1 mb-2">
+            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
+              <div key={day} className="w-8 h-8 text-xs font-medium text-slate-600 flex items-center justify-center">
+                {day}
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7 gap-1">
+            {days}
+          </div>
+        </div>
+
+        {/* Today Button */}
+        <div className="flex justify-between items-center pt-3 border-t border-slate-200">
+          <button
+            type="button"
+            onClick={() => {
+              const today = new Date();
+              setSelectedMonth(today.getMonth());
+              setSelectedYear(today.getFullYear());
+              handleDateSelect(today.getDate());
+            }}
+            className="text-xs text-indigo-600 hover:text-indigo-800"
+          >
+            Today
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowDatePicker(false)}
+            className="text-xs text-slate-600 hover:text-slate-800"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
   };
 
   const validateForm = (): boolean => {
@@ -145,6 +348,7 @@ export default function CreateEventPage() {
           requiredSkills: [],
           urgency: 'MEDIUM',
           eventDate: '',
+          eventTime: '09:00',
           volunteersNeeded: 1
         });
         setShowSuccess(false);
@@ -270,16 +474,40 @@ export default function CreateEventPage() {
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Event Date */}
-            <div>
+            <div className="relative">
               <label className="label">Event Date *</label>
-              <input
-                type="date"
-                value={formData.eventDate}
-                onChange={(e) => handleInputChange('eventDate', e.target.value)}
-                className={`input ${errors.eventDate ? 'border-red-500' : ''}`}
-              />
+              <button
+                type="button"
+                onClick={() => setShowDatePicker(!showDatePicker)}
+                className={`input w-full text-left flex items-center justify-between ${errors.eventDate ? 'border-red-500' : ''}`}
+              >
+                <span className={formData.eventDate ? 'text-slate-900' : 'text-slate-500'}>
+                  {formatDisplayDate(formData.eventDate)}
+                </span>
+                <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </button>
+
+              {/* Custom Calendar Picker */}
+              {showDatePicker && renderCalendar()}
+
               {errors.eventDate && (
                 <p className="text-sm text-red-600 mt-1">{errors.eventDate}</p>
+              )}
+            </div>
+
+            {/* Event Time */}
+            <div>
+              <label className="label">Event Time *</label>
+              <input
+                type="time"
+                value={formData.eventTime}
+                onChange={(e) => handleInputChange('eventTime', e.target.value)}
+                className={`input ${errors.eventTime ? 'border-red-500' : ''}`}
+              />
+              {errors.eventTime && (
+                <p className="text-sm text-red-600 mt-1">{errors.eventTime}</p>
               )}
             </div>
 
@@ -300,9 +528,11 @@ export default function CreateEventPage() {
                 <p className="text-sm text-red-600 mt-1">{errors.urgency}</p>
               )}
             </div>
+          </div>
 
-            {/* Volunteers Needed */}
-            <div>
+          {/* Volunteers Needed - Separate row */}
+          <div className="mt-4">
+            <div className="max-w-xs">
               <label className="label">Volunteers Needed *</label>
               <input
                 type="number"
@@ -316,6 +546,7 @@ export default function CreateEventPage() {
               {errors.volunteersNeeded && (
                 <p className="text-sm text-red-600 mt-1">{errors.volunteersNeeded}</p>
               )}
+              <p className="text-xs text-slate-500 mt-1">Maximum 100 volunteers per event</p>
             </div>
           </div>
         </div>
