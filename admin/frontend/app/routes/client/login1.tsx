@@ -131,14 +131,14 @@ export default function LoginPage() {
                 </div>
 
                 <a
-                  href="#"
+                  href="/register"
                   className="w-full inline-flex justify-center rounded-xl bg-gradient-to-r from-sky-600 to-fuchsia-600 text-white font-semibold py-3 shadow-lg hover:from-sky-500 hover:to-fuchsia-500 transition"
                 >
                   Register
                 </a>
 
                 <p className="text-xs text-slate-600 text-center">
-                  By continuing you agree to our <a href="#" className="text-indigo-700 hover:text-indigo-600">Community Guidelines</a>.
+                  By continuing you agree to our <a href="/privacy" className="text-indigo-700 hover:text-indigo-600">Privacy Policy</a>.
                 </p>
               </form>
             </div>
@@ -150,9 +150,9 @@ export default function LoginPage() {
         <div className="max-w-6xl mx-auto px-4 py-8">
           <div className="text-slate-800 font-semibold mb-4">Quick Links</div>
           <nav className="flex flex-wrap gap-x-6 gap-y-3 text-sm text-slate-600">
-            <a href="#" className="hover:text-slate-900">About Us</a>
-            <a href="#" className="hover:text-slate-900">Contact</a>
-            <a href="#" className="hover:text-slate-900">Privacy Policy</a>
+            <a href="/about" className="hover:text-slate-900">About Us</a>
+            <a href="/contact" className="hover:text-slate-900">Contact</a>
+            <a href="/privacy" className="hover:text-slate-900">Privacy Policy</a>
           </nav>
           <div className="mt-6 text-xs text-slate-500">© {new Date().getFullYear()} JACS ShiftPilot. All rights reserved.</div>
         </div>

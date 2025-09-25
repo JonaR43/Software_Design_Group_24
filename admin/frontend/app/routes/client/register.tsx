@@ -305,7 +305,7 @@ export default function RegisterPage() {
                     className="mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-400" 
                   />
                   <label htmlFor="terms" className="text-sm text-slate-700">
-                    I agree to the <a href="#" className="text-indigo-700 hover:text-indigo-600">Terms of Service</a> and <a href="#" className="text-indigo-700 hover:text-indigo-600">Privacy Policy</a>
+                    I agree to the <a href="/privacy" className="text-indigo-700 hover:text-indigo-600">Terms of Service</a> and <a href="/privacy" className="text-indigo-700 hover:text-indigo-600">Privacy Policy</a>
                   </label>
                 </div>
 
@@ -346,9 +346,9 @@ export default function RegisterPage() {
         <div className="max-w-6xl mx-auto px-4 py-8">
           <div className="text-slate-800 font-semibold mb-4">Quick Links</div>
           <nav className="flex flex-wrap gap-x-6 gap-y-3 text-sm text-slate-600">
-            <a href="#" className="hover:text-slate-900">About Us</a>
-            <a href="#" className="hover:text-slate-900">Contact</a>
-            <a href="#" className="hover:text-slate-900">Privacy Policy</a>
+            <a href="/about" className="hover:text-slate-900">About Us</a>
+            <a href="/contact" className="hover:text-slate-900">Contact</a>
+            <a href="/privacy" className="hover:text-slate-900">Privacy Policy</a>
           </nav>
           <div className="mt-6 text-xs text-slate-500">© {new Date().getFullYear()} JACS ShiftPilot. All rights reserved.</div>
         </div>
