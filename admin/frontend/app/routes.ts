@@ -5,9 +5,9 @@ export default [
   route("login", "routes/client/login1.tsx"), // Use login1.tsx as main login
   route("register", "routes/client/register.tsx"), // New registration page
   route("signup", "routes/client/signup.tsx"), // Keep existing if needed
-  route("about", "routes/client/about.tsx"), // About us page
-  route("contact", "routes/client/contact.tsx"), // Contact page
-  route("privacy", "routes/client/privacy.tsx"), // Privacy policy page
+  route("about", "admin/frontend/app/routes/client/about.tsx"), // About us page
+  route("contact", "admin/frontend/app/routes/client/contact.tsx"), // Contact page
+  route("privacy", "admin/frontend/app/routes/client/privacy.tsx"), // Privacy policy page
 
   // Dashboard route (default redirects to Home)
   route("dashboard", "routes/client/dashboard/dashboard.tsx", [
@@ -17,7 +17,7 @@ export default [
     route("schedule", "routes/client/dashboard/schedule.tsx"),
     route("profile1", "routes/client/dashboard/profile1.tsx"), // Assignment 2 compliant profile
     route("profile", "routes/client/dashboard/profile.tsx"), // Original profile (backup)
-    route("history", "routes/client/dashboard/volunteer-history.tsx"), // Volunteer history page
+    route("history", "admin/frontend/app/routes/client/dashboard/volunteer-history.tsx"), // Volunteer history page
     
     // Admin-only routes
     route("admin", "routes/client/dashboard/admin/admin-layout.tsx", [
