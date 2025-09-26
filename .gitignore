@@ -1,4 +1,4 @@
 /admin/frontend/node_modules
 /admin/frontend/.react-router/
-/build/
+/admin/frontend/build/
 /admin/node_modules
