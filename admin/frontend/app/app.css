@@ -3,6 +3,18 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Ensure full height layout */
+html, body, #root {
+  margin: 0;
+  padding: 0;
+}
+
+/* Ensure consistent background on body */
+body {
+  background: linear-gradient(to bottom, #e0e7ff, #ddd6fe, #f1f5f9);
+  min-height: 100vh;
+}
+
 @layer components {
   .page { @apply min-h-screen bg-gradient-to-b from-indigo-200 via-violet-200 to-slate-100 text-slate-800 flex flex-col; }
   .header { @apply w-full border-b border-indigo-100/80 bg-white/70 backdrop-blur; }
@@ -13,7 +25,7 @@
   .hero-title { @apply text-3xl font-semibold mb-3 text-slate-900; }
   .hero-text { @apply text-slate-700 max-w-lg; }
   .features { @apply mt-6 space-y-2 text-sm text-slate-700; }
-  .card { @apply w-full max-w-md bg-white/90 border border-indigo-100 rounded-2xl p-6 sm:p-8 shadow-2xl backdrop-blur; }
+  .card { @apply w-full bg-white/95 border border-indigo-100 rounded-2xl p-6 sm:p-8 shadow-2xl backdrop-blur; }
   .title-gradient { @apply text-2xl font-semibold tracking-wide mb-6 bg-gradient-to-r from-indigo-700 to-sky-700 bg-clip-text text-transparent; }
   .label { @apply text-sm text-slate-700; }
   .input { @apply w-full rounded-xl bg-white border border-slate-200 px-4 py-3 outline-none focus:ring-4 ring-indigo-300/40 focus:border-indigo-600; }
@@ -43,7 +55,10 @@
 
 .bg-ornament {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   background:
     radial-gradient(820px 440px at 10% -10%, rgba(99, 102, 241, 0.30), transparent 60%),
     radial-gradient(720px 400px at 100% 110%, rgba(56, 189, 248, 0.24), transparent 60%),

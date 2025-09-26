@@ -1,5 +1,7 @@
+import { useState } from "react";
+
 export default function Events() {
-  const events = [
+  const [events, setEvents] = useState([
     {
       id: 1,
       title: "Community Food Drive",
@@ -30,7 +32,7 @@ export default function Events() {
       maxVolunteers: 30,
       status: "open"
     }
-  ];
+  ]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -41,21 +43,39 @@ export default function Events() {
     }
   };
 
+  const handleJoinEvent = (eventId: number) => {
+    setEvents(events =>
+      events.map(event =>
+        event.id === eventId
+          ? { ...event, status: 'registered', volunteers: event.volunteers + 1 }
+          : event
+      )
+    );
+    alert('Successfully registered for the event! You will receive a confirmation email shortly.');
+  };
+
+  const handleFilterEvents = () => {
+    alert('Filter functionality would open a modal to filter events by date, location, skills needed, etc.');
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="max-w-6xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-semibold text-slate-900">Events</h1>
           <p className="text-slate-600 mt-1">Discover and join volunteer opportunities</p>
         </div>
-        <button className="btn-primary px-6 py-2 w-auto">
+        <button
+          onClick={handleFilterEvents}
+          className="btn-primary px-6 py-2 w-auto"
+        >
           Filter Events
         </button>
       </div>
 
       {/* Events List */}
-      <div className="space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
         {events.map((event) => (
           <div key={event.id} className="card p-6">
             <div className="flex items-start justify-between mb-4">
@@ -96,7 +116,10 @@ export default function Events() {
                 {event.volunteers}/{event.maxVolunteers} volunteers
               </div>
               {event.status !== 'registered' && (
-                <button className="bg-gradient-to-r from-indigo-700 to-violet-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:from-indigo-600 hover:to-violet-600 transition">
+                <button
+                  onClick={() => handleJoinEvent(event.id)}
+                  className="bg-gradient-to-r from-indigo-700 to-violet-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:from-indigo-600 hover:to-violet-600 transition"
+                >
                   Join Event
                 </button>
               )}
