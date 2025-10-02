@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { SkillsService } from "~/services/api";
 
 interface EventFormData {
   eventName: string;
@@ -60,16 +61,23 @@ export default function CreateEventPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
-  // Available skills list (same as profile)
-  const availableSkills = [
-    'Event Planning', 'Public Speaking', 'Marketing', 'Fundraising',
-    'Food Service', 'Manual Labor', 'Administrative', 'Teaching/Training',
-    'Healthcare', 'Technology', 'Customer Service', 'Transportation',
-    'Photography', 'Social Media', 'Writing', 'Translation',
-    'Environmental Work', 'Construction', 'Childcare', 'Elder Care',
-    'Animal Care', 'Arts & Crafts', 'Music & Entertainment', 'Sports Coaching',
-    'Legal Services'
-  ];
+  // Load skills from backend
+  const [availableSkills, setAvailableSkills] = useState<string[]>([]);
+
+  useEffect(() => {
+    const loadSkills = async () => {
+      try {
+        const skills = await SkillsService.getSkills();
+        setAvailableSkills(skills.map(skill => skill.name));
+      } catch (error) {
+        console.error('Failed to load skills:', error);
+        // Fallback to empty array
+        setAvailableSkills([]);
+      }
+    };
+
+    loadSkills();
+  }, []);
 
   const validateField = (name: string, value: any): string | null => {
     switch (name) {

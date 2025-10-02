@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { EventService, type FrontendEvent } from "~/services/api";
 
 interface Event {
   id: string;
@@ -14,44 +15,45 @@ interface Event {
 }
 
 export default function EventManagementPage() {
-  const [events, setEvents] = useState<Event[]>([
-    {
-      id: '1',
-      eventName: 'Community Food Drive',
-      eventDescription: 'Help pack and distribute food to families in need',
-      location: 'Community Center - 123 Community Center St, Springfield, IL',
-      requiredSkills: ['Food Service', 'Manual Labor', 'Customer Service'],
-      urgency: 'HIGH',
-      eventDate: new Date('2024-02-15'),
-      volunteersNeeded: 15,
-      volunteersAssigned: 8,
-      status: 'PUBLISHED'
-    },
-    {
-      id: '2',
-      eventName: 'Park Cleanup Initiative',
-      eventDescription: 'Clean up and beautify our local community park',
-      location: 'Riverside Park - 456 Park Ave, Springfield, IL',
-      requiredSkills: ['Manual Labor', 'Environmental Work'],
-      urgency: 'MEDIUM',
-      eventDate: new Date('2024-02-20'),
-      volunteersNeeded: 20,
-      volunteersAssigned: 12,
-      status: 'PUBLISHED'
-    },
-    {
-      id: '3',
-      eventName: 'Senior Center Activity Day',
-      eventDescription: 'Organize activities and provide companionship for seniors',
-      location: 'Golden Years Senior Center - 789 Elder St, Springfield, IL',
-      requiredSkills: ['Social Work', 'Event Planning', 'Entertainment'],
-      urgency: 'LOW',
-      eventDate: new Date('2024-02-25'),
-      volunteersNeeded: 10,
-      volunteersAssigned: 6,
-      status: 'DRAFT'
+  const [events, setEvents] = useState<Event[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string>("");
+
+  // Load events from backend
+  const loadEvents = async () => {
+    try {
+      setIsLoading(true);
+      const backendEvents = await EventService.getEvents();
+
+      // Transform backend events to admin format
+      const adminEvents: Event[] = backendEvents.map(event => ({
+        id: event.id,
+        eventName: event.title,
+        eventDescription: event.description || 'No description available',
+        location: event.location,
+        requiredSkills: [], // Could load from event details API if available
+        urgency: 'MEDIUM' as const, // Could map from event.urgencyLevel if available
+        eventDate: new Date(event.date),
+        volunteersNeeded: event.maxVolunteers,
+        volunteersAssigned: event.volunteers,
+        status: event.status === 'open' ? 'PUBLISHED' as const :
+                event.status === 'closed' ? 'COMPLETED' as const :
+                event.status === 'cancelled' ? 'CANCELLED' as const : 'DRAFT' as const
+      }));
+
+      setEvents(adminEvents);
+      setError("");
+    } catch (err) {
+      setError("Failed to load events");
+      console.error("Error loading events:", err);
+    } finally {
+      setIsLoading(false);
     }
-  ]);
+  };
+
+  useEffect(() => {
+    loadEvents();
+  }, []);
 
   const [filter, setFilter] = useState<'ALL' | 'DRAFT' | 'PUBLISHED' | 'COMPLETED' | 'CANCELLED'>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
@@ -63,16 +65,45 @@ export default function EventManagementPage() {
     return matchesFilter && matchesSearch;
   });
 
-  const handleDeleteEvent = (eventId: string) => {
-    if (confirm('Are you sure you want to delete this event?')) {
-      setEvents(events.filter(e => e.id !== eventId));
+  const handleDeleteEvent = async (eventId: string) => {
+    if (confirm('Are you sure you want to delete this event? This action cannot be undone.')) {
+      try {
+        await EventService.deleteEvent(eventId);
+        // Reload events from backend to get fresh data
+        await loadEvents();
+        alert('Event deleted successfully');
+      } catch (error) {
+        console.error('Error deleting event:', error);
+        alert('Failed to delete event: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      }
     }
   };
 
-  const handleStatusChange = (eventId: string, newStatus: Event['status']) => {
-    setEvents(events.map(e => 
-      e.id === eventId ? { ...e, status: newStatus } : e
-    ));
+  const handleStatusChange = async (eventId: string, newStatus: Event['status']) => {
+    try {
+      // Map admin status to backend status
+      const backendStatus = newStatus === 'PUBLISHED' ? 'published' :
+                           newStatus === 'DRAFT' ? 'draft' :
+                           newStatus === 'COMPLETED' ? 'completed' :
+                           newStatus === 'CANCELLED' ? 'cancelled' : newStatus.toLowerCase();
+
+      await EventService.updateEventStatus(eventId, backendStatus);
+
+      // Update local state immediately for better UX
+      setEvents(events.map(e =>
+        e.id === eventId ? { ...e, status: newStatus } : e
+      ));
+    } catch (error) {
+      console.error('Error updating event status:', error);
+      alert('Failed to update event status: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      // Reload events to revert any optimistic updates
+      await loadEvents();
+    }
+  };
+
+  const handleEditEvent = (eventId: string) => {
+    // Navigate to edit page or open edit modal
+    window.location.href = `/dashboard/admin/edit-event/${eventId}`;
   };
 
   const getUrgencyColor = (urgency: string) => {
@@ -95,6 +126,27 @@ export default function EventManagementPage() {
     }
   };
 
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-slate-600">Loading events...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl">
+        {error}
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 space-y-6">
       {/* Header */}
@@ -103,15 +155,26 @@ export default function EventManagementPage() {
           <h1 className="text-3xl font-semibold text-slate-900 title-gradient">Event Management</h1>
           <p className="text-slate-600 mt-2">Create, edit, and manage volunteer events</p>
         </div>
-        <a
-          href="/dashboard/admin/create-event"
-          className="btn-primary w-auto px-6 py-3 flex items-center justify-center gap-2"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Create New Event
-        </a>
+        <div className="flex gap-3">
+          <button
+            onClick={loadEvents}
+            className="bg-white border border-slate-200 text-slate-700 px-4 py-3 rounded-lg text-sm font-medium hover:bg-slate-50 transition flex items-center gap-2"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Refresh
+          </button>
+          <a
+            href="/dashboard/admin/create-event"
+            className="btn-primary w-auto px-6 py-3 flex items-center justify-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Create New Event
+          </a>
+        </div>
       </div>
 
       {/* Filters and Search */}
@@ -209,7 +272,10 @@ export default function EventManagementPage() {
             {/* Action Buttons */}
             <div className="flex flex-col gap-3">
               <div className="flex gap-2">
-                <button className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2">
+                <button
+                  onClick={() => handleEditEvent(event.id)}
+                  className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
+                >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                   </svg>
