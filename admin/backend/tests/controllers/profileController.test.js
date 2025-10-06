@@ -100,6 +100,49 @@ describe('ProfileController', () => {
       expect(response.status).toBe(400);
       expect(response.body.status).toBe('error');
     });
+
+    it('should handle user not found error', async () => {
+      profileService.updateProfile.mockRejectedValue(new Error('User not found'));
+
+      const response = await request(app)
+        .put('/profile')
+        .send({ firstName: 'John' });
+
+      expect(response.status).toBe(404);
+      expect(response.body.status).toBe('error');
+    });
+
+    it('should handle availability validation errors', async () => {
+      profileService.updateProfile.mockRejectedValue(new Error('Time must be in HH:MM format'));
+
+      const response = await request(app)
+        .put('/profile')
+        .send({ availability: [{ dayOfWeek: 1, startTime: 'invalid' }] });
+
+      expect(response.status).toBe(400);
+      expect(response.body.status).toBe('error');
+    });
+
+    it('should handle overlapping time slots error', async () => {
+      profileService.updateProfile.mockRejectedValue(new Error('Overlapping time slots'));
+
+      const response = await request(app)
+        .put('/profile')
+        .send({ availability: [] });
+
+      expect(response.status).toBe(400);
+      expect(response.body.status).toBe('error');
+    });
+
+    it('should handle generic errors', async () => {
+      profileService.updateProfile.mockRejectedValue(new Error('Database error'));
+
+      const response = await request(app)
+        .put('/profile')
+        .send({ firstName: 'John' });
+
+      expect(response.status).toBe(500);
+    });
   });
 
   describe('GET /profile/skills', () => {
@@ -140,6 +183,17 @@ describe('ProfileController', () => {
       expect(response.status).toBe(400);
       expect(response.body.message).toBe('Search query (q) is required');
     });
+
+    it('should handle short search query', async () => {
+      profileService.searchSkills.mockRejectedValue(new Error('Search query must be at least 2 characters'));
+
+      const response = await request(app)
+        .get('/profile/skills/search')
+        .query({ q: 'a' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toBe('Search query must be at least 2 characters');
+    });
   });
 
   describe('GET /profile/proficiency-levels', () => {
@@ -178,6 +232,28 @@ describe('ProfileController', () => {
         .send({});
 
       expect(response.status).toBe(400);
+    });
+
+    it('should handle skill validation errors', async () => {
+      profileService.addSkills.mockRejectedValue(new Error('Skill not found'));
+
+      const response = await request(app)
+        .post('/profile/skills')
+        .send({ skills: [{ skillId: 'invalid' }] });
+
+      expect(response.status).toBe(400);
+      expect(response.body.status).toBe('error');
+    });
+
+    it('should handle proficiency errors', async () => {
+      profileService.addSkills.mockRejectedValue(new Error('Invalid proficiency level'));
+
+      const response = await request(app)
+        .post('/profile/skills')
+        .send({ skills: [{ skillId: 'skill_001', proficiency: 'invalid' }] });
+
+      expect(response.status).toBe(400);
+      expect(response.body.status).toBe('error');
     });
   });
 
@@ -227,6 +303,28 @@ describe('ProfileController', () => {
 
       expect(response.status).toBe(400);
     });
+
+    it('should handle dayOfWeek validation errors', async () => {
+      profileService.updateAvailability.mockRejectedValue(new Error('dayOfWeek must be between 0 and 6'));
+
+      const response = await request(app)
+        .put('/profile/availability')
+        .send({ availability: [{ dayOfWeek: 7 }] });
+
+      expect(response.status).toBe(400);
+      expect(response.body.status).toBe('error');
+    });
+
+    it('should handle end time validation errors', async () => {
+      profileService.updateAvailability.mockRejectedValue(new Error('End time must be after start time'));
+
+      const response = await request(app)
+        .put('/profile/availability')
+        .send({ availability: [{ dayOfWeek: 1, startTime: '17:00', endTime: '09:00' }] });
+
+      expect(response.status).toBe(400);
+      expect(response.body.status).toBe('error');
+    });
   });
 
   describe('GET /profile/availability', () => {
@@ -240,6 +338,24 @@ describe('ProfileController', () => {
       const response = await request(app).get('/profile/availability');
 
       expect(response.status).toBe(200);
+    });
+
+    it('should handle invalid start date format', async () => {
+      const response = await request(app)
+        .get('/profile/availability')
+        .query({ start: 'invalid-date' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toBe('Invalid start date format');
+    });
+
+    it('should handle invalid end date format', async () => {
+      const response = await request(app)
+        .get('/profile/availability')
+        .query({ end: 'invalid-date' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toBe('Invalid end date format');
     });
   });
 
@@ -335,6 +451,36 @@ describe('ProfileController', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.status).toBe('success');
+    });
+
+    it('should handle skill validation errors', async () => {
+      profileService.validateSkills = jest.fn().mockRejectedValue(new Error('Invalid skill ID'));
+
+      const response = await request(app)
+        .post('/profile/validate')
+        .send({
+          skills: [{ skillId: 'invalid', proficiency: 'intermediate' }]
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.status).toBe('error');
+      expect(response.body.message).toBe('Invalid skill ID');
+    });
+
+    it('should handle availability validation errors', async () => {
+      profileService.validateAvailability = jest.fn().mockImplementation(() => {
+        throw new Error('Invalid availability format');
+      });
+
+      const response = await request(app)
+        .post('/profile/validate')
+        .send({
+          availability: [{ dayOfWeek: 8 }]
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.status).toBe('error');
+      expect(response.body.message).toBe('Invalid availability format');
     });
   });
 });

@@ -59,6 +59,15 @@ describe('HistoryController', () => {
 
       expect(response.status).toBe(403);
     });
+
+    it('should handle service errors', async () => {
+      historyService.getVolunteerHistory.mockRejectedValue(new Error('Database error'));
+
+      const response = await request(app).get('/history/user_001');
+
+      expect(response.status).toBe(400);
+      expect(response.body.success).toBe(false);
+    });
   });
 
   describe('GET /history/my/history', () => {
@@ -69,6 +78,15 @@ describe('HistoryController', () => {
       const response = await request(app).get('/history/my/history');
 
       expect(response.status).toBe(200);
+    });
+
+    it('should handle errors', async () => {
+      historyService.getMyHistory.mockRejectedValue(new Error('Service error'));
+
+      const response = await request(app).get('/history/my/history');
+
+      expect(response.status).toBe(400);
+      expect(response.body.success).toBe(false);
     });
   });
 
@@ -83,6 +101,31 @@ describe('HistoryController', () => {
 
       expect(response.status).toBe(201);
     });
+
+    it('should deny non-admin users', async () => {
+      // Create a temporary route with volunteer auth
+      const tempApp = express();
+      tempApp.use(express.json());
+      tempApp.post('/history/record', mockVolunteerAuth, historyController.recordParticipation);
+
+      const response = await request(tempApp)
+        .post('/history/record')
+        .send({ volunteerId: 'user_001', eventId: 'event_001' });
+
+      expect(response.status).toBe(403);
+      expect(response.body.success).toBe(false);
+    });
+
+    it('should handle errors', async () => {
+      historyService.recordParticipation.mockRejectedValue(new Error('Record error'));
+
+      const response = await request(app)
+        .post('/history/record')
+        .send({ volunteerId: 'user_001', eventId: 'event_001' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.success).toBe(false);
+    });
   });
 
   describe('PUT /history/:recordId', () => {
@@ -96,6 +139,30 @@ describe('HistoryController', () => {
 
       expect(response.status).toBe(200);
     });
+
+    it('should deny non-admin users', async () => {
+      const tempApp = express();
+      tempApp.use(express.json());
+      tempApp.put('/history/:recordId', mockVolunteerAuth, historyController.updateHistoryRecord);
+
+      const response = await request(tempApp)
+        .put('/history/hist_001')
+        .send({ status: 'completed' });
+
+      expect(response.status).toBe(403);
+      expect(response.body.success).toBe(false);
+    });
+
+    it('should handle errors', async () => {
+      historyService.updateHistoryRecord.mockRejectedValue(new Error('Update error'));
+
+      const response = await request(app)
+        .put('/history/hist_001')
+        .send({ status: 'completed' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.success).toBe(false);
+    });
   });
 
   describe('GET /history/:volunteerId/stats', () => {
@@ -106,6 +173,21 @@ describe('HistoryController', () => {
       const response = await request(app).get('/history/user_001/stats');
 
       expect(response.status).toBe(200);
+    });
+
+    it('should deny volunteer viewing other volunteer stats', async () => {
+      const response = await request(app).get('/history/user_002/stats');
+
+      expect(response.status).toBe(403);
+      expect(response.body.success).toBe(false);
+    });
+
+    it('should handle errors', async () => {
+      historyService.getVolunteerStats.mockRejectedValue(new Error('Stats error'));
+
+      const response = await request(app).get('/history/user_001/stats');
+
+      expect(response.status).toBe(400);
     });
   });
 
@@ -120,6 +202,14 @@ describe('HistoryController', () => {
       expect(response.body.success).toBe(true);
       expect(historyService.getVolunteerStats).toHaveBeenCalledWith('user_001');
     });
+
+    it('should handle errors', async () => {
+      historyService.getVolunteerStats.mockRejectedValue(new Error('Error'));
+
+      const response = await request(app).get('/history/my/stats');
+
+      expect(response.status).toBe(400);
+    });
   });
 
   describe('GET /history/:volunteerId/performance', () => {
@@ -130,6 +220,14 @@ describe('HistoryController', () => {
       const response = await request(app).get('/history/user_001/performance');
 
       expect(response.status).toBe(200);
+    });
+
+    it('should handle errors', async () => {
+      historyService.getPerformanceMetrics.mockRejectedValue(new Error('Error'));
+
+      const response = await request(app).get('/history/user_001/performance');
+
+      expect(response.status).toBe(400);
     });
   });
 
@@ -144,6 +242,14 @@ describe('HistoryController', () => {
       expect(response.body.success).toBe(true);
       expect(historyService.getPerformanceMetrics).toHaveBeenCalledWith('user_001', undefined);
     });
+
+    it('should handle errors', async () => {
+      historyService.getPerformanceMetrics.mockRejectedValue(new Error('Error'));
+
+      const response = await request(app).get('/history/my/performance');
+
+      expect(response.status).toBe(400);
+    });
   });
 
   describe('GET /history/all/stats', () => {
@@ -157,6 +263,14 @@ describe('HistoryController', () => {
       expect(response.body.success).toBe(true);
       expect(historyService.getAllVolunteerStats).toHaveBeenCalledWith({ sortBy: undefined });
     });
+
+    it('should handle errors', async () => {
+      historyService.getAllVolunteerStats.mockRejectedValue(new Error('Error'));
+
+      const response = await request(app).get('/history/all/stats');
+
+      expect(response.status).toBe(400);
+    });
   });
 
   describe('GET /history/event/:eventId', () => {
@@ -167,6 +281,14 @@ describe('HistoryController', () => {
       const response = await request(app).get('/history/event/event_001');
 
       expect(response.status).toBe(200);
+    });
+
+    it('should handle errors', async () => {
+      historyService.getEventHistory.mockRejectedValue(new Error('Error'));
+
+      const response = await request(app).get('/history/event/event_001');
+
+      expect(response.status).toBe(400);
     });
   });
 

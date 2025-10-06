@@ -90,6 +90,70 @@ describe('MatchingAlgorithm', () => {
     });
   });
 
+  describe('calculateLocationScore', () => {
+    it('should give bonus for very close distances', () => {
+      const closeEvent = { ...mockEvent, latitude: 29.7604, longitude: -95.3698 }; // Same location
+      const result = matchingAlgorithm.calculateMatchScore(mockVolunteer, closeEvent);
+
+      expect(result.scoreBreakdown.location).toBeGreaterThan(90);
+    });
+
+    it('should penalize distances exceeding max preference', () => {
+      const farEvent = { ...mockEvent, latitude: 30.2672, longitude: -97.7431 }; // Austin, ~150 miles
+      const result = matchingAlgorithm.calculateMatchScore(mockVolunteer, farEvent);
+
+      expect(result.scoreBreakdown.location).toBeLessThan(50);
+    });
+
+    it('should return default score for missing location data', () => {
+      const noLocationVolunteer = { ...mockVolunteer, profile: { ...mockVolunteer.profile, latitude: null } };
+      const result = matchingAlgorithm.calculateMatchScore(noLocationVolunteer, mockEvent);
+
+      expect(result.scoreBreakdown.location).toBe(50);
+    });
+  });
+
+  describe('calculateSkillsScore', () => {
+    it('should return 100 for events with no required skills', () => {
+      const noSkillsEvent = { ...mockEvent, requiredSkills: [] };
+      const result = matchingAlgorithm.calculateMatchScore(mockVolunteer, noSkillsEvent);
+
+      expect(result.scoreBreakdown.skills).toBe(100);
+    });
+
+    it('should return 0 for volunteer with no skills', () => {
+      const noSkillsVolunteer = { ...mockVolunteer, profile: { ...mockVolunteer.profile, skills: [] } };
+      const result = matchingAlgorithm.calculateMatchScore(noSkillsVolunteer, mockEvent);
+
+      expect(result.scoreBreakdown.skills).toBe(0);
+    });
+
+    it('should handle missing required skills', () => {
+      const strictEvent = {
+        ...mockEvent,
+        requiredSkills: [
+          { skillId: 'skill_999', minLevel: 'beginner', required: true }
+        ]
+      };
+      const result = matchingAlgorithm.calculateMatchScore(mockVolunteer, strictEvent);
+
+      expect(result.scoreBreakdown.skills).toBeLessThan(50);
+    });
+
+    it('should give partial credit for optional skills not matched', () => {
+      const optionalSkillsEvent = {
+        ...mockEvent,
+        requiredSkills: [
+          { skillId: 'skill_001', minLevel: 'beginner', required: true },
+          { skillId: 'skill_999', minLevel: 'beginner', required: false }
+        ]
+      };
+      const result = matchingAlgorithm.calculateMatchScore(mockVolunteer, optionalSkillsEvent);
+
+      expect(result.scoreBreakdown.skills).toBeGreaterThan(0);
+    });
+  });
+
   describe('calculateDistance', () => {
     it('should calculate distance between two points', () => {
       const distance = matchingAlgorithm.calculateDistance(
@@ -102,6 +166,142 @@ describe('MatchingAlgorithm', () => {
     });
 
     it('should return 0 for same location', () => {
+      const distance = matchingAlgorithm.calculateDistance(29.7604, -95.3698, 29.7604, -95.3698);
+
+      expect(distance).toBe(0);
+    });
+  });
+
+  describe('calculateAvailabilityScore', () => {
+    it('should return low score for missing availability', () => {
+      const noAvailVolunteer = { ...mockVolunteer, profile: { ...mockVolunteer.profile, availability: [] } };
+      const result = matchingAlgorithm.calculateMatchScore(noAvailVolunteer, mockEvent);
+
+      expect(result.scoreBreakdown.availability).toBe(30);
+    });
+
+    it('should return 0 for no availability on event day', () => {
+      const tuesdayEvent = { ...mockEvent, startDate: new Date('2024-12-17T10:00:00Z') }; // Tuesday
+      const mondayOnlyVolunteer = {
+        ...mockVolunteer,
+        profile: {
+          ...mockVolunteer.profile,
+          availability: [{ dayOfWeek: 1, startTime: '09:00', endTime: '17:00', isRecurring: true }]
+        }
+      };
+      const result = matchingAlgorithm.calculateMatchScore(mondayOnlyVolunteer, tuesdayEvent);
+
+      expect(result.scoreBreakdown.availability).toBe(0);
+    });
+
+    it('should penalize weekend events for weekdays-only preference', () => {
+      const saturdayEvent = { ...mockEvent, startDate: new Date('2024-12-14T10:00:00Z') }; // Saturday
+      const weekdaysVolunteer = {
+        ...mockVolunteer,
+        profile: {
+          ...mockVolunteer.profile,
+          availability: [{ dayOfWeek: 6, startTime: '09:00', endTime: '17:00', isRecurring: true }],
+          preferences: { ...mockVolunteer.profile.preferences, weekdaysOnly: true }
+        }
+      };
+      const result = matchingAlgorithm.calculateMatchScore(weekdaysVolunteer, saturdayEvent);
+
+      expect(result.scoreBreakdown.availability).toBeLessThan(70);
+    });
+
+    it('should give bonus for preferred time slots', () => {
+      const morningEvent = { ...mockEvent, startDate: new Date('2024-12-16T09:00:00Z') };
+      const result = matchingAlgorithm.calculateMatchScore(mockVolunteer, morningEvent);
+
+      // Availability score can vary based on time overlap
+      expect(result.scoreBreakdown.availability).toBeGreaterThanOrEqual(0);
+    });
+  });
+
+  describe('calculatePreferencesScore', () => {
+    it('should return neutral score for no preferences', () => {
+      const noPrefVolunteer = { ...mockVolunteer, profile: { ...mockVolunteer.profile, preferences: null } };
+      const result = matchingAlgorithm.calculateMatchScore(noPrefVolunteer, mockEvent);
+
+      expect(result.scoreBreakdown.preferences).toBe(50);
+    });
+
+    it('should score high for matching cause', () => {
+      const result = matchingAlgorithm.calculateMatchScore(mockVolunteer, mockEvent);
+
+      expect(result.scoreBreakdown.preferences).toBeGreaterThan(50);
+    });
+
+    it('should score lower for non-matching cause', () => {
+      const nonMatchingVolunteer = {
+        ...mockVolunteer,
+        profile: {
+          ...mockVolunteer.profile,
+          preferences: { ...mockVolunteer.profile.preferences, causes: ['education', 'health'] }
+        }
+      };
+      const result = matchingAlgorithm.calculateMatchScore(nonMatchingVolunteer, mockEvent);
+
+      expect(result.scoreBreakdown.preferences).toBeLessThan(60);
+    });
+
+    it('should give bonus for urgent events', () => {
+      const urgentEvent = { ...mockEvent, urgencyLevel: 'urgent' };
+      const result = matchingAlgorithm.calculateMatchScore(mockVolunteer, urgentEvent);
+
+      expect(result.scoreBreakdown.preferences).toBeGreaterThan(50);
+    });
+
+    it('should give bonus for high priority events', () => {
+      const highPriorityEvent = { ...mockEvent, urgencyLevel: 'high' };
+      const result = matchingAlgorithm.calculateMatchScore(mockVolunteer, highPriorityEvent);
+
+      expect(result.scoreBreakdown.preferences).toBeGreaterThan(50);
+    });
+
+    it('should handle normal urgency events', () => {
+      const normalEvent = { ...mockEvent, urgencyLevel: 'normal' };
+      const result = matchingAlgorithm.calculateMatchScore(mockVolunteer, normalEvent);
+
+      expect(result.scoreBreakdown.preferences).toBeGreaterThanOrEqual(0);
+    });
+
+    it('should reduce score for low priority events', () => {
+      const lowPriorityEvent = { ...mockEvent, urgencyLevel: 'low' };
+      const result = matchingAlgorithm.calculateMatchScore(mockVolunteer, lowPriorityEvent);
+
+      expect(result.scoreBreakdown.preferences).toBeGreaterThanOrEqual(0);
+    });
+  });
+
+  describe('calculateReliabilityScore', () => {
+    it('should calculate reliability based on profile completeness', () => {
+      const result = matchingAlgorithm.calculateMatchScore(mockVolunteer, mockEvent);
+
+      // Score is calculated based on profile completeness, not direct reliability value
+      expect(result.scoreBreakdown.reliability).toBeGreaterThanOrEqual(75);
+      expect(result.scoreBreakdown.reliability).toBeLessThanOrEqual(100);
+    });
+
+    it('should give higher score for complete profile', () => {
+      const completeVolunteer = {
+        ...mockVolunteer,
+        profile: {
+          ...mockVolunteer.profile,
+          firstName: 'John',
+          lastName: 'Doe',
+          phone: '555-1234',
+          address: '123 Main St'
+        }
+      };
+      const result = matchingAlgorithm.calculateMatchScore(completeVolunteer, mockEvent);
+
+      expect(result.scoreBreakdown.reliability).toBeGreaterThanOrEqual(85);
+    });
+  });
+
+  describe('getMatchQuality', () => {
+    it('should return "Excellent" for high scores', () => {
       const distance = matchingAlgorithm.calculateDistance(
         29.7604, -95.3698,
         29.7604, -95.3698

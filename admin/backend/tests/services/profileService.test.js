@@ -4,7 +4,7 @@
 
 const profileService = require('../../src/services/profileService');
 const { profiles, userHelpers } = require('../../src/data/users');
-const { skills } = require('../../src/data/skills');
+const { skills, skillHelpers } = require('../../src/data/skills');
 
 // Mock dependencies
 jest.mock('../../src/data/users');
@@ -130,6 +130,13 @@ describe('ProfileService', () => {
 
       await expect(profileService.updateProfile('user_002', invalidZipData))
         .rejects.toThrow('Invalid ZIP code format');
+    });
+
+    it('should handle update failure', async () => {
+      userHelpers.updateProfile.mockReturnValue(null);
+
+      await expect(profileService.updateProfile('user_002', validProfileData))
+        .rejects.toThrow('Failed to update profile');
     });
 
     it('should validate skills array', async () => {
@@ -429,6 +436,153 @@ describe('ProfileService', () => {
 
       await expect(profileService.deleteProfile('non-existent'))
         .rejects.toThrow('User not found');
+    });
+
+    it('should handle delete failure', async () => {
+      userHelpers.getProfile.mockReturnValue(mockProfile);
+      userHelpers.deleteProfile.mockReturnValue(null);
+
+      await expect(profileService.deleteProfile('user_002'))
+        .rejects.toThrow('Failed to delete profile');
+    });
+  });
+
+  describe('getProfileStats', () => {
+    it('should get profile statistics successfully', async () => {
+      const result = await profileService.getProfileStats();
+
+      expect(result.success).toBe(true);
+      expect(result.data).toHaveProperty('totalProfiles');
+      expect(result.data).toHaveProperty('completedProfiles');
+      expect(result.data).toHaveProperty('profilesWithSkills');
+      expect(result.data).toHaveProperty('profilesWithAvailability');
+      expect(result.data).toHaveProperty('averageCompletion');
+    });
+  });
+
+  describe('validateSkills', () => {
+    it('should validate valid skills successfully', async () => {
+      const skills = [
+        { skillId: 'skill_001', proficiency: 'intermediate' }
+      ];
+
+      jest.spyOn(skillHelpers, 'findById').mockReturnValue({ id: 'skill_001', name: 'First Aid' });
+      jest.spyOn(skillHelpers, 'isValidProficiency').mockReturnValue(true);
+
+      await expect(profileService.validateSkills(skills)).resolves.not.toThrow();
+
+      skillHelpers.findById.mockRestore();
+      skillHelpers.isValidProficiency.mockRestore();
+    });
+
+    it('should reject non-array skills', async () => {
+      await expect(profileService.validateSkills('not-an-array'))
+        .rejects.toThrow('Skills must be an array');
+    });
+
+    it('should reject skills without skillId', async () => {
+      const skills = [{ proficiency: 'intermediate' }];
+
+      await expect(profileService.validateSkills(skills))
+        .rejects.toThrow('Each skill must have skillId and proficiency');
+    });
+
+    it('should reject skills without proficiency', async () => {
+      const skills = [{ skillId: 'skill_001' }];
+
+      await expect(profileService.validateSkills(skills))
+        .rejects.toThrow('Each skill must have skillId and proficiency');
+    });
+
+    it('should reject invalid skill ID', async () => {
+      const skills = [{ skillId: 'invalid', proficiency: 'intermediate' }];
+
+      jest.spyOn(skillHelpers, 'findById').mockReturnValue(null);
+
+      await expect(profileService.validateSkills(skills))
+        .rejects.toThrow('Invalid skill ID');
+
+      skillHelpers.findById.mockRestore();
+    });
+
+    it('should reject invalid proficiency level', async () => {
+      const skills = [{ skillId: 'skill_001', proficiency: 'invalid' }];
+
+      jest.spyOn(skillHelpers, 'findById').mockReturnValue({ id: 'skill_001', name: 'First Aid' });
+      jest.spyOn(skillHelpers, 'isValidProficiency').mockReturnValue(false);
+
+      await expect(profileService.validateSkills(skills))
+        .rejects.toThrow('Invalid proficiency level');
+
+      skillHelpers.findById.mockRestore();
+      skillHelpers.isValidProficiency.mockRestore();
+    });
+  });
+
+  describe('validateAvailability', () => {
+    it('should validate valid availability successfully', () => {
+      const availability = [
+        { dayOfWeek: 1, startTime: '09:00', endTime: '17:00' }
+      ];
+
+      expect(() => profileService.validateAvailability(availability)).not.toThrow();
+    });
+
+    it('should reject non-array availability', () => {
+      expect(() => profileService.validateAvailability('not-an-array'))
+        .toThrow('Availability must be an array');
+    });
+
+    it('should reject availability without dayOfWeek', () => {
+      const availability = [{ startTime: '09:00', endTime: '17:00' }];
+
+      expect(() => profileService.validateAvailability(availability))
+        .toThrow('Invalid day of week');
+    });
+
+    it('should reject availability without startTime', () => {
+      const availability = [{ dayOfWeek: 1, endTime: '17:00' }];
+
+      expect(() => profileService.validateAvailability(availability))
+        .toThrow('startTime and endTime are required');
+    });
+
+    it('should reject availability without endTime', () => {
+      const availability = [{ dayOfWeek: 1, startTime: '09:00' }];
+
+      expect(() => profileService.validateAvailability(availability))
+        .toThrow('startTime and endTime are required');
+    });
+
+    it('should reject invalid dayOfWeek', () => {
+      const availability = [{ dayOfWeek: 8, startTime: '09:00', endTime: '17:00' }];
+
+      expect(() => profileService.validateAvailability(availability))
+        .toThrow('Invalid day of week');
+    });
+
+    it('should reject invalid time format', () => {
+      const availability = [{ dayOfWeek: 1, startTime: 'invalid', endTime: '17:00' }];
+
+      expect(() => profileService.validateAvailability(availability))
+        .toThrow('Time must be in HH:MM format');
+    });
+
+    it('should reject end time before start time', () => {
+      const availability = [{ dayOfWeek: 1, startTime: '17:00', endTime: '09:00' }];
+
+      expect(() => profileService.validateAvailability(availability))
+        .toThrow('End time must be after start time');
+    });
+
+    it('should reject overlapping slots', () => {
+      const availability = [
+        { dayOfWeek: 1, startTime: '09:00', endTime: '17:00' },
+        { dayOfWeek: 1, startTime: '12:00', endTime: '18:00' }
+      ];
+
+      expect(() => profileService.validateAvailability(availability))
+        .toThrow('Overlapping availability slots');
     });
   });
 });

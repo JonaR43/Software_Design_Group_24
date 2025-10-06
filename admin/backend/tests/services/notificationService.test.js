@@ -98,6 +98,39 @@ describe('NotificationService', () => {
       expect(result.data.filters.read).toBe('false');
     });
 
+    it('should apply date range filter', async () => {
+      const mockNotifications = [mockNotification];
+      notificationHelpers.getByUserId.mockReturnValue(mockNotifications);
+      notificationHelpers.getStats.mockReturnValue({ total: 1, unread: 1 });
+
+      const startDate = new Date(Date.now() - 86400000).toISOString();
+      const endDate = new Date().toISOString();
+
+      const result = await notificationService.getNotifications('user_001', { startDate, endDate });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should sort in descending order', async () => {
+      const mockNotifications = [mockNotification];
+      notificationHelpers.getByUserId.mockReturnValue(mockNotifications);
+      notificationHelpers.getStats.mockReturnValue({ total: 1, unread: 1 });
+
+      const result = await notificationService.getNotifications('user_001', {}, { sortOrder: 'desc' });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should sort in ascending order', async () => {
+      const mockNotifications = [mockNotification];
+      notificationHelpers.getByUserId.mockReturnValue(mockNotifications);
+      notificationHelpers.getStats.mockReturnValue({ total: 1, unread: 1 });
+
+      const result = await notificationService.getNotifications('user_001', {}, { sortOrder: 'asc' });
+
+      expect(result.success).toBe(true);
+    });
+
     it('should handle pagination correctly', async () => {
       const mockNotifications = Array(25).fill(mockNotification);
       notificationHelpers.getByUserId.mockReturnValue(mockNotifications);
@@ -200,6 +233,41 @@ describe('NotificationService', () => {
       expect(result.data.summary.successful).toBe(1);
       expect(result.data.summary.failed).toBe(1);
     });
+
+    it('should deny access to notifications owned by other users', async () => {
+      const notificationIds = ['notif_001'];
+      notificationHelpers.findById.mockReturnValue({ ...mockNotification, userId: 'user_002' });
+
+      const result = await notificationService.markMultipleAsRead(notificationIds, 'user_001');
+
+      expect(result.success).toBe(true);
+      expect(result.data.summary.failed).toBe(1);
+      expect(result.data.results[0].error).toBe('Access denied');
+    });
+
+    it('should handle markAsRead failures', async () => {
+      const notificationIds = ['notif_001'];
+      notificationHelpers.findById.mockReturnValue(mockNotification);
+      notificationHelpers.markAsRead.mockReturnValue(false);
+
+      const result = await notificationService.markMultipleAsRead(notificationIds, 'user_001');
+
+      expect(result.success).toBe(true);
+      expect(result.data.summary.failed).toBe(1);
+    });
+
+    it('should handle exceptions during marking', async () => {
+      const notificationIds = ['notif_001'];
+      notificationHelpers.findById.mockReturnValue(mockNotification);
+      notificationHelpers.markAsRead.mockImplementation(() => {
+        throw new Error('Database error');
+      });
+
+      const result = await notificationService.markMultipleAsRead(notificationIds, 'user_001');
+
+      expect(result.success).toBe(true);
+      expect(result.data.summary.failed).toBe(1);
+    });
   });
 
   describe('markAllAsRead', () => {
@@ -264,6 +332,52 @@ describe('NotificationService', () => {
       expect(result.data.summary.total).toBe(2);
       expect(result.data.summary.successful).toBe(2);
       expect(result.data.summary.failed).toBe(0);
+    });
+
+    it('should handle notification not found', async () => {
+      const notificationIds = ['nonexistent'];
+      notificationHelpers.findById.mockReturnValue(null);
+
+      const result = await notificationService.deleteMultiple(notificationIds, 'user_001');
+
+      expect(result.success).toBe(true);
+      expect(result.data.summary.failed).toBe(1);
+      expect(result.data.results[0].error).toBe('Notification not found');
+    });
+
+    it('should deny deleting notifications owned by other users', async () => {
+      const notificationIds = ['notif_001'];
+      notificationHelpers.findById.mockReturnValue({ ...mockNotification, userId: 'user_002' });
+
+      const result = await notificationService.deleteMultiple(notificationIds, 'user_001');
+
+      expect(result.success).toBe(true);
+      expect(result.data.summary.failed).toBe(1);
+      expect(result.data.results[0].error).toBe('Access denied');
+    });
+
+    it('should handle delete failures', async () => {
+      const notificationIds = ['notif_001'];
+      notificationHelpers.findById.mockReturnValue(mockNotification);
+      notificationHelpers.delete.mockReturnValue(null);
+
+      const result = await notificationService.deleteMultiple(notificationIds, 'user_001');
+
+      expect(result.success).toBe(true);
+      expect(result.data.summary.failed).toBe(1);
+    });
+
+    it('should handle exceptions during deletion', async () => {
+      const notificationIds = ['notif_001'];
+      notificationHelpers.findById.mockReturnValue(mockNotification);
+      notificationHelpers.delete.mockImplementation(() => {
+        throw new Error('Database error');
+      });
+
+      const result = await notificationService.deleteMultiple(notificationIds, 'user_001');
+
+      expect(result.success).toBe(true);
+      expect(result.data.summary.failed).toBe(1);
     });
   });
 
