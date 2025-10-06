@@ -81,6 +81,14 @@ describe('NotificationController', () => {
       );
     });
 
+    it('should handle service errors', async () => {
+      notificationService.getNotifications.mockRejectedValue(new Error('Database error'));
+
+      const response = await request(app).get('/notifications');
+
+      expect(response.status).toBe(500);
+    });
+
     it('should apply filters and pagination from query params', async () => {
       const mockResponse = { data: { notifications: [], pagination: {}, stats: {} } };
       notificationService.getNotifications.mockResolvedValue(mockResponse);

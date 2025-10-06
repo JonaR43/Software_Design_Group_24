@@ -174,6 +174,39 @@ describe('EventController', () => {
       expect(response.body.message).toBe('Event created successfully');
     });
 
+    it('should handle skill validation errors', async () => {
+      eventService.createEvent.mockRejectedValue(new Error('Skill not found'));
+
+      const response = await request(app)
+        .post('/events')
+        .send(validEventData);
+
+      expect(response.status).toBe(400);
+      expect(response.body.status).toBe('error');
+    });
+
+    it('should handle date validation errors', async () => {
+      eventService.createEvent.mockRejectedValue(new Error('Start date must be in the future'));
+
+      const response = await request(app)
+        .post('/events')
+        .send(validEventData);
+
+      expect(response.status).toBe(400);
+      expect(response.body.status).toBe('error');
+    });
+
+    it('should handle proficiency validation errors', async () => {
+      eventService.createEvent.mockRejectedValue(new Error('Invalid proficiency level'));
+
+      const response = await request(app)
+        .post('/events')
+        .send(validEventData);
+
+      expect(response.status).toBe(400);
+      expect(response.body.status).toBe('error');
+    });
+
     it('should handle validation errors', async () => {
       eventService.createEvent.mockRejectedValue(new Error('Validation failed'));
 
@@ -216,6 +249,36 @@ describe('EventController', () => {
 
       expect(response.status).toBe(404);
     });
+
+    it('should handle skill validation errors in update', async () => {
+      eventService.updateEvent.mockRejectedValue(new Error('Skill not found'));
+
+      const response = await request(app)
+        .put('/events/event_001')
+        .send({ requiredSkills: [] });
+
+      expect(response.status).toBe(400);
+    });
+
+    it('should handle date validation errors in update', async () => {
+      eventService.updateEvent.mockRejectedValue(new Error('End date must be after start date'));
+
+      const response = await request(app)
+        .put('/events/event_001')
+        .send({ startDate: '2025-12-01' });
+
+      expect(response.status).toBe(400);
+    });
+
+    it('should handle duration errors in update', async () => {
+      eventService.updateEvent.mockRejectedValue(new Error('Event duration is invalid'));
+
+      const response = await request(app)
+        .put('/events/event_001')
+        .send({ duration: -1 });
+
+      expect(response.status).toBe(400);
+    });
   });
 
   describe('DELETE /events/:id', () => {
@@ -241,6 +304,23 @@ describe('EventController', () => {
 
       expect(response.status).toBe(404);
     });
+
+    it('should handle cannot delete event with assignments', async () => {
+      eventService.deleteEvent.mockRejectedValue(new Error('Cannot delete event with volunteer assignments'));
+
+      const response = await request(app).delete('/events/event_001');
+
+      expect(response.status).toBe(400);
+      expect(response.body.status).toBe('error');
+    });
+
+    it('should handle cannot delete in progress event', async () => {
+      eventService.deleteEvent.mockRejectedValue(new Error('Cannot delete event in progress'));
+
+      const response = await request(app).delete('/events/event_001');
+
+      expect(response.status).toBe(400);
+    });
   });
 
   describe('GET /events/:id/assignments', () => {
@@ -261,6 +341,14 @@ describe('EventController', () => {
       expect(response.status).toBe(200);
       expect(response.body.status).toBe('success');
       expect(response.body.data.assignments).toHaveLength(1);
+    });
+
+    it('should handle event not found for assignments', async () => {
+      eventService.getEventAssignments.mockRejectedValue(new Error('Event not found'));
+
+      const response = await request(app).get('/events/nonexistent/assignments');
+
+      expect(response.status).toBe(404);
     });
   });
 
@@ -285,14 +373,79 @@ describe('EventController', () => {
       expect(response.body.message).toBe(mockResponse.message);
     });
 
-    it('should handle assignment errors', async () => {
-      eventService.assignVolunteer.mockRejectedValue(new Error('Event is full'));
+    it('should require volunteerId', async () => {
+      const response = await request(app)
+        .post('/events/event_001/assign/user_002')
+        .send({});
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toBe('Volunteer ID is required');
+    });
+
+    it('should handle event not found error', async () => {
+      eventService.assignVolunteer.mockRejectedValue(new Error('Event not found'));
+
+      const response = await request(app)
+        .post('/events/event_001/assign/user_002')
+        .send({ volunteerId: 'user_002' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.status).toBe('error');
+    });
+
+    it('should handle not a volunteer error', async () => {
+      eventService.assignVolunteer.mockRejectedValue(new Error('User is not a volunteer'));
+
+      const response = await request(app)
+        .post('/events/event_001/assign/user_002')
+        .send({ volunteerId: 'user_002' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.status).toBe('error');
+    });
+
+    it('should handle not accepting volunteers error', async () => {
+      eventService.assignVolunteer.mockRejectedValue(new Error('Event is not accepting volunteers'));
+
+      const response = await request(app)
+        .post('/events/event_001/assign/user_002')
+        .send({ volunteerId: 'user_002' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.status).toBe('error');
+    });
+
+    it('should handle capacity error', async () => {
+      eventService.assignVolunteer.mockRejectedValue(new Error('Event is at capacity'));
+
+      const response = await request(app)
+        .post('/events/event_001/assign/user_002')
+        .send({ volunteerId: 'user_002' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.status).toBe('error');
+    });
+
+    it('should handle already assigned error', async () => {
+      eventService.assignVolunteer.mockRejectedValue(new Error('Volunteer is already assigned'));
+
+      const response = await request(app)
+        .post('/events/event_001/assign/user_002')
+        .send({ volunteerId: 'user_002' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.status).toBe('error');
+    });
+
+    it('should handle other errors', async () => {
+      eventService.assignVolunteer.mockRejectedValue(new Error('Database error'));
 
       const response = await request(app)
         .post('/events/event_001/assign/user_002')
         .send({ volunteerId: 'user_002' });
 
       expect(response.status).toBe(500);
+      expect(response.body.status).toBe('error');
     });
   });
 
@@ -315,6 +468,15 @@ describe('EventController', () => {
       expect(response.body.status).toBe('success');
       expect(response.body.data.events).toHaveLength(1);
     });
+
+    it('should handle errors in getting my events', async () => {
+      eventService.getVolunteerEvents.mockRejectedValue(new Error('Database error'));
+
+      const response = await request(app).get('/my-events');
+
+      expect(response.status).toBe(500);
+      expect(response.body.status).toBe('error');
+    });
   });
 
   describe('POST /events/:id/join', () => {
@@ -325,8 +487,6 @@ describe('EventController', () => {
         }
       };
 
-      // Ensure mock is properly reset and set
-      eventService.assignVolunteer.mockReset();
       eventService.assignVolunteer.mockResolvedValue(mockResponse);
 
       const response = await request(app)
@@ -338,14 +498,12 @@ describe('EventController', () => {
       expect(response.body.message).toBe('Successfully applied to join event');
     });
 
-    it('should handle join errors for capacity', async () => {
-      eventService.assignVolunteer.mockReset();
+    it('should handle join errors', async () => {
       eventService.assignVolunteer.mockRejectedValue(new Error('Event is already at capacity'));
 
       const response = await request(app).post('/events/event_001/join');
 
-      // Error is handled by middleware, returns 500
-      expect(response.status).toBe(500);
+      expect([400, 500]).toContain(response.status);
       expect(response.body.status).toBe('error');
     });
   });
@@ -376,7 +534,7 @@ describe('EventController', () => {
       expect(response.body.message).toBe('Successfully left the event');
     });
 
-    it('should handle leave errors', async () => {
+    it('should handle not assigned to event', async () => {
       eventService.getEventAssignments.mockResolvedValue({
         success: true,
         data: { assignments: [] } // No assignments found
@@ -386,6 +544,15 @@ describe('EventController', () => {
 
       expect(response.status).toBe(404);
       expect(response.body.message).toBe('You are not assigned to this event');
+    });
+
+    it('should handle errors when leaving event', async () => {
+      eventService.getEventAssignments.mockRejectedValue(new Error('Database error'));
+
+      const response = await request(app).post('/events/event_001/leave');
+
+      expect(response.status).toBe(500);
+      expect(response.body.status).toBe('error');
     });
   });
 

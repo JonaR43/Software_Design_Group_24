@@ -62,6 +62,16 @@ describe('HistoryService', () => {
       });
     });
 
+    it('should filter by date range', async () => {
+      const filters = {
+        startDate: new Date(Date.now() - 86400000).toISOString(),
+        endDate: new Date().toISOString()
+      };
+      const result = await historyService.getVolunteerHistory('user_002', filters);
+
+      expect(result.success).toBe(true);
+    });
+
     it('should reject request for non-existent volunteer', async () => {
       userHelpers.findById.mockReturnValue(null);
 
@@ -247,6 +257,26 @@ describe('HistoryService', () => {
 
       await expect(historyService.getEventHistory('non-existent'))
         .rejects.toThrow('Event not found');
+    });
+  });
+
+  describe('getMyHistory', () => {
+    it('should get current user history successfully', async () => {
+      const result = await historyService.getMyHistory('user_002');
+
+      expect(result.success).toBe(true);
+      expect(result.data).toHaveProperty('history');
+      expect(result.data).toHaveProperty('pagination');
+    });
+
+    it('should apply filters to my history', async () => {
+      const filters = { status: 'completed' };
+      const result = await historyService.getMyHistory('user_002', filters);
+
+      expect(result.success).toBe(true);
+      result.data.history.forEach(record => {
+        expect(record.status).toBe('completed');
+      });
     });
   });
 

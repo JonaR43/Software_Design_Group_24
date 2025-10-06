@@ -206,6 +206,50 @@ describe('EventService', () => {
         .rejects.toThrow('End date must be after start date');
     });
 
+    it('should validate required skills array type', async () => {
+      userHelpers.findById.mockReturnValue(mockAdmin);
+      const invalidData = { ...validEventData, requiredSkills: 'not-an-array' };
+
+      await expect(eventService.createEvent('admin_001', invalidData))
+        .rejects.toThrow('Required skills must be an array');
+    });
+
+    it('should validate required skill fields', async () => {
+      userHelpers.findById.mockReturnValue(mockAdmin);
+      const invalidData = {
+        ...validEventData,
+        requiredSkills: [{ skillId: 'skill_001' }] // missing minLevel
+      };
+
+      await expect(eventService.createEvent('admin_001', invalidData))
+        .rejects.toThrow('Each required skill must have skillId and minLevel');
+    });
+
+    it('should validate skill exists', async () => {
+      userHelpers.findById.mockReturnValue(mockAdmin);
+      skillHelpers.findById.mockReturnValue(null);
+      const invalidData = {
+        ...validEventData,
+        requiredSkills: [{ skillId: 'nonexistent', minLevel: 'beginner', required: true }]
+      };
+
+      await expect(eventService.createEvent('admin_001', invalidData))
+        .rejects.toThrow('Skill with ID nonexistent not found');
+    });
+
+    it('should validate proficiency level', async () => {
+      userHelpers.findById.mockReturnValue(mockAdmin);
+      skillHelpers.findById.mockReturnValue({ id: 'skill_001', name: 'Test' });
+      skillHelpers.isValidProficiency.mockReturnValue(false);
+      const invalidData = {
+        ...validEventData,
+        requiredSkills: [{ skillId: 'skill_001', minLevel: 'invalid_level', required: true }]
+      };
+
+      await expect(eventService.createEvent('admin_001', invalidData))
+        .rejects.toThrow('Invalid proficiency level: invalid_level');
+    });
+
   });
 
   describe('updateEvent', () => {
@@ -221,6 +265,42 @@ describe('EventService', () => {
       expect(eventHelpers.updateEvent).toHaveBeenCalled();
     });
 
+    it('should validate required skills when updating', async () => {
+      const updateData = {
+        requiredSkills: [{ skillId: 'skill_002', minLevel: 'beginner', required: true }]
+      };
+      userHelpers.findById.mockReturnValue(mockAdmin);
+      eventHelpers.findById.mockReturnValue(mockEvent);
+      eventHelpers.updateEvent.mockReturnValue({ ...mockEvent, ...updateData });
+      skillHelpers.findById.mockReturnValue({ id: 'skill_002', name: 'Test Skill' });
+      skillHelpers.isValidProficiency.mockReturnValue(true);
+
+      const result = await eventService.updateEvent('event_001', 'admin_001', updateData);
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should validate dates when updating startDate only', async () => {
+      const updateData = {
+        startDate: new Date(Date.now() + 86400000).toISOString()
+      };
+      userHelpers.findById.mockReturnValue(mockAdmin);
+      eventHelpers.findById.mockReturnValue(mockEvent);
+      eventHelpers.updateEvent.mockReturnValue({ ...mockEvent, ...updateData });
+
+      const result = await eventService.updateEvent('event_001', 'admin_001', updateData);
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should handle update failure', async () => {
+      userHelpers.findById.mockReturnValue(mockAdmin);
+      eventHelpers.findById.mockReturnValue(mockEvent);
+      eventHelpers.updateEvent.mockReturnValue(null);
+
+      await expect(eventService.updateEvent('event_001', 'admin_001', { title: 'Updated' }))
+        .rejects.toThrow('Failed to update event');
+    });
 
     it('should handle event not found', async () => {
       userHelpers.findById.mockReturnValue(mockAdmin);
@@ -349,6 +429,18 @@ describe('EventService', () => {
         .rejects.toThrow('Volunteer is already assigned to this event');
     });
 
+    it('should reject assignment when event is not published', async () => {
+      const mockProfile = { userId: 'user_001', skills: [] };
+      eventHelpers.findById.mockReturnValue({ ...mockEvent, status: 'draft' });
+      userHelpers.findById.mockReturnValue(mockUser);
+      userHelpers.getProfile.mockReturnValue(mockProfile);
+      eventHelpers.getEventAssignments.mockReturnValue([]);
+      eventHelpers.getVolunteerAssignments.mockReturnValue([]);
+
+      await expect(eventService.assignVolunteer('event_001', 'user_001', {}))
+        .rejects.toThrow('Event is not accepting volunteers');
+    });
+
     it('should check event capacity', async () => {
       const mockProfile = { userId: 'user_001', skills: [] };
       eventHelpers.findById.mockReturnValue({ ...mockEvent, currentVolunteers: 10, maxVolunteers: 10 });
@@ -460,7 +552,10 @@ describe('EventService', () => {
 
   describe('getEventStats', () => {
     it('should get event statistics successfully', async () => {
-      const mockEvents = [mockEvent, { ...mockEvent, id: 'event_002' }];
+      const mockEvents = [
+        { ...mockEvent, category: 'cat_001', urgencyLevel: 'urg_001' },
+        { ...mockEvent, id: 'event_002', category: 'cat_001', urgencyLevel: 'urg_002' }
+      ];
       const mockStats = {
         totalEvents: 2,
         eventsByStatus: {},
@@ -475,6 +570,30 @@ describe('EventService', () => {
       expect(result.data).toHaveProperty('eventsByCategory');
       expect(result.data).toHaveProperty('eventsByUrgency');
       expect(result.data).toHaveProperty('recentEvents');
+      expect(Array.isArray(result.data.eventsByCategory)).toBe(true);
+      expect(Array.isArray(result.data.eventsByUrgency)).toBe(true);
+    });
+
+    it('should count events by category and urgency', async () => {
+      const mockEvents = [
+        { ...mockEvent, category: 'cat_001', urgencyLevel: 'urg_001', createdAt: new Date() },
+        { ...mockEvent, id: 'event_002', category: 'cat_002', urgencyLevel: 'urg_001', createdAt: new Date() },
+        { ...mockEvent, id: 'event_003', category: 'cat_001', urgencyLevel: 'urg_002', createdAt: new Date() }
+      ];
+      const mockStats = {
+        totalEvents: 3,
+        eventsByStatus: {},
+        eventsNeedingVolunteers: 2
+      };
+      eventHelpers.getAllEvents.mockReturnValue(mockEvents);
+      eventHelpers.getEventStats.mockReturnValue(mockStats);
+
+      const result = await eventService.getEventStats();
+
+      expect(result.success).toBe(true);
+      expect(Array.isArray(result.data.eventsByCategory)).toBe(true);
+      expect(Array.isArray(result.data.eventsByUrgency)).toBe(true);
+      expect(result.data.recentEvents).toBeGreaterThanOrEqual(0);
     });
   });
 

@@ -100,6 +100,44 @@ describe('MatchingService', () => {
         .rejects.toThrow('Event not found');
     });
 
+    it('should handle match calculation errors gracefully', async () => {
+      eventHelpers.findById.mockReturnValue(mockEvent);
+      userHelpers.getVolunteerProfiles.mockReturnValue([mockVolunteerProfile]);
+      eventHelpers.getEventAssignments.mockReturnValue([]);
+      matchingAlgorithm.calculateMatchScore.mockImplementation(() => {
+        throw new Error('Calculation error');
+      });
+
+      const result = await matchingService.findMatchesForEvent('event_001');
+
+      expect(result.success).toBe(true);
+      expect(result.data.matches).toHaveLength(0);
+    });
+  });
+
+  describe('findMatchesForVolunteer', () => {
+    it('should handle volunteer profile not found', async () => {
+      userHelpers.findById.mockReturnValue(mockUser);
+      userHelpers.getProfile.mockReturnValue(null);
+
+      await expect(matchingService.findMatchesForVolunteer('user_001'))
+        .rejects.toThrow('Volunteer profile not found');
+    });
+
+    it('should return empty matches when no events available', async () => {
+      userHelpers.findById.mockReturnValue(mockUser);
+      userHelpers.getProfile.mockReturnValue(mockVolunteerProfile);
+      eventHelpers.getAllEvents.mockReturnValue([]);
+      eventHelpers.getByStatus.mockReturnValue([]);
+      eventHelpers.getVolunteerAssignments.mockReturnValue([]);
+
+      const result = await matchingService.findMatchesForVolunteer('user_001');
+
+      expect(result.success).toBe(true);
+      expect(result.data.matches).toEqual([]);
+      expect(result.data.message).toBe('No available events found');
+    });
+
     it('should apply minimum score filter', async () => {
       eventHelpers.findById.mockReturnValue(mockEvent);
       userHelpers.getVolunteerProfiles.mockReturnValue([mockVolunteerProfile]);
