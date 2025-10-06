@@ -1,12 +1,11 @@
 import { Outlet } from "react-router";
-import { useState } from "react";
+import { useAuth } from "~/contexts/AuthContext";
 
 export default function AdminLayout() {
-  // Mock user role - in real app this would come from auth context
-  const [userRole] = useState<'VOLUNTEER' | 'ADMIN'>('ADMIN');
+  const { user } = useAuth();
 
   // Redirect non-admin users
-  if (userRole !== 'ADMIN') {
+  if (user?.role !== 'admin') {
     return (
       <div className="flex items-center justify-center min-h-64">
         <div className="card p-8 text-center">
