@@ -1,7 +1,8 @@
 import { Outlet } from "react-router";
 import Sidebar from "~/components/sidebar";
+import { withAuth } from "~/contexts/AuthContext";
 
-export default function DashboardLayout() {
+function DashboardLayout() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-indigo-200 via-violet-200 to-slate-100 text-slate-800 relative">
       {/* Sidebar */}
@@ -21,3 +22,6 @@ export default function DashboardLayout() {
     </div>
   );
 }
+
+// Protect the entire dashboard with authentication
+export default withAuth(DashboardLayout);
