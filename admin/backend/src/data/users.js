@@ -281,6 +281,11 @@ const userHelpers = {
     return newUser;
   },
 
+  // Alias for createUser (for OAuth compatibility)
+  create: (userData) => {
+    return userHelpers.createUser(userData);
+  },
+
   // Create new profile
   createProfile: (userId, profileData) => {
     const newProfile = {

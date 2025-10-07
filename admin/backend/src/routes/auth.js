@@ -1,5 +1,6 @@
 const express = require('express');
 const Joi = require('joi');
+const passport = require('../config/passport');
 const authController = require('../controllers/authController');
 const { authenticate, authorize } = require('../middleware/auth');
 const { validate, schemas } = require('../middleware/validation');
@@ -12,6 +13,86 @@ const router = express.Router();
  */
 
 // Public routes (no authentication required)
+
+/**
+ * OAuth Routes
+ */
+
+// Google OAuth
+/**
+ * @route   GET /api/auth/google
+ * @desc    Initiate Google OAuth flow
+ * @access  Public
+ */
+router.get('/google',
+  passport.authenticate('google', { scope: ['profile', 'email'] })
+);
+
+/**
+ * @route   GET /api/auth/google/callback
+ * @desc    Google OAuth callback
+ * @access  Public
+ */
+router.get('/google/callback',
+  passport.authenticate('google', {
+    failureRedirect: '/api/auth/oauth/failure',
+    session: false
+  }),
+  authController.oauthCallback
+);
+
+// GitHub OAuth
+/**
+ * @route   GET /api/auth/github
+ * @desc    Initiate GitHub OAuth flow
+ * @access  Public
+ */
+router.get('/github',
+  passport.authenticate('github', { scope: ['user:email'] })
+);
+
+/**
+ * @route   GET /api/auth/github/callback
+ * @desc    GitHub OAuth callback
+ * @access  Public
+ */
+router.get('/github/callback',
+  passport.authenticate('github', {
+    failureRedirect: '/api/auth/oauth/failure',
+    session: false
+  }),
+  authController.oauthCallback
+);
+
+// Microsoft OAuth
+/**
+ * @route   GET /api/auth/microsoft
+ * @desc    Initiate Microsoft OAuth flow
+ * @access  Public
+ */
+router.get('/microsoft',
+  passport.authenticate('microsoft', { scope: ['user.read'] })
+);
+
+/**
+ * @route   GET /api/auth/microsoft/callback
+ * @desc    Microsoft OAuth callback
+ * @access  Public
+ */
+router.get('/microsoft/callback',
+  passport.authenticate('microsoft', {
+    failureRedirect: '/api/auth/oauth/failure',
+    session: false
+  }),
+  authController.oauthCallback
+);
+
+/**
+ * @route   GET /api/auth/oauth/failure
+ * @desc    OAuth failure handler
+ * @access  Public
+ */
+router.get('/oauth/failure', authController.oauthFailure);
 
 /**
  * @route   POST /api/auth/register
