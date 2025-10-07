@@ -1,10 +1,43 @@
 const authService = require('../services/authService');
+const jwt = require('jsonwebtoken');
 
 /**
  * Authentication Controller
  * Handles HTTP requests for authentication operations
  */
 class AuthController {
+  /**
+   * Handle OAuth callback success
+   * Generates JWT token and redirects to frontend with token
+   */
+  async oauthCallback(req, res, next) {
+    try {
+      if (!req.user) {
+        return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/login?error=oauth_failed`);
+      }
+
+      // Generate JWT token
+      const token = jwt.sign(
+        { id: req.user.id, email: req.user.email, role: req.user.role },
+        process.env.JWT_SECRET,
+        { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
+      );
+
+      // Redirect to frontend with token
+      res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/oauth/callback?token=${token}`);
+    } catch (error) {
+      console.error('OAuth callback error:', error);
+      res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/login?error=oauth_error`);
+    }
+  }
+
+  /**
+   * Handle OAuth failure
+   * Redirects to login with error message
+   */
+  oauthFailure(req, res) {
+    res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/login?error=oauth_failed`);
+  }
   /**
    * Register a new user
    * POST /api/auth/register
