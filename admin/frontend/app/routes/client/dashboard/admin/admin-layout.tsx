@@ -67,6 +67,12 @@ export default function AdminLayout() {
           >
             Volunteer Matching
           </a>
+          <a
+            href="/dashboard/admin/users"
+            className="px-4 py-2 rounded-lg text-sm font-medium transition-colors text-slate-600 hover:text-slate-800 hover:bg-slate-50"
+          >
+            User Management
+          </a>
         </nav>
       </div>
 

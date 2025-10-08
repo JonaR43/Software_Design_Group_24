@@ -1,6 +1,9 @@
-import { type RouteConfig, route } from "@react-router/dev/routes";
+import { type RouteConfig, route, index } from "@react-router/dev/routes";
 
 export default [
+  // Root index - redirects to login
+  index("routes/_index.tsx"),
+
   // Public routes
   route("login", "routes/client/login1.tsx"), // Use login1.tsx as main login
   route("register", "routes/client/register.tsx"), // New registration page
@@ -26,6 +29,7 @@ export default [
       route("create-event", "routes/client/dashboard/admin/create-event.tsx"),
       route("edit-event/:eventId", "routes/client/dashboard/admin/edit-event.tsx"),
       route("matching", "routes/client/dashboard/admin/volunteer-matching.tsx"),
+      route("users", "routes/client/dashboard/admin/user-management.tsx"),
     ]),
   ]),
 ] satisfies RouteConfig;
