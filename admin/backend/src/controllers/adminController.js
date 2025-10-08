@@ -1,5 +1,7 @@
 const bcrypt = require('bcryptjs');
 const { userHelpers } = require('../data/users');
+const { events } = require('../data/events');
+const { volunteerHistory } = require('../data/history');
 
 /**
  * Admin Controller
@@ -273,6 +275,216 @@ class AdminController {
           timestamp: new Date().toISOString()
         });
       }
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Get analytics metrics
+   * GET /api/admin/metrics
+   */
+  async getMetrics(req, res, next) {
+    try {
+      const users = userHelpers.getAllUsers();
+
+      // User metrics
+      const totalUsers = users.length;
+      const adminUsers = users.filter(u => u.role === 'admin').length;
+      const volunteerUsers = users.filter(u => u.role === 'volunteer').length;
+      const verifiedUsers = users.filter(u => u.verified).length;
+
+      // User registration trend (last 6 months)
+      const now = new Date();
+      const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1);
+      const userRegistrationTrend = [];
+
+      for (let i = 5; i >= 0; i--) {
+        const monthStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
+        const monthName = monthStart.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+
+        const count = users.filter(u => {
+          const createdAt = new Date(u.createdAt);
+          return createdAt >= monthStart && createdAt <= monthEnd;
+        }).length;
+
+        userRegistrationTrend.push({
+          month: monthName,
+          users: count,
+          volunteers: users.filter(u => {
+            const createdAt = new Date(u.createdAt);
+            return u.role === 'volunteer' && createdAt >= monthStart && createdAt <= monthEnd;
+          }).length,
+          admins: users.filter(u => {
+            const createdAt = new Date(u.createdAt);
+            return u.role === 'admin' && createdAt >= monthStart && createdAt <= monthEnd;
+          }).length
+        });
+      }
+
+      // Event metrics
+      const totalEvents = events.length;
+      const publishedEvents = events.filter(e => e.status === 'published').length;
+      const completedEvents = events.filter(e => e.status === 'completed').length;
+      const cancelledEvents = events.filter(e => e.status === 'cancelled').length;
+      const draftEvents = events.filter(e => e.status === 'draft').length;
+
+      // Event status distribution
+      const eventStatusDistribution = [
+        { status: 'Published', count: publishedEvents, percentage: (publishedEvents / totalEvents * 100).toFixed(1) },
+        { status: 'Completed', count: completedEvents, percentage: (completedEvents / totalEvents * 100).toFixed(1) },
+        { status: 'Draft', count: draftEvents, percentage: (draftEvents / totalEvents * 100).toFixed(1) },
+        { status: 'Cancelled', count: cancelledEvents, percentage: (cancelledEvents / totalEvents * 100).toFixed(1) }
+      ];
+
+      // Volunteer capacity utilization
+      const totalCapacity = events.reduce((sum, e) => sum + e.maxVolunteers, 0);
+      const filledSpots = events.reduce((sum, e) => sum + e.currentVolunteers, 0);
+      const capacityUtilization = totalCapacity > 0 ? (filledSpots / totalCapacity * 100).toFixed(1) : 0;
+
+      // Event capacity by category
+      const eventsByCategory = events.reduce((acc, event) => {
+        const cat = event.category || 'other';
+        if (!acc[cat]) {
+          acc[cat] = { category: cat, events: 0, volunteers: 0, capacity: 0 };
+        }
+        acc[cat].events += 1;
+        acc[cat].volunteers += event.currentVolunteers;
+        acc[cat].capacity += event.maxVolunteers;
+        return acc;
+      }, {});
+
+      const categoryMetrics = Object.values(eventsByCategory).map(cat => ({
+        ...cat,
+        utilization: cat.capacity > 0 ? ((cat.volunteers / cat.capacity) * 100).toFixed(1) : 0
+      }));
+
+      // Volunteer history metrics
+      const completedParticipations = volunteerHistory.filter(h => h.status === 'completed').length;
+      const noShows = volunteerHistory.filter(h => h.status === 'no_show').length;
+      const cancelledParticipations = volunteerHistory.filter(h => h.status === 'cancelled').length;
+      const totalHoursVolunteered = volunteerHistory
+        .filter(h => h.status === 'completed')
+        .reduce((sum, h) => sum + (h.hoursWorked || 0), 0);
+      const averageHoursPerEvent = completedParticipations > 0
+        ? (totalHoursVolunteered / completedParticipations).toFixed(1)
+        : 0;
+
+      // Attendance rate
+      const totalParticipations = volunteerHistory.length;
+      const attendanceRate = totalParticipations > 0
+        ? ((completedParticipations / totalParticipations) * 100).toFixed(1)
+        : 0;
+
+      // Top volunteers by hours
+      const volunteerHours = volunteerHistory
+        .filter(h => h.status === 'completed')
+        .reduce((acc, h) => {
+          if (!acc[h.volunteerId]) {
+            const user = users.find(u => u.id === h.volunteerId);
+            acc[h.volunteerId] = {
+              id: h.volunteerId,
+              name: user?.profile ? `${user.profile.firstName} ${user.profile.lastName}` : user?.username || 'Unknown',
+              hours: 0,
+              events: 0,
+              avgRating: 0,
+              totalRating: 0,
+              ratingCount: 0
+            };
+          }
+          acc[h.volunteerId].hours += h.hoursWorked || 0;
+          acc[h.volunteerId].events += 1;
+          if (h.performanceRating) {
+            acc[h.volunteerId].totalRating += h.performanceRating;
+            acc[h.volunteerId].ratingCount += 1;
+          }
+          return acc;
+        }, {});
+
+      const topVolunteers = Object.values(volunteerHours)
+        .map(v => ({
+          ...v,
+          avgRating: v.ratingCount > 0 ? (v.totalRating / v.ratingCount).toFixed(1) : 'N/A'
+        }))
+        .sort((a, b) => b.hours - a.hours)
+        .slice(0, 10);
+
+      // Performance ratings distribution
+      const ratings = volunteerHistory
+        .filter(h => h.performanceRating)
+        .map(h => h.performanceRating);
+      const avgRating = ratings.length > 0
+        ? (ratings.reduce((sum, r) => sum + r, 0) / ratings.length).toFixed(2)
+        : 0;
+
+      const ratingDistribution = [
+        { rating: '5 Stars', count: ratings.filter(r => r === 5).length },
+        { rating: '4 Stars', count: ratings.filter(r => r === 4).length },
+        { rating: '3 Stars', count: ratings.filter(r => r === 3).length },
+        { rating: '2 Stars', count: ratings.filter(r => r === 2).length },
+        { rating: '1 Star', count: ratings.filter(r => r === 1).length }
+      ];
+
+      // Monthly hours trend (last 6 months)
+      const monthlyHoursTrend = [];
+      for (let i = 5; i >= 0; i--) {
+        const monthStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
+        const monthName = monthStart.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+
+        const hours = volunteerHistory
+          .filter(h => {
+            const date = new Date(h.participationDate);
+            return h.status === 'completed' && date >= monthStart && date <= monthEnd;
+          })
+          .reduce((sum, h) => sum + (h.hoursWorked || 0), 0);
+
+        const participants = volunteerHistory
+          .filter(h => {
+            const date = new Date(h.participationDate);
+            return date >= monthStart && date <= monthEnd;
+          }).length;
+
+        monthlyHoursTrend.push({
+          month: monthName,
+          hours: parseFloat(hours.toFixed(1)),
+          participants
+        });
+      }
+
+      res.status(200).json({
+        status: 'success',
+        data: {
+          overview: {
+            totalUsers,
+            adminUsers,
+            volunteerUsers,
+            verifiedUsers,
+            totalEvents,
+            publishedEvents,
+            completedEvents,
+            totalHoursVolunteered: parseFloat(totalHoursVolunteered.toFixed(1)),
+            averageHoursPerEvent: parseFloat(averageHoursPerEvent),
+            attendanceRate: parseFloat(attendanceRate),
+            capacityUtilization: parseFloat(capacityUtilization)
+          },
+          userRegistrationTrend,
+          eventStatusDistribution,
+          categoryMetrics,
+          topVolunteers,
+          ratingDistribution,
+          avgRating: parseFloat(avgRating),
+          monthlyHoursTrend,
+          participationMetrics: {
+            completed: completedParticipations,
+            noShows,
+            cancelled: cancelledParticipations,
+            total: totalParticipations
+          }
+        },
+        timestamp: new Date().toISOString()
+      });
     } catch (error) {
       next(error);
     }

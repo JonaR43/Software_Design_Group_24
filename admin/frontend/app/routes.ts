@@ -25,6 +25,7 @@ export default [
     
     // Admin-only routes
     route("admin", "routes/client/dashboard/admin/admin-layout.tsx", [
+      route("metrics", "routes/client/dashboard/admin/metrics.tsx"),
       route("events", "routes/client/dashboard/admin/event-management.tsx"),
       route("create-event", "routes/client/dashboard/admin/create-event.tsx"),
       route("edit-event/:eventId", "routes/client/dashboard/admin/edit-event.tsx"),
