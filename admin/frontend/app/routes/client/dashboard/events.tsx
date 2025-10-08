@@ -1,11 +1,15 @@
 import { useState, useEffect } from "react";
 import { EventService, type FrontendEvent, type EventFilters } from "~/services/api";
+import EventsMap from "~/components/EventsMap";
 
 export default function Events() {
   const [events, setEvents] = useState<FrontendEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>("");
   const [joiningEvent, setJoiningEvent] = useState<string | null>(null);
+
+  // View state
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
 
   // Filter state
   const [filters, setFilters] = useState<EventFilters>({});
@@ -122,15 +126,50 @@ export default function Events() {
             <h1 className="text-3xl font-semibold text-slate-900">Events</h1>
             <p className="text-slate-600 mt-1">Discover and join volunteer opportunities</p>
           </div>
-          <button
-            onClick={handleFilterEvents}
-            className="btn-primary px-6 py-2 w-auto flex items-center gap-2"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.414A1 1 0 013 6.707V4z" />
-            </svg>
-            {showFilters ? 'Hide Filters' : 'Filter Events'}
-          </button>
+          <div className="flex items-center gap-3">
+            {/* View Toggle */}
+            <div className="bg-white border border-slate-200 rounded-lg p-1 flex gap-1">
+              <button
+                onClick={() => setViewMode('list')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition ${
+                  viewMode === 'list'
+                    ? 'bg-gradient-to-r from-indigo-700 to-violet-700 text-white'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                  </svg>
+                  List
+                </div>
+              </button>
+              <button
+                onClick={() => setViewMode('map')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition ${
+                  viewMode === 'map'
+                    ? 'bg-gradient-to-r from-indigo-700 to-violet-700 text-white'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                  </svg>
+                  Map
+                </div>
+              </button>
+            </div>
+            <button
+              onClick={handleFilterEvents}
+              className="btn-primary px-6 py-2 w-auto flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.414A1 1 0 013 6.707V4z" />
+              </svg>
+              {showFilters ? 'Hide Filters' : 'Filter Events'}
+            </button>
+          </div>
         </div>
 
         {/* Search Bar */}
@@ -243,8 +282,17 @@ export default function Events() {
         </div>
       )}
 
+      {/* Map View */}
+      {!isLoading && !error && viewMode === 'map' && (
+        <EventsMap
+          events={events}
+          onJoinEvent={handleJoinEvent}
+          joiningEvent={joiningEvent}
+        />
+      )}
+
       {/* Events List */}
-      {!isLoading && !error && (
+      {!isLoading && !error && viewMode === 'list' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
           {events.length === 0 ? (
             <div className="col-span-full text-center py-12">

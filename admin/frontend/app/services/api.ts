@@ -166,6 +166,8 @@ export interface FrontendEvent {
   date: string;
   time: string;
   location: string;
+  latitude?: number;
+  longitude?: number;
   volunteers: number;
   maxVolunteers: number;
   status: 'open' | 'registered' | 'full';
@@ -306,6 +308,8 @@ export class DataTransformer {
       date: DataTransformer.formatDate(backendEvent.startDate),
       time: DataTransformer.formatTimeRange(backendEvent.startDate, backendEvent.endDate),
       location: backendEvent.location,
+      latitude: backendEvent.latitude,
+      longitude: backendEvent.longitude,
       volunteers: backendEvent.currentVolunteers,
       maxVolunteers: backendEvent.maxVolunteers,
       status: backendEvent.spotsRemaining === 0 ? 'full' : DataTransformer.mapEventStatus(backendEvent.status),
@@ -822,6 +826,125 @@ export class DashboardService {
       throw new Error('Failed to fetch dashboard stats');
     } catch (error) {
       throw new Error(`Failed to fetch dashboard stats: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+}
+
+export interface UserData {
+  id: string;
+  username: string;
+  email: string;
+  role: 'admin' | 'volunteer';
+  verified: boolean;
+  createdAt: string;
+  lastLogin?: string;
+  profile?: {
+    firstName: string;
+    lastName: string;
+    phone: string;
+    city: string;
+    state: string;
+  };
+}
+
+export interface CreateUserData {
+  username: string;
+  email: string;
+  password: string;
+  role: 'admin' | 'volunteer';
+}
+
+export interface UpdateUserData {
+  username?: string;
+  email?: string;
+  role?: 'admin' | 'volunteer';
+  verified?: boolean;
+  password?: string;
+}
+
+export class UserService {
+  static async getAllUsers(): Promise<UserData[]> {
+    try {
+      const response = await HttpClient.get<{
+        status: string;
+        data: {
+          users: UserData[];
+        };
+      }>('/admin/users');
+
+      if (response.status === 'success') {
+        return response.data.users;
+      }
+
+      throw new Error('Failed to fetch users');
+    } catch (error) {
+      throw new Error(`Failed to fetch users: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  static async getUserById(userId: string): Promise<UserData> {
+    try {
+      const response = await HttpClient.get<{
+        status: string;
+        data: UserData;
+      }>(`/admin/users/${userId}`);
+
+      if (response.status === 'success') {
+        return response.data;
+      }
+
+      throw new Error('User not found');
+    } catch (error) {
+      throw new Error(`Failed to fetch user: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  static async createUser(userData: CreateUserData): Promise<UserData> {
+    try {
+      const response = await HttpClient.post<{
+        status: string;
+        data: UserData;
+      }>('/admin/users', userData);
+
+      if (response.status === 'success') {
+        return response.data;
+      }
+
+      throw new Error('Failed to create user');
+    } catch (error) {
+      throw new Error(`Failed to create user: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  static async updateUser(userId: string, userData: UpdateUserData): Promise<UserData> {
+    try {
+      const response = await HttpClient.put<{
+        status: string;
+        data: UserData;
+      }>(`/admin/users/${userId}`, userData);
+
+      if (response.status === 'success') {
+        return response.data;
+      }
+
+      throw new Error('Failed to update user');
+    } catch (error) {
+      throw new Error(`Failed to update user: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  static async deleteUser(userId: string): Promise<void> {
+    try {
+      const response = await HttpClient.delete<{
+        status: string;
+        message: string;
+      }>(`/admin/users/${userId}`);
+
+      if (response.status !== 'success') {
+        throw new Error('Failed to delete user');
+      }
+    } catch (error) {
+      throw new Error(`Failed to delete user: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 }

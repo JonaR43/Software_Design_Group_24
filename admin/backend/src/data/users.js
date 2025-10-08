@@ -323,6 +323,56 @@ const userHelpers = {
           }
         };
       });
+  },
+
+  // Admin functions for user management
+  getAllUsers: () => {
+    return users.map(user => {
+      const profile = profiles.find(p => p.userId === user.id);
+      return {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        verified: user.verified,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+        profile: profile ? {
+          firstName: profile.firstName,
+          lastName: profile.lastName,
+          phone: profile.phone,
+          city: profile.city,
+          state: profile.state
+        } : null
+      };
+    });
+  },
+
+  updateUser: (userId, updateData) => {
+    const userIndex = users.findIndex(user => user.id === userId);
+    if (userIndex !== -1) {
+      users[userIndex] = {
+        ...users[userIndex],
+        ...updateData,
+        updatedAt: new Date()
+      };
+      return users[userIndex];
+    }
+    return null;
+  },
+
+  deleteUser: (userId) => {
+    const userIndex = users.findIndex(user => user.id === userId);
+    if (userIndex !== -1) {
+      users.splice(userIndex, 1);
+      // Also delete the profile
+      const profileIndex = profiles.findIndex(profile => profile.userId === userId);
+      if (profileIndex !== -1) {
+        profiles.splice(profileIndex, 1);
+      }
+      return true;
+    }
+    return false;
   }
 };
 
