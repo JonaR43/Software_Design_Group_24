@@ -222,6 +222,18 @@ describe('HistoryController', () => {
       expect(response.status).toBe(200);
     });
 
+    it('should deny volunteer viewing other volunteer performance', async () => {
+      // Create a temporary route with volunteer auth
+      const tempApp = express();
+      tempApp.use(express.json());
+      tempApp.get('/history/:volunteerId/performance', mockVolunteerAuth, historyController.getPerformanceMetrics);
+
+      const response = await request(tempApp).get('/history/user_002/performance');
+
+      expect(response.status).toBe(403);
+      expect(response.body.success).toBe(false);
+    });
+
     it('should handle errors', async () => {
       historyService.getPerformanceMetrics.mockRejectedValue(new Error('Error'));
 
@@ -264,6 +276,17 @@ describe('HistoryController', () => {
       expect(historyService.getAllVolunteerStats).toHaveBeenCalledWith({ sortBy: undefined });
     });
 
+    it('should deny non-admin users', async () => {
+      const tempApp = express();
+      tempApp.use(express.json());
+      tempApp.get('/history/all/stats', mockVolunteerAuth, historyController.getAllVolunteerStats);
+
+      const response = await request(tempApp).get('/history/all/stats');
+
+      expect(response.status).toBe(403);
+      expect(response.body.success).toBe(false);
+    });
+
     it('should handle errors', async () => {
       historyService.getAllVolunteerStats.mockRejectedValue(new Error('Error'));
 
@@ -281,6 +304,17 @@ describe('HistoryController', () => {
       const response = await request(app).get('/history/event/event_001');
 
       expect(response.status).toBe(200);
+    });
+
+    it('should deny non-admin users', async () => {
+      const tempApp = express();
+      tempApp.use(express.json());
+      tempApp.get('/history/event/:eventId', mockVolunteerAuth, historyController.getEventHistory);
+
+      const response = await request(tempApp).get('/history/event/event_001');
+
+      expect(response.status).toBe(403);
+      expect(response.body.success).toBe(false);
     });
 
     it('should handle errors', async () => {
@@ -302,6 +336,25 @@ describe('HistoryController', () => {
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(historyService.getDashboardStats).toHaveBeenCalled();
+    });
+
+    it('should deny non-admin users', async () => {
+      const tempApp = express();
+      tempApp.use(express.json());
+      tempApp.get('/history/dashboard/stats', mockVolunteerAuth, historyController.getDashboardStats);
+
+      const response = await request(tempApp).get('/history/dashboard/stats');
+
+      expect(response.status).toBe(403);
+      expect(response.body.success).toBe(false);
+    });
+
+    it('should handle errors', async () => {
+      historyService.getDashboardStats.mockRejectedValue(new Error('Error'));
+
+      const response = await request(app).get('/history/dashboard/stats');
+
+      expect(response.status).toBe(400);
     });
   });
 

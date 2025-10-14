@@ -540,4 +540,158 @@ describe('NotificationController', () => {
       expect(response.body.data.totalNotifications).toBe(100);
     });
   });
+
+  describe('Error handling for next(error)', () => {
+    it('should call next for unexpected errors in markAsRead', async () => {
+      notificationService.markAsRead.mockRejectedValue(new Error('Database error'));
+
+      const response = await request(app).put('/notifications/notif_001/read');
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for unexpected errors in markMultipleAsRead', async () => {
+      notificationService.markMultipleAsRead.mockRejectedValue(new Error('Database error'));
+
+      const response = await request(app)
+        .put('/notifications/bulk/read')
+        .send({ notificationIds: ['notif_001'] });
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for unexpected errors in markAllAsRead', async () => {
+      notificationService.markAllAsRead.mockRejectedValue(new Error('Database error'));
+
+      const response = await request(app).put('/notifications/all/read');
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for unexpected errors in deleteMultiple', async () => {
+      notificationService.deleteMultiple.mockRejectedValue(new Error('Database error'));
+
+      const response = await request(app)
+        .delete('/notifications/bulk')
+        .send({ notificationIds: ['notif_001'] });
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for unexpected errors in getPreferences', async () => {
+      notificationService.getNotificationPreferences.mockRejectedValue(new Error('Database error'));
+
+      const response = await request(app).get('/notifications/preferences/me');
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for unexpected errors in createNotification', async () => {
+      notificationService.createNotification.mockRejectedValue(new Error('Database error'));
+
+      const response = await request(app)
+        .post('/notifications/create')
+        .send({
+          userId: 'user_001',
+          type: 'assignment',
+          title: 'Test',
+          message: 'Test message'
+        });
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for unexpected errors in sendAssignmentNotification', async () => {
+      notificationService.sendAssignmentNotification.mockRejectedValue(new Error('Service error'));
+
+      const response = await request(app)
+        .post('/notifications/assignment')
+        .send({
+          userId: 'user_001',
+          eventData: { id: 'event_001', title: 'Test' },
+          assignmentData: { assignmentId: 'assign_001' }
+        });
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for unexpected errors in sendReminderNotification', async () => {
+      notificationService.sendReminderNotification.mockRejectedValue(new Error('Service error'));
+
+      const response = await request(app)
+        .post('/notifications/reminder')
+        .send({
+          userId: 'user_001',
+          eventData: { id: 'event_001', title: 'Test' },
+          reminderType: '24h'
+        });
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for unexpected errors in sendEventUpdateNotification', async () => {
+      notificationService.sendEventUpdateNotification.mockRejectedValue(new Error('Service error'));
+
+      const response = await request(app)
+        .post('/notifications/event-update')
+        .send({
+          userId: 'user_001',
+          eventData: { id: 'event_001', title: 'Test' },
+          updateData: { type: 'change' }
+        });
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for unexpected errors in sendMatchingSuggestionNotification', async () => {
+      notificationService.sendMatchingSuggestionNotification.mockRejectedValue(new Error('Service error'));
+
+      const response = await request(app)
+        .post('/notifications/matching-suggestion')
+        .send({
+          userId: 'user_001',
+          eventData: { id: 'event_001', title: 'Test' },
+          matchData: { matchScore: 85 }
+        });
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for unexpected errors in sendBulkNotifications', async () => {
+      notificationService.sendBulkNotifications.mockRejectedValue(new Error('Service error'));
+
+      const response = await request(app)
+        .post('/notifications/bulk-send')
+        .send({
+          userIds: ['user_001'],
+          notificationData: { type: 'reminder', title: 'Test', message: 'Test' }
+        });
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for unexpected errors in getAdminStats', async () => {
+      notificationService.getAdminStats.mockRejectedValue(new Error('Database error'));
+
+      const response = await request(app).get('/notifications/admin/stats');
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for unexpected errors in deleteNotification', async () => {
+      notificationService.deleteNotification.mockRejectedValue(new Error('Database error'));
+
+      const response = await request(app).delete('/notifications/notif_001');
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for unexpected errors in getNotificationById', async () => {
+      notificationService.getNotificationById.mockRejectedValue(new Error('Database error'));
+
+      const response = await request(app).get('/notifications/notif_001');
+
+      expect(response.status).toBe(500);
+    });
+  });
 });

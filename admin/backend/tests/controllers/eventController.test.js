@@ -687,4 +687,250 @@ describe('EventController', () => {
       expect(response.body.status).toBe('success');
     });
   });
+
+  describe('POST /events/:id/duplicate', () => {
+    beforeEach(() => {
+      app.post('/events/:id/duplicate', mockAuth, eventController.duplicateEvent);
+    });
+
+    it('should duplicate event successfully', async () => {
+      const mockOriginalEvent = {
+        success: true,
+        data: {
+          id: 'event_001',
+          title: 'Original Event',
+          description: 'Test description',
+          location: 'Test Location',
+          startDate: new Date(Date.now() + 86400000).toISOString(),
+          endDate: new Date(Date.now() + 90000000).toISOString(),
+          maxVolunteers: 10,
+          urgencyLevel: 'normal',
+          category: 'community'
+        }
+      };
+
+      const mockCreatedEvent = {
+        success: true,
+        message: 'Event created successfully',
+        data: {
+          id: 'event_new',
+          title: 'Original Event (Copy)',
+          description: 'Test description'
+        }
+      };
+
+      eventService.getEventById.mockResolvedValue(mockOriginalEvent);
+      eventService.createEvent.mockResolvedValue(mockCreatedEvent);
+
+      const response = await request(app)
+        .post('/events/event_001/duplicate')
+        .send({});
+
+      expect(response.status).toBe(201);
+      expect(response.body.status).toBe('success');
+      expect(response.body.message).toBe('Event duplicated successfully');
+    });
+
+    it('should handle original event not found', async () => {
+      eventService.getEventById.mockResolvedValue({ success: false });
+
+      const response = await request(app)
+        .post('/events/nonexistent/duplicate')
+        .send({});
+
+      expect(response.status).toBe(404);
+      expect(response.body.message).toBe('Original event not found');
+    });
+
+    it('should duplicate with custom title and dates', async () => {
+      const mockOriginalEvent = {
+        success: true,
+        data: {
+          id: 'event_001',
+          title: 'Original Event',
+          description: 'Test',
+          location: 'Test Location',
+          startDate: new Date(Date.now() + 86400000).toISOString(),
+          endDate: new Date(Date.now() + 90000000).toISOString()
+        }
+      };
+
+      const mockCreatedEvent = {
+        success: true,
+        message: 'Event created successfully',
+        data: { id: 'event_new', title: 'Custom Title' }
+      };
+
+      eventService.getEventById.mockResolvedValue(mockOriginalEvent);
+      eventService.createEvent.mockResolvedValue(mockCreatedEvent);
+
+      const customDate = new Date(Date.now() + 172800000).toISOString();
+      const response = await request(app)
+        .post('/events/event_001/duplicate')
+        .send({
+          title: 'Custom Title',
+          startDate: customDate,
+          endDate: customDate
+        });
+
+      expect(response.status).toBe(201);
+    });
+  });
+
+  describe('PUT /events/:eventId/volunteers/:volunteerId/review', () => {
+    beforeEach(() => {
+      // Mock the data modules
+      jest.mock('../../src/data/history');
+      jest.mock('../../src/data/events');
+      app.put('/events/:eventId/volunteers/:volunteerId/review', mockAuth, eventController.updateVolunteerReview);
+    });
+
+    it('should update volunteer review successfully', async () => {
+      // Mock volunteer history to simulate existing record
+      const { volunteerHistory } = require('../../src/data/history');
+      volunteerHistory.length = 0; // Clear array
+      volunteerHistory.push({
+        id: 'history_001',
+        eventId: 'event_001',
+        volunteerId: 'volunteer_001',
+        status: 'confirmed',
+        hoursWorked: 0,
+        performanceRating: null
+      });
+
+      const response = await request(app)
+        .put('/events/event_001/volunteers/volunteer_001/review')
+        .send({
+          status: 'completed',
+          hoursWorked: 4,
+          performanceRating: 5,
+          feedback: 'Great work!',
+          adminNotes: 'Excellent volunteer'
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.status).toBe('success');
+      expect(response.body.message).toBe('Volunteer review updated successfully');
+    });
+
+    it('should create new history record if not exists', async () => {
+      const { volunteerHistory } = require('../../src/data/history');
+      const { eventHelpers } = require('../../src/data/events');
+
+      volunteerHistory.length = 0; // Clear array
+
+      // Mock event helpers to return an assignment
+      eventHelpers.getEventAssignments = jest.fn().mockReturnValue([
+        { id: 'assign_001', volunteerId: 'volunteer_002', assignedAt: new Date() }
+      ]);
+
+      const response = await request(app)
+        .put('/events/event_001/volunteers/volunteer_002/review')
+        .send({
+          status: 'completed',
+          hoursWorked: 3,
+          performanceRating: 4
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.status).toBe('success');
+    });
+
+    it('should handle volunteer not assigned to event', async () => {
+      const { volunteerHistory } = require('../../src/data/history');
+      const { eventHelpers } = require('../../src/data/events');
+
+      volunteerHistory.length = 0; // Clear array
+      eventHelpers.getEventAssignments = jest.fn().mockReturnValue([]);
+
+      const response = await request(app)
+        .put('/events/event_001/volunteers/volunteer_999/review')
+        .send({
+          status: 'completed',
+          hoursWorked: 3
+        });
+
+      expect(response.status).toBe(404);
+      expect(response.body.message).toBe('Volunteer is not assigned to this event');
+    });
+  });
+
+  describe('POST /events/:id/join - non-volunteer role', () => {
+    it('should reject non-volunteer users from joining', async () => {
+      // Use existing test app, just add the specific route with admin auth
+      const app3 = express();
+      app3.use(express.json());
+
+      // Mock admin authentication
+      const adminAuth = (req, res, next) => {
+        req.user = { id: 'admin_001', email: 'admin@test.com', role: 'admin' };
+        next();
+      };
+
+      app3.post('/events/:id/join', adminAuth, eventController.joinEvent);
+
+      const response = await request(app3).post('/events/event_001/join').send({});
+
+      expect(response.status).toBe(403);
+      expect(response.body.message).toBe('Only volunteers can join events');
+    });
+  });
+
+  describe('Error handling for next(error)', () => {
+    it('should call next for unexpected errors in createEvent', async () => {
+      eventService.createEvent.mockRejectedValue(new Error('Unexpected error'));
+
+      const response = await request(app)
+        .post('/events')
+        .send({
+          title: 'Test Event',
+          description: 'Test',
+          location: 'Test',
+          startDate: new Date(Date.now() + 86400000).toISOString(),
+          endDate: new Date(Date.now() + 90000000).toISOString()
+        });
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for unexpected errors in updateEvent', async () => {
+      eventService.updateEvent.mockRejectedValue(new Error('Unexpected error'));
+
+      const response = await request(app)
+        .put('/events/event_001')
+        .send({ title: 'Updated Title' });
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for unexpected errors in assignVolunteer', async () => {
+      eventService.assignVolunteer.mockRejectedValue(new Error('Unexpected error'));
+
+      const response = await request(app)
+        .post('/events/event_001/assign/user_002')
+        .send({ volunteerId: 'user_002' });
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for unexpected errors in updateAssignmentStatus', async () => {
+      eventService.updateAssignmentStatus.mockRejectedValue(new Error('Unexpected error'));
+
+      const response = await request(app)
+        .post('/events/assignments/assign_001/status')
+        .send({ status: 'confirmed' });
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for unexpected errors in duplicateEvent', async () => {
+      eventService.getEventById.mockRejectedValue(new Error('Database error'));
+
+      const response = await request(app)
+        .post('/events/event_001/duplicate')
+        .send({});
+
+      expect(response.status).toBe(500);
+    });
+  });
 });

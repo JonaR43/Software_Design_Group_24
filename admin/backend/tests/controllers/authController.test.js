@@ -337,4 +337,237 @@ describe('AuthController', () => {
       expect(response.body.message).toBe('Username is required');
     });
   });
+
+  describe('GET /auth/oauth/callback', () => {
+    beforeEach(() => {
+      // Mock JWT sign
+      const jwt = require('jsonwebtoken');
+      jwt.sign = jest.fn().mockReturnValue('mock-token');
+
+      app.get('/auth/oauth/callback', authController.oauthCallback);
+    });
+
+    it('should handle successful OAuth callback with user', async () => {
+      const appWithUser = express();
+      appWithUser.use((req, res, next) => {
+        req.user = { id: 'user_001', email: 'test@example.com', role: 'volunteer' };
+        next();
+      });
+      appWithUser.get('/auth/oauth/callback', authController.oauthCallback);
+
+      const response = await request(appWithUser).get('/auth/oauth/callback');
+
+      expect(response.status).toBe(302); // Redirect
+      expect(response.header.location).toContain('/oauth/callback?token=');
+    });
+
+    it('should handle OAuth callback without user', async () => {
+      const appWithoutUser = express();
+      appWithoutUser.use((req, res, next) => {
+        req.user = null;
+        next();
+      });
+      appWithoutUser.get('/auth/oauth/callback', authController.oauthCallback);
+
+      const response = await request(appWithoutUser).get('/auth/oauth/callback');
+
+      expect(response.status).toBe(302); // Redirect
+      expect(response.header.location).toContain('/login?error=oauth_failed');
+    });
+
+    it('should handle OAuth callback error', async () => {
+      const appWithError = express();
+      appWithError.use((req, res, next) => {
+        req.user = { id: 'user_001', email: 'test@example.com', role: 'volunteer' };
+        next();
+      });
+
+      // Mock JWT to throw error
+      const jwt = require('jsonwebtoken');
+      jwt.sign = jest.fn().mockImplementation(() => {
+        throw new Error('JWT Error');
+      });
+
+      appWithError.get('/auth/oauth/callback', authController.oauthCallback);
+
+      const response = await request(appWithError).get('/auth/oauth/callback');
+
+      expect(response.status).toBe(302); // Redirect
+      expect(response.header.location).toContain('/login?error=oauth_error');
+    });
+  });
+
+  describe('GET /auth/oauth/failure', () => {
+    beforeEach(() => {
+      app.get('/auth/oauth/failure', authController.oauthFailure);
+    });
+
+    it('should handle OAuth failure', async () => {
+      const response = await request(app).get('/auth/oauth/failure');
+
+      expect(response.status).toBe(302); // Redirect
+      expect(response.header.location).toContain('/login?error=oauth_failed');
+    });
+  });
+
+  describe('POST /auth/login - email verification error', () => {
+    it('should handle unverified email error', async () => {
+      authService.login.mockRejectedValue(new Error('Please verify your email first'));
+
+      const response = await request(app)
+        .post('/auth/login')
+        .send({ email: 'unverified@example.com', password: 'password123' });
+
+      expect(response.status).toBe(401);
+      expect(response.body.status).toBe('error');
+      expect(response.body.message).toContain('verify your email');
+    });
+  });
+
+  describe('POST /auth/register - username already taken', () => {
+    it('should handle username already taken error', async () => {
+      authService.register.mockRejectedValue(new Error('Username is already taken'));
+
+      const response = await request(app)
+        .post('/auth/register')
+        .send({
+          email: 'new@example.com',
+          password: 'password123',
+          username: 'existinguser',
+          role: 'volunteer'
+        });
+
+      expect(response.status).toBe(409);
+      expect(response.body.status).toBe('error');
+      expect(response.body.message).toContain('already taken');
+    });
+  });
+
+  describe('GET /auth/verify - missing Bearer prefix', () => {
+    it('should handle authorization header without Bearer prefix', async () => {
+      const response = await request(app)
+        .get('/auth/verify')
+        .set('Authorization', 'jwt-token');
+
+      expect(response.status).toBe(401);
+      expect(response.body.status).toBe('error');
+      expect(response.body.message).toBe('No token provided');
+    });
+  });
+
+  describe('Error handling for next(error)', () => {
+    it('should call next for unexpected errors in register', async () => {
+      authService.register.mockRejectedValue(new Error('Unexpected error'));
+
+      const response = await request(app)
+        .post('/auth/register')
+        .send({
+          email: 'test@example.com',
+          password: 'password123',
+          username: 'testuser',
+          role: 'volunteer'
+        });
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for unexpected errors in login', async () => {
+      authService.login.mockRejectedValue(new Error('Database connection error'));
+
+      const response = await request(app)
+        .post('/auth/login')
+        .send({ email: 'test@example.com', password: 'password123' });
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for errors in changePassword', async () => {
+      authService.changePassword.mockRejectedValue(new Error('Database error'));
+
+      const response = await request(app)
+        .post('/auth/change-password')
+        .send({
+          currentPassword: 'Pass@word123',
+          newPassword: 'NewPass@word456'
+        });
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for errors in validateRegistration', async () => {
+      authService.validateRegistrationData = jest.fn(() => {
+        throw new Error('Validation service error');
+      });
+
+      const response = await request(app)
+        .post('/auth/validate-registration')
+        .send({
+          username: 'johndoe',
+          email: 'john@example.com',
+          password: 'Pass@word123'
+        });
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for errors in checkEmailAvailability', async () => {
+      const { userHelpers } = require('../../src/data/users');
+      const originalFindByEmail = userHelpers.findByEmail;
+
+      userHelpers.findByEmail = jest.fn(() => {
+        throw new Error('Database error');
+      });
+
+      const response = await request(app)
+        .post('/auth/check-email')
+        .send({ email: 'test@example.com' });
+
+      expect(response.status).toBe(500);
+
+      userHelpers.findByEmail = originalFindByEmail;
+    });
+
+    it('should call next for errors in checkUsernameAvailability', async () => {
+      const { userHelpers } = require('../../src/data/users');
+      const originalFindByUsername = userHelpers.findByUsername;
+
+      userHelpers.findByUsername = jest.fn(() => {
+        throw new Error('Database error');
+      });
+
+      const response = await request(app)
+        .post('/auth/check-username')
+        .send({ username: 'testuser' });
+
+      expect(response.status).toBe(500);
+
+      userHelpers.findByUsername = originalFindByUsername;
+    });
+
+    it('should call next for errors in logout', async () => {
+      authService.logout.mockRejectedValue(new Error('Logout service error'));
+
+      const response = await request(app).post('/auth/logout');
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for errors in getCurrentUser', async () => {
+      authService.getUserProfile.mockRejectedValue(new Error('Profile service error'));
+
+      const response = await request(app).get('/auth/profile');
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for errors in refreshToken', async () => {
+      authService.generateToken = jest.fn(() => {
+        throw new Error('Token generation error');
+      });
+
+      const response = await request(app).post('/auth/refresh');
+
+      expect(response.status).toBe(500);
+    });
+  });
 });

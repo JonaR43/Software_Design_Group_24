@@ -345,4 +345,200 @@ describe('MatchingService', () => {
       expect(result.data).toHaveProperty('averageMatchScore');
     });
   });
+
+  describe('findMatchesForVolunteer - error handling', () => {
+    it('should handle calculation errors gracefully', async () => {
+      userHelpers.findById.mockReturnValue(mockUser);
+      userHelpers.getProfile.mockReturnValue(mockVolunteerProfile);
+      jest.spyOn(matchingService, 'getAvailableEvents').mockReturnValue([mockEvent]);
+      matchingAlgorithm.calculateMatchScore.mockImplementation(() => {
+        throw new Error('Calculation error');
+      });
+
+      const result = await matchingService.findMatchesForVolunteer('user_001');
+
+      expect(result.success).toBe(true);
+      expect(result.data.matches).toHaveLength(0);
+    });
+  });
+
+  describe('calculateMatch - profile validation', () => {
+    it('should handle volunteer profile not found', async () => {
+      userHelpers.findById.mockReturnValue(mockUser);
+      eventHelpers.findById.mockReturnValue(mockEvent);
+      userHelpers.getProfile.mockReturnValue(null);
+
+      await expect(matchingService.calculateMatch('user_001', 'event_001'))
+        .rejects.toThrow('Volunteer profile not found');
+    });
+  });
+
+  describe('getAutomaticSuggestions - error handling', () => {
+    it('should handle errors gracefully during suggestion generation', async () => {
+      const mockEventsNeedingVolunteers = [mockEvent];
+      eventHelpers.getEventsNeedingVolunteers.mockReturnValue(mockEventsNeedingVolunteers);
+
+      jest.spyOn(matchingService, 'findMatchesForEvent').mockRejectedValue(new Error('Matching error'));
+
+      const result = await matchingService.getAutomaticSuggestions();
+
+      expect(result.success).toBe(true);
+      expect(result.data.suggestions).toHaveLength(0);
+    });
+
+    it('should handle events with no matches', async () => {
+      const mockEventsNeedingVolunteers = [mockEvent];
+      eventHelpers.getEventsNeedingVolunteers.mockReturnValue(mockEventsNeedingVolunteers);
+
+      jest.spyOn(matchingService, 'findMatchesForEvent').mockResolvedValue({
+        data: {
+          matches: []
+        }
+      });
+
+      const result = await matchingService.getAutomaticSuggestions();
+
+      expect(result.success).toBe(true);
+      expect(result.data.suggestions).toHaveLength(0);
+    });
+
+    it('should sort suggestions by urgency and spots needed', async () => {
+      const urgentEvent = { ...mockEvent, id: 'event_002', urgencyLevel: 'urgent', maxVolunteers: 20, currentVolunteers: 5 };
+      const normalEvent = { ...mockEvent, id: 'event_003', urgencyLevel: 'normal', maxVolunteers: 10, currentVolunteers: 5 };
+
+      eventHelpers.getEventsNeedingVolunteers.mockReturnValue([normalEvent, urgentEvent]);
+
+      jest.spyOn(matchingService, 'findMatchesForEvent').mockResolvedValue({
+        data: {
+          matches: [{
+            volunteer: {
+              id: 'user_001',
+              profile: { firstName: 'John', lastName: 'Doe' }
+            },
+            matchScore: 85,
+            matchQuality: 'excellent',
+            recommendations: [{ message: 'Perfect skill match' }]
+          }]
+        }
+      });
+
+      const result = await matchingService.getAutomaticSuggestions();
+
+      expect(result.success).toBe(true);
+      expect(result.data.suggestions[0].urgencyLevel).toBe('urgent');
+    });
+  });
+
+  describe('optimizeAssignments - edge cases', () => {
+    it('should handle event at capacity', async () => {
+      const fullEvent = { ...mockEvent, currentVolunteers: 10, maxVolunteers: 10 };
+      eventHelpers.findById.mockReturnValue(fullEvent);
+      // Return 10 confirmed assignments to fill all spots
+      const assignments = Array.from({ length: 10 }, (_, i) => ({
+        volunteerId: `user_${i}`,
+        status: 'confirmed'
+      }));
+      eventHelpers.getEventAssignments.mockReturnValue(assignments);
+
+      const result = await matchingService.optimizeAssignments('event_001', { preserveConfirmed: true });
+
+      expect(result.success).toBe(true);
+      expect(result.data.message).toBe('Event is at capacity');
+      expect(result.data.availableSlots).toBe(0);
+    });
+
+    it('should handle event with confirmed assignments when preserveConfirmed is true', async () => {
+      eventHelpers.findById.mockReturnValue(mockEvent);
+      eventHelpers.getEventAssignments.mockReturnValue([
+        { volunteerId: 'user_001', status: 'confirmed' },
+        { volunteerId: 'user_002', status: 'confirmed' }
+      ]);
+
+      jest.spyOn(matchingService, 'findMatchesForEvent').mockResolvedValue({
+        data: {
+          matches: [{
+            volunteer: {
+              id: 'user_003',
+              profile: { firstName: 'Jane', lastName: 'Smith' }
+            },
+            matchScore: 90,
+            matchQuality: 'excellent',
+            recommendations: ['Great match']
+          }]
+        }
+      });
+
+      const result = await matchingService.optimizeAssignments('event_001', { preserveConfirmed: true });
+
+      expect(result.success).toBe(true);
+      expect(result.data.totalSlotsAvailable).toBe(8);
+    });
+  });
+
+  describe('getAvailableVolunteers - includeAssigned flag', () => {
+    it('should include assigned volunteers when includeAssigned is true', async () => {
+      userHelpers.getVolunteerProfiles.mockReturnValue([mockVolunteerProfile]);
+
+      const result = await matchingService.getAvailableVolunteers('event_001', true);
+
+      expect(result).toHaveLength(1);
+      expect(eventHelpers.getEventAssignments).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('generateMatchingStats - edge cases', () => {
+    it('should handle empty matches array', () => {
+      const stats = matchingService.generateMatchingStats([], mockEvent);
+
+      expect(stats.averageScore).toBe(0);
+      expect(stats.scoreDistribution.excellent).toBe(0);
+      expect(stats.skillsCoverage).toBe(0);
+    });
+
+    it('should handle event with no required skills', () => {
+      const eventNoSkills = { ...mockEvent, requiredSkills: [] };
+      const matches = [{
+        volunteer: { id: 'user_001' },
+        matchScore: 85,
+        scoreBreakdown: { skills: 50, availability: 85, location: 85 }
+      }];
+
+      const stats = matchingService.generateMatchingStats(matches, eventNoSkills);
+
+      expect(stats.skillsCoverage).toBe(100);
+    });
+  });
+
+  describe('getMatchingStats - edge cases', () => {
+    it('should handle no confirmed assignments', async () => {
+      const mockEvents = [mockEvent];
+      const mockVolunteers = [mockUser];
+      const mockAssignments = [];
+
+      eventHelpers.getAllEvents.mockReturnValue(mockEvents);
+      userHelpers.getVolunteers.mockReturnValue(mockVolunteers);
+      eventHelpers.getEventAssignments.mockReturnValue(mockAssignments);
+      eventHelpers.getEventsNeedingVolunteers.mockReturnValue([mockEvent]);
+
+      const result = await matchingService.getMatchingStats();
+
+      expect(result.success).toBe(true);
+      expect(result.data.averageMatchScore).toBe(0);
+    });
+
+    it('should handle no volunteers', async () => {
+      const mockEvents = [mockEvent];
+      const mockVolunteers = [];
+
+      eventHelpers.getAllEvents.mockReturnValue(mockEvents);
+      userHelpers.getVolunteers.mockReturnValue(mockVolunteers);
+      eventHelpers.getEventAssignments.mockReturnValue([]);
+      eventHelpers.getEventsNeedingVolunteers.mockReturnValue([mockEvent]);
+
+      const result = await matchingService.getMatchingStats();
+
+      expect(result.success).toBe(true);
+      expect(result.data.matchingEfficiency).toBe(0);
+    });
+  });
 });
