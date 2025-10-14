@@ -29,8 +29,10 @@ export default [
       route("events", "routes/client/dashboard/admin/event-management.tsx"),
       route("create-event", "routes/client/dashboard/admin/create-event.tsx"),
       route("edit-event/:eventId", "routes/client/dashboard/admin/edit-event.tsx"),
+      route("event-volunteers/:eventId", "routes/client/dashboard/admin/event-volunteers.$eventId.tsx"),
       route("matching", "routes/client/dashboard/admin/volunteer-matching.tsx"),
       route("users", "routes/client/dashboard/admin/user-management.tsx"),
+      route("volunteer-metrics/:userId", "routes/client/dashboard/admin/volunteer-metrics.$userId.tsx"),
     ]),
   ]),
 ] satisfies RouteConfig;

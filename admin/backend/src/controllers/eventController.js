@@ -512,6 +512,106 @@ class EventController {
       next(error);
     }
   }
+
+  /**
+   * Update volunteer review and feedback for an event
+   * PUT /api/events/:eventId/volunteers/:volunteerId/review
+   */
+  async updateVolunteerReview(req, res, next) {
+    try {
+      const { eventId, volunteerId } = req.params;
+      const { status, hoursWorked, performanceRating, feedback, adminNotes } = req.body;
+
+      console.log('Update volunteer review request:', {
+        eventId,
+        volunteerId,
+        body: req.body,
+        user: req.user?.id
+      });
+
+      // Find the history record for this volunteer and event
+      const { volunteerHistory } = require('../data/history');
+      const historyRecord = volunteerHistory.find(
+        h => h.eventId === eventId && h.volunteerId === volunteerId
+      );
+
+      console.log('Found history record:', historyRecord ? 'Yes' : 'No');
+
+      let recordToUpdate;
+
+      if (!historyRecord) {
+        console.log('No history record found. Creating a new one...');
+
+        // Check if the volunteer assignment exists
+        const { eventHelpers } = require('../data/events');
+        const assignments = eventHelpers.getEventAssignments(eventId);
+        const assignment = assignments.find(a => a.volunteerId === volunteerId);
+
+        if (!assignment) {
+          console.log('No assignment found either');
+          return res.status(404).json({
+            status: 'error',
+            message: 'Volunteer is not assigned to this event',
+            timestamp: new Date().toISOString()
+          });
+        }
+
+        // Create a new history record
+        const newHistoryRecord = {
+          id: `history_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          volunteerId: volunteerId,
+          eventId: eventId,
+          assignmentId: assignment.id,
+          status: status || 'confirmed',
+          hoursWorked: hoursWorked ? parseFloat(hoursWorked) : 0,
+          performanceRating: performanceRating ? parseInt(performanceRating) : null,
+          feedback: feedback || null,
+          attendance: 'pending',
+          skills_utilized: [],
+          participationDate: assignment.assignedAt || new Date(),
+          completionDate: null,
+          recordedBy: req.user.id,
+          recordedAt: new Date(),
+          adminNotes: adminNotes || null
+        };
+
+        volunteerHistory.push(newHistoryRecord);
+        recordToUpdate = newHistoryRecord;
+        console.log('Created new history record:', newHistoryRecord);
+      } else {
+        // Update existing history record
+        if (status !== undefined) historyRecord.status = status;
+        if (hoursWorked !== undefined) historyRecord.hoursWorked = parseFloat(hoursWorked);
+        if (performanceRating !== undefined) historyRecord.performanceRating = parseInt(performanceRating);
+        if (feedback !== undefined) historyRecord.feedback = feedback;
+        if (adminNotes !== undefined) historyRecord.adminNotes = adminNotes;
+
+        historyRecord.recordedBy = req.user.id;
+        historyRecord.recordedAt = new Date();
+
+        recordToUpdate = historyRecord;
+        console.log('Updated existing history record');
+      }
+
+      // If marking as completed, set completion date
+      if (status === 'completed' && !recordToUpdate.completionDate) {
+        recordToUpdate.completionDate = new Date();
+        recordToUpdate.attendance = 'present';
+      }
+
+      console.log('Final record:', recordToUpdate);
+
+      res.status(200).json({
+        status: 'success',
+        message: 'Volunteer review updated successfully',
+        data: recordToUpdate,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('Error in updateVolunteerReview:', error);
+      next(error);
+    }
+  }
 }
 
 module.exports = new EventController();

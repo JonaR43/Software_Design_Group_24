@@ -164,6 +164,17 @@ router.put('/assignments/:assignmentId',
 );
 
 /**
+ * @route   PUT /api/events/:eventId/volunteers/:volunteerId/review
+ * @desc    Update volunteer review and feedback for an event
+ * @access  Private (Admin only)
+ */
+router.put('/:eventId/volunteers/:volunteerId/review',
+  authenticate,
+  authorize('admin'),
+  eventController.updateVolunteerReview
+);
+
+/**
  * @route   POST /api/events/:id/duplicate
  * @desc    Duplicate event
  * @access  Private (Admin only)

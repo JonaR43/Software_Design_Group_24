@@ -205,14 +205,29 @@ class EventService {
     }
 
     const assignments = eventHelpers.getEventAssignments(eventId);
+    const { volunteerHistory } = require('../data/history');
 
-    // Enhance assignments with volunteer data
+    // Enhance assignments with volunteer data and history
     const assignmentsWithVolunteers = assignments.map(assignment => {
       const volunteer = userHelpers.findById(assignment.volunteerId);
       const profile = userHelpers.getProfile(assignment.volunteerId);
 
+      // Find corresponding history record for this volunteer and event
+      const historyRecord = volunteerHistory.find(
+        h => h.eventId === eventId && h.volunteerId === assignment.volunteerId
+      );
+
       return {
-        ...assignment,
+        id: assignment.id,
+        volunteerId: assignment.volunteerId,
+        eventId: assignment.eventId,
+        status: historyRecord?.status || assignment.status,
+        assignedAt: assignment.assignedAt,
+        hoursWorked: historyRecord?.hoursWorked || 0,
+        performanceRating: historyRecord?.performanceRating || null,
+        feedback: historyRecord?.feedback || null,
+        adminNotes: historyRecord?.adminNotes || null,
+        participationDate: historyRecord?.participationDate || assignment.assignedAt,
         volunteer: volunteer ? {
           id: volunteer.id,
           username: volunteer.username,

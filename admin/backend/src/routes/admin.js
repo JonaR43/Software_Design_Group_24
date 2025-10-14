@@ -56,6 +56,13 @@ router.delete('/users/:userId', adminController.deleteUser);
 router.get('/metrics', adminController.getMetrics);
 
 /**
+ * @route   GET /api/admin/users/:userId/metrics
+ * @desc    Get volunteer-specific metrics
+ * @access  Private (Admin only)
+ */
+router.get('/users/:userId/metrics', adminController.getVolunteerMetrics);
+
+/**
  * Error handling for admin routes
  */
 router.use((error, req, res, next) => {

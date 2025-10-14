@@ -947,6 +947,79 @@ export class UserService {
       throw new Error(`Failed to delete user: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
+
+  static async getVolunteerMetrics(userId: string): Promise<any> {
+    try {
+      const response = await HttpClient.get<{
+        status: string;
+        data: any;
+      }>(`/admin/users/${userId}/metrics`);
+
+      if (response.status === 'success') {
+        return response.data;
+      }
+
+      throw new Error('Failed to fetch volunteer metrics');
+    } catch (error) {
+      throw new Error(`Failed to fetch volunteer metrics: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+}
+
+export interface EventVolunteer {
+  id: string;
+  volunteerId: string;
+  volunteerName: string;
+  volunteerEmail: string;
+  status: string;
+  hoursWorked?: number;
+  performanceRating?: number;
+  feedback?: string;
+  adminNotes?: string;
+  participationDate: string;
+  completionDate?: string;
+}
+
+export class EventVolunteerService {
+  static async getEventVolunteers(eventId: string): Promise<EventVolunteer[]> {
+    try {
+      const response = await HttpClient.get<{
+        status: string;
+        data: {
+          assignments: any[];
+        };
+      }>(`/events/${eventId}/assignments`);
+
+      if (response.status === 'success') {
+        return response.data.assignments;
+      }
+
+      throw new Error('Failed to fetch event volunteers');
+    } catch (error) {
+      throw new Error(`Failed to fetch event volunteers: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  static async updateVolunteerReview(eventId: string, volunteerId: string, reviewData: {
+    status?: string;
+    hoursWorked?: number;
+    performanceRating?: number;
+    feedback?: string;
+    adminNotes?: string;
+  }): Promise<void> {
+    try {
+      const response = await HttpClient.put<{
+        status: string;
+        message: string;
+      }>(`/events/${eventId}/volunteers/${volunteerId}/review`, reviewData);
+
+      if (response.status !== 'success') {
+        throw new Error('Failed to update volunteer review');
+      }
+    } catch (error) {
+      throw new Error(`Failed to update volunteer review: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
 }
 
 export { TokenManager, HttpClient };
