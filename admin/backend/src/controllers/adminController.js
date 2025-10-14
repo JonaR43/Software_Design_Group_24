@@ -281,6 +281,169 @@ class AdminController {
   }
 
   /**
+   * Get volunteer-specific metrics
+   * GET /api/admin/users/:userId/metrics
+   */
+  async getVolunteerMetrics(req, res, next) {
+    try {
+      const { userId } = req.params;
+
+      const user = userHelpers.findById(userId);
+      if (!user) {
+        return res.status(404).json({
+          status: 'error',
+          message: 'User not found',
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      if (user.role !== 'volunteer') {
+        return res.status(400).json({
+          status: 'error',
+          message: 'User is not a volunteer',
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      // Get volunteer's history
+      const volunteerParticipation = volunteerHistory.filter(h => h.volunteerId === userId);
+
+      // Basic stats
+      const totalEvents = volunteerParticipation.length;
+      const completedEvents = volunteerParticipation.filter(h => h.status === 'completed').length;
+      const noShows = volunteerParticipation.filter(h => h.status === 'no_show').length;
+      const cancelled = volunteerParticipation.filter(h => h.status === 'cancelled').length;
+      const upcomingEvents = volunteerParticipation.filter(h => h.status === 'confirmed').length;
+
+      // Hours and attendance
+      const totalHours = volunteerParticipation
+        .filter(h => h.status === 'completed')
+        .reduce((sum, h) => sum + (h.hoursWorked || 0), 0);
+
+      const attendanceRate = totalEvents > 0
+        ? ((completedEvents / totalEvents) * 100).toFixed(1)
+        : 0;
+
+      const averageHoursPerEvent = completedEvents > 0
+        ? (totalHours / completedEvents).toFixed(1)
+        : 0;
+
+      // Performance ratings
+      const ratings = volunteerParticipation
+        .filter(h => h.performanceRating)
+        .map(h => h.performanceRating);
+
+      const averageRating = ratings.length > 0
+        ? (ratings.reduce((sum, r) => sum + r, 0) / ratings.length).toFixed(2)
+        : null;
+
+      const ratingDistribution = [
+        { rating: '5 Stars', count: ratings.filter(r => r === 5).length },
+        { rating: '4 Stars', count: ratings.filter(r => r === 4).length },
+        { rating: '3 Stars', count: ratings.filter(r => r === 3).length },
+        { rating: '2 Stars', count: ratings.filter(r => r === 2).length },
+        { rating: '1 Star', count: ratings.filter(r => r === 1).length }
+      ];
+
+      // Monthly activity (last 6 months)
+      const now = new Date();
+      const monthlyActivity = [];
+
+      for (let i = 5; i >= 0; i--) {
+        const monthStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
+        const monthName = monthStart.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+
+        const monthEvents = volunteerParticipation.filter(h => {
+          const date = new Date(h.participationDate);
+          return date >= monthStart && date <= monthEnd;
+        });
+
+        const monthHours = monthEvents
+          .filter(h => h.status === 'completed')
+          .reduce((sum, h) => sum + (h.hoursWorked || 0), 0);
+
+        monthlyActivity.push({
+          month: monthName,
+          events: monthEvents.length,
+          completed: monthEvents.filter(h => h.status === 'completed').length,
+          hours: parseFloat(monthHours.toFixed(1))
+        });
+      }
+
+      // Event categories breakdown
+      const eventsByCategory = {};
+      volunteerParticipation.forEach(h => {
+        const event = events.find(e => e.id === h.eventId);
+        if (event) {
+          const category = event.category || 'other';
+          if (!eventsByCategory[category]) {
+            eventsByCategory[category] = { category, events: 0, hours: 0 };
+          }
+          eventsByCategory[category].events += 1;
+          if (h.status === 'completed') {
+            eventsByCategory[category].hours += h.hoursWorked || 0;
+          }
+        }
+      });
+
+      const categoryBreakdown = Object.values(eventsByCategory).map(cat => ({
+        ...cat,
+        hours: parseFloat(cat.hours.toFixed(1))
+      }));
+
+      // Recent events
+      const recentEvents = volunteerParticipation
+        .sort((a, b) => new Date(b.participationDate).getTime() - new Date(a.participationDate).getTime())
+        .slice(0, 10)
+        .map(h => {
+          const event = events.find(e => e.id === h.eventId);
+          return {
+            eventId: h.eventId,
+            eventName: event?.title || 'Unknown Event',
+            eventCategory: event?.category || 'other',
+            date: h.participationDate,
+            status: h.status,
+            hours: h.hoursWorked || 0,
+            rating: h.performanceRating || null,
+            feedback: h.feedback || null
+          };
+        });
+
+      res.status(200).json({
+        status: 'success',
+        data: {
+          volunteer: {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            name: user.profile ? `${user.profile.firstName} ${user.profile.lastName}` : user.username,
+            joinedDate: user.createdAt
+          },
+          overview: {
+            totalEvents,
+            completedEvents,
+            upcomingEvents,
+            noShows,
+            cancelled,
+            totalHours: parseFloat(totalHours.toFixed(1)),
+            averageHoursPerEvent: parseFloat(averageHoursPerEvent),
+            attendanceRate: parseFloat(attendanceRate),
+            averageRating: averageRating ? parseFloat(averageRating) : null
+          },
+          ratingDistribution,
+          monthlyActivity,
+          categoryBreakdown,
+          recentEvents
+        },
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * Get analytics metrics
    * GET /api/admin/metrics
    */

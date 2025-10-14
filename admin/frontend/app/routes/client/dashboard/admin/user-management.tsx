@@ -274,6 +274,14 @@ export default function UserManagementPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex gap-2">
+                      {user.role === 'volunteer' && (
+                        <a
+                          href={`/dashboard/admin/volunteer-metrics/${user.id}`}
+                          className="text-green-600 hover:text-green-900 transition"
+                        >
+                          Metrics
+                        </a>
+                      )}
                       <button
                         onClick={() => openEditModal(user)}
                         className="text-indigo-600 hover:text-indigo-900 transition"
