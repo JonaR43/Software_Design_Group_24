@@ -10,6 +10,9 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
   },
+  "prisma": {
+    "seed": "node prisma/seed.js"
+  },
   "keywords": [
     "volunteer",
     "management",
@@ -20,6 +23,7 @@
   "author": "Group 24",
   "license": "ISC",
   "dependencies": {
+    "@prisma/client": "^6.17.1",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
     "dotenv": "^17.2.2",
@@ -33,7 +37,8 @@
     "passport": "^0.7.0",
     "passport-github2": "^0.1.12",
     "passport-google-oauth20": "^2.0.0",
-    "passport-microsoft": "^2.1.0"
+    "passport-microsoft": "^2.1.0",
+    "prisma": "^6.17.1"
   },
   "devDependencies": {
     "jest": "^30.1.3",
