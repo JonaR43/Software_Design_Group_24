@@ -1,15 +1,17 @@
 /**
  * Unit Tests for Authentication Service
+ * Updated to mock Prisma userRepository
  */
 
 const authService = require('../../src/services/authService');
-const { users, userHelpers } = require('../../src/data/users');
+const userRepository = require('../../src/database/repositories/userRepository');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 // Mock dependencies
 jest.mock('bcryptjs');
 jest.mock('jsonwebtoken');
+jest.mock('../../src/database/repositories/userRepository');
 
 describe('AuthService', () => {
   beforeEach(() => {
@@ -28,9 +30,25 @@ describe('AuthService', () => {
       // Mock bcrypt.hash to return a hashed password
       bcrypt.hash.mockResolvedValue('hashedPassword');
 
-      // Mock userHelpers to return null (user doesn't exist)
-      jest.spyOn(userHelpers, 'findByEmail').mockReturnValue(null);
-      jest.spyOn(userHelpers, 'findByUsername').mockReturnValue(null);
+      // Mock userRepository to return null (user doesn't exist)
+      userRepository.findByEmail.mockResolvedValue(null);
+      userRepository.findByUsername.mockResolvedValue(null);
+      userRepository.create.mockResolvedValue({
+        id: 'new_user_001',
+        username: 'testuser',
+        email: 'test@example.com',
+        role: 'VOLUNTEER',
+        verified: true,
+        createdAt: new Date()
+      });
+      userRepository.createProfile.mockResolvedValue({
+        id: 'profile_001',
+        userId: 'new_user_001',
+        firstName: '',
+        lastName: '',
+        skills: [],
+        availability: []
+      });
 
       const result = await authService.register(validUserData);
 
@@ -39,22 +57,24 @@ describe('AuthService', () => {
       expect(result.data.user).toMatchObject({
         username: validUserData.username,
         email: validUserData.email,
-        role: validUserData.role,
+        role: 'VOLUNTEER',
         verified: true
       });
       expect(bcrypt.hash).toHaveBeenCalledWith(validUserData.password, 12);
+      expect(userRepository.create).toHaveBeenCalled();
+      expect(userRepository.createProfile).toHaveBeenCalled();
     });
 
     it('should reject registration if email already exists', async () => {
-      jest.spyOn(userHelpers, 'findByEmail').mockReturnValue({ id: 'existing_user' });
+      userRepository.findByEmail.mockResolvedValue({ id: 'existing_user' });
 
       await expect(authService.register(validUserData))
         .rejects.toThrow('User with this email already exists');
     });
 
     it('should reject registration if username already exists', async () => {
-      jest.spyOn(userHelpers, 'findByEmail').mockReturnValue(null);
-      jest.spyOn(userHelpers, 'findByUsername').mockReturnValue({ id: 'existing_user' });
+      userRepository.findByEmail.mockResolvedValue(null);
+      userRepository.findByUsername.mockResolvedValue({ id: 'existing_user' });
 
       await expect(authService.register(validUserData))
         .rejects.toThrow('Username already taken');
@@ -62,8 +82,8 @@ describe('AuthService', () => {
 
     it('should handle incomplete data gracefully', async () => {
       const incompleteData = { username: 'test' };
-      jest.spyOn(userHelpers, 'findByEmail').mockReturnValue(null);
-      jest.spyOn(userHelpers, 'findByUsername').mockReturnValue(null);
+      userRepository.findByEmail.mockResolvedValue(null);
+      userRepository.findByUsername.mockResolvedValue(null);
 
       // The service may not validate upfront, but should handle missing fields
       try {
@@ -74,9 +94,20 @@ describe('AuthService', () => {
     });
 
     it('should process registration with all required fields', async () => {
-      jest.spyOn(userHelpers, 'findByEmail').mockReturnValue(null);
-      jest.spyOn(userHelpers, 'findByUsername').mockReturnValue(null);
-      userHelpers.createUser = jest.fn().mockReturnValue({ id: 'new_user_001' });
+      userRepository.findByEmail.mockResolvedValue(null);
+      userRepository.findByUsername.mockResolvedValue(null);
+      userRepository.create.mockResolvedValue({
+        id: 'new_user_001',
+        username: 'testuser',
+        email: 'test@example.com',
+        role: 'VOLUNTEER',
+        verified: true,
+        createdAt: new Date()
+      });
+      userRepository.createProfile.mockResolvedValue({
+        id: 'profile_001',
+        userId: 'new_user_001'
+      });
       bcrypt.hash.mockResolvedValue('hashedPassword');
 
       const result = await authService.register(validUserData);
@@ -84,9 +115,20 @@ describe('AuthService', () => {
     });
 
     it('should hash passwords during registration', async () => {
-      jest.spyOn(userHelpers, 'findByEmail').mockReturnValue(null);
-      jest.spyOn(userHelpers, 'findByUsername').mockReturnValue(null);
-      userHelpers.createUser = jest.fn().mockReturnValue({ id: 'new_user_001' });
+      userRepository.findByEmail.mockResolvedValue(null);
+      userRepository.findByUsername.mockResolvedValue(null);
+      userRepository.create.mockResolvedValue({
+        id: 'new_user_001',
+        username: 'testuser',
+        email: 'test@example.com',
+        role: 'VOLUNTEER',
+        verified: true,
+        createdAt: new Date()
+      });
+      userRepository.createProfile.mockResolvedValue({
+        id: 'profile_001',
+        userId: 'new_user_001'
+      });
       bcrypt.hash.mockResolvedValue('hashedPassword');
 
       await authService.register(validUserData);
@@ -105,12 +147,20 @@ describe('AuthService', () => {
       username: 'johnsmith',
       email: 'john.smith@email.com',
       password: 'hashedPassword',
-      role: 'volunteer',
+      role: 'VOLUNTEER',
       verified: true
     };
 
+    const mockProfile = {
+      id: 'profile_002',
+      userId: 'user_002',
+      firstName: 'John',
+      lastName: 'Smith'
+    };
+
     it('should login user successfully with valid credentials', async () => {
-      jest.spyOn(userHelpers, 'findByEmail').mockReturnValue(mockUser);
+      userRepository.findByEmail.mockResolvedValue(mockUser);
+      userRepository.getProfile.mockResolvedValue(mockProfile);
       bcrypt.compare.mockResolvedValue(true);
       jwt.sign.mockReturnValue('mock-jwt-token');
 
@@ -124,14 +174,14 @@ describe('AuthService', () => {
     });
 
     it('should reject login with non-existent email', async () => {
-      jest.spyOn(userHelpers, 'findByEmail').mockReturnValue(null);
+      userRepository.findByEmail.mockResolvedValue(null);
 
       await expect(authService.login(validLoginData))
         .rejects.toThrow('Invalid email or password');
     });
 
     it('should reject login with incorrect password', async () => {
-      jest.spyOn(userHelpers, 'findByEmail').mockReturnValue(mockUser);
+      userRepository.findByEmail.mockResolvedValue(mockUser);
       bcrypt.compare.mockResolvedValue(false);
 
       await expect(authService.login(validLoginData))
@@ -140,7 +190,7 @@ describe('AuthService', () => {
 
     it('should handle unverified user according to service logic', async () => {
       const unverifiedUser = { ...mockUser, verified: false };
-      jest.spyOn(userHelpers, 'findByEmail').mockReturnValue(unverifiedUser);
+      userRepository.findByEmail.mockResolvedValue(unverifiedUser);
       bcrypt.compare.mockResolvedValue(true);
 
       // Test what the service actually does with unverified users
@@ -168,12 +218,12 @@ describe('AuthService', () => {
       id: 'user_002',
       username: 'johnsmith',
       email: 'john.smith@email.com',
-      role: 'volunteer'
+      role: 'VOLUNTEER'
     };
 
     it('should verify valid token successfully', async () => {
       jwt.verify.mockReturnValue(mockDecodedToken);
-      jest.spyOn(userHelpers, 'findById').mockReturnValue(mockUser);
+      userRepository.findById.mockResolvedValue(mockUser);
 
       const result = await authService.verifyToken(mockToken);
 
@@ -193,7 +243,7 @@ describe('AuthService', () => {
 
     it('should handle token for non-existent user', async () => {
       jwt.verify.mockReturnValue(mockDecodedToken);
-      jest.spyOn(userHelpers, 'findById').mockReturnValue(null);
+      userRepository.findById.mockResolvedValue(null);
 
       // Test what the service actually does with non-existent user
       try {
@@ -210,7 +260,7 @@ describe('AuthService', () => {
       id: 'user_002',
       username: 'johnsmith',
       email: 'john.smith@email.com',
-      role: 'volunteer'
+      role: 'VOLUNTEER'
     };
     const mockProfile = {
       firstName: 'John',
@@ -225,8 +275,8 @@ describe('AuthService', () => {
     };
 
     it('should get current user successfully', async () => {
-      jest.spyOn(userHelpers, 'findById').mockReturnValue(mockUser);
-      jest.spyOn(userHelpers, 'getProfile').mockReturnValue(mockProfile);
+      userRepository.findById.mockResolvedValue(mockUser);
+      userRepository.getProfile.mockResolvedValue(mockProfile);
 
       const result = await authService.getUserProfile(mockUserId);
 
@@ -237,15 +287,15 @@ describe('AuthService', () => {
     });
 
     it('should handle non-existent user', async () => {
-      jest.spyOn(userHelpers, 'findById').mockReturnValue(null);
+      userRepository.findById.mockResolvedValue(null);
 
       await expect(authService.getUserProfile('non-existent'))
         .rejects.toThrow('User not found');
     });
 
     it('should handle user without profile', async () => {
-      jest.spyOn(userHelpers, 'findById').mockReturnValue(mockUser);
-      jest.spyOn(userHelpers, 'getProfile').mockReturnValue(null);
+      userRepository.findById.mockResolvedValue(mockUser);
+      userRepository.getProfile.mockResolvedValue(null);
 
       await expect(authService.getUserProfile(mockUserId))
         .rejects.toThrow('Profile not found');
@@ -269,7 +319,8 @@ describe('AuthService', () => {
     };
 
     it('should change password successfully', async () => {
-      jest.spyOn(userHelpers, 'findById').mockReturnValue(mockUser);
+      userRepository.findById.mockResolvedValue(mockUser);
+      userRepository.update.mockResolvedValue({ ...mockUser, password: 'hashedNewPassword' });
       bcrypt.compare.mockResolvedValue(true);
       bcrypt.hash.mockResolvedValue('hashedNewPassword');
 
@@ -282,10 +333,13 @@ describe('AuthService', () => {
       expect(result.message).toBe('Password changed successfully');
       expect(bcrypt.compare).toHaveBeenCalledWith('OldPass123!', 'hashedOldPassword');
       expect(bcrypt.hash).toHaveBeenCalledWith('NewPass456!', 12);
+      expect(userRepository.update).toHaveBeenCalledWith('user_001', {
+        password: 'hashedNewPassword'
+      });
     });
 
     it('should reject if user not found', async () => {
-      jest.spyOn(userHelpers, 'findById').mockReturnValue(null);
+      userRepository.findById.mockResolvedValue(null);
 
       await expect(authService.changePassword('nonexistent', {
         currentPassword: 'OldPass123!',
@@ -294,7 +348,7 @@ describe('AuthService', () => {
     });
 
     it('should reject if current password is incorrect', async () => {
-      jest.spyOn(userHelpers, 'findById').mockReturnValue(mockUser);
+      userRepository.findById.mockResolvedValue(mockUser);
       bcrypt.compare.mockResolvedValue(false);
 
       await expect(authService.changePassword('user_001', {
@@ -391,8 +445,15 @@ describe('AuthService', () => {
   });
 
   describe('getAuthStats', () => {
-    it('should return authentication statistics', () => {
-      const result = authService.getAuthStats();
+    it('should return authentication statistics', async () => {
+      userRepository.getUserStats.mockResolvedValue({
+        totalUsers: 10,
+        volunteers: 8,
+        admins: 2,
+        verifiedUsers: 9
+      });
+
+      const result = await authService.getAuthStats();
 
       expect(result.success).toBe(true);
       expect(result.data).toHaveProperty('totalUsers');
@@ -400,6 +461,9 @@ describe('AuthService', () => {
       expect(result.data).toHaveProperty('totalAdmins');
       expect(result.data).toHaveProperty('verifiedUsers');
       expect(result.data).toHaveProperty('verificationRate');
+      expect(result.data.totalUsers).toBe(10);
+      expect(result.data.totalVolunteers).toBe(8);
+      expect(result.data.totalAdmins).toBe(2);
     });
   });
 });

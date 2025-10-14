@@ -1,10 +1,11 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { userHelpers } = require('../data/users');
+const userRepository = require('../database/repositories/userRepository');
 
 /**
  * Authentication Service
  * Handles user registration, login, and authentication logic
+ * Updated to use Prisma database
  */
 class AuthService {
   /**
@@ -16,12 +17,12 @@ class AuthService {
     const { username, email, password, role = 'volunteer' } = userData;
 
     // Check if user already exists
-    const existingUserByEmail = userHelpers.findByEmail(email);
+    const existingUserByEmail = await userRepository.findByEmail(email.toLowerCase());
     if (existingUserByEmail) {
       throw new Error('User with this email already exists');
     }
 
-    const existingUserByUsername = userHelpers.findByUsername(username);
+    const existingUserByUsername = await userRepository.findByUsername(username.toLowerCase());
     if (existingUserByUsername) {
       throw new Error('Username already taken');
     }
@@ -30,7 +31,7 @@ class AuthService {
     const hashedPassword = await bcrypt.hash(password, 12);
 
     // Create new user
-    const newUser = userHelpers.createUser({
+    const newUser = await userRepository.create({
       username: username.toLowerCase(),
       email: email.toLowerCase(),
       password: hashedPassword,
@@ -39,7 +40,7 @@ class AuthService {
     });
 
     // Create initial profile
-    const newProfile = userHelpers.createProfile(newUser.id, {
+    const newProfile = await userRepository.createProfile(newUser.id, {
       firstName: '',
       lastName: '',
       phone: '',
@@ -48,14 +49,14 @@ class AuthService {
       state: '',
       zipCode: '',
       bio: '',
-      skills: [],
-      availability: [],
-      preferences: {
-        causes: [],
-        maxDistance: 50,
-        weekdaysOnly: false,
-        preferredTimeSlots: []
-      }
+      maxTravelDistance: 50,
+      preferredDays: [],
+      preferredTimeSlots: [],
+      preferredCauses: [],
+      emailNotifications: true,
+      eventReminders: true,
+      weekendsOnly: false,
+      profileCompleteness: 0
     });
 
     // Generate JWT token
@@ -88,7 +89,7 @@ class AuthService {
     const { email, password } = credentials;
 
     // Find user by email
-    const user = userHelpers.findByEmail(email);
+    const user = await userRepository.findByEmail(email);
     if (!user) {
       throw new Error('Invalid email or password');
     }
@@ -105,7 +106,7 @@ class AuthService {
     }
 
     // Get user profile
-    const profile = userHelpers.getProfile(user.id);
+    const profile = await userRepository.getProfile(user.id);
 
     // Generate JWT token
     const token = this.generateToken(user.id);
@@ -153,7 +154,7 @@ class AuthService {
   async verifyToken(token) {
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const user = userHelpers.findById(decoded.userId);
+      const user = await userRepository.findById(decoded.userId);
 
       if (!user) {
         throw new Error('User not found');
@@ -185,7 +186,7 @@ class AuthService {
   async changePassword(userId, passwordData) {
     const { currentPassword, newPassword } = passwordData;
 
-    const user = userHelpers.findById(userId);
+    const user = await userRepository.findById(userId);
     if (!user) {
       throw new Error('User not found');
     }
@@ -199,9 +200,10 @@ class AuthService {
     // Hash new password
     const hashedNewPassword = await bcrypt.hash(newPassword, 12);
 
-    // Update user password (in a real app, this would update the database)
-    user.password = hashedNewPassword;
-    user.updatedAt = new Date();
+    // Update user password
+    await userRepository.update(userId, {
+      password: hashedNewPassword
+    });
 
     return {
       success: true,
@@ -215,12 +217,12 @@ class AuthService {
    * @returns {Object} User profile data
    */
   async getUserProfile(userId) {
-    const user = userHelpers.findById(userId);
+    const user = await userRepository.findById(userId);
     if (!user) {
       throw new Error('User not found');
     }
 
-    const profile = userHelpers.getProfile(userId);
+    const profile = await userRepository.getProfile(userId);
     if (!profile) {
       throw new Error('Profile not found');
     }
@@ -303,22 +305,19 @@ class AuthService {
    * Get authentication statistics
    * @returns {Object} Authentication statistics
    */
-  getAuthStats() {
-    const { users } = require('../data/users');
-
-    const totalUsers = users.length;
-    const totalVolunteers = users.filter(u => u.role === 'volunteer').length;
-    const totalAdmins = users.filter(u => u.role === 'admin').length;
-    const verifiedUsers = users.filter(u => u.verified).length;
+  async getAuthStats() {
+    const stats = await userRepository.getUserStats();
 
     return {
       success: true,
       data: {
-        totalUsers,
-        totalVolunteers,
-        totalAdmins,
-        verifiedUsers,
-        verificationRate: totalUsers > 0 ? Math.round((verifiedUsers / totalUsers) * 100) : 0
+        totalUsers: stats.totalUsers,
+        totalVolunteers: stats.volunteers,
+        totalAdmins: stats.admins,
+        verifiedUsers: stats.verifiedUsers,
+        verificationRate: stats.totalUsers > 0
+          ? Math.round((stats.verifiedUsers / stats.totalUsers) * 100)
+          : 0
       }
     };
   }
