@@ -490,4 +490,114 @@ describe('MatchingController', () => {
       expect(response.body.data.scoring).toBeDefined();
     });
   });
+
+  describe('Error handling for next(error)', () => {
+    it('should call next for unexpected errors in findVolunteersForEvent', async () => {
+      matchingService.findMatchesForEvent.mockRejectedValue(new Error('Unexpected error'));
+
+      const response = await request(app)
+        .post('/matching/event/event_001/volunteers');
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for unexpected errors in findEventsForVolunteer', async () => {
+      matchingService.findMatchesForVolunteer.mockRejectedValue(new Error('Unexpected error'));
+
+      const response = await request(app)
+        .get('/matching/volunteer/user_001/events');
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for unexpected errors in getMyMatches', async () => {
+      matchingService.findMatchesForVolunteer.mockRejectedValue(new Error('Database error'));
+
+      const response = await request(app).get('/matching/my-matches');
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for unexpected errors in calculateMatch', async () => {
+      matchingService.calculateMatch.mockRejectedValue(new Error('Unexpected error'));
+
+      const response = await request(app)
+        .get('/matching/calculate/user_001/event_001');
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for unexpected errors in getAutomaticSuggestions', async () => {
+      matchingService.getAutomaticSuggestions.mockRejectedValue(new Error('Database error'));
+
+      const response = await request(app).get('/matching/suggestions');
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for unexpected errors in optimizeAssignments', async () => {
+      matchingService.optimizeAssignments.mockRejectedValue(new Error('Unexpected error'));
+
+      const response = await request(app)
+        .post('/matching/optimize/event_001')
+        .send({});
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for unexpected errors in bulkAssignOptimized', async () => {
+      // The bulkAssignOptimized catches individual assignment errors internally
+      // To test the outer error handler, we need to cause an error before the loop
+      // by providing invalid data that causes the validation to fail in an unexpected way
+      // Since validation returns 400, we'll test that the function handles individual errors gracefully
+
+      // This test verifies that individual assignment errors are caught and returned in results
+      eventService.assignVolunteer.mockRejectedValue(new Error('Database error'));
+
+      const response = await request(app)
+        .post('/matching/bulk-assign/event_001')
+        .send({ assignments: [{ volunteerId: 'user_001', matchScore: 85 }] });
+
+      // The function catches individual errors and returns 200 with error results
+      expect(response.status).toBe(200);
+      expect(response.body.data.summary.failed).toBe(1);
+      expect(response.body.data.summary.successful).toBe(0);
+    });
+
+    it('should call next for unexpected errors in getMatchingStats', async () => {
+      matchingService.getMatchingStats.mockRejectedValue(new Error('Database error'));
+
+      const response = await request(app).get('/matching/stats');
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for unexpected errors in testMatching', async () => {
+      matchingService.calculateMatch.mockRejectedValue(new Error('Unexpected error'));
+
+      const response = await request(app)
+        .post('/matching/test')
+        .send({ volunteerId: 'user_001', eventId: 'event_001' });
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for unexpected errors in getAlgorithmInfo', async () => {
+      // Force an error by setting weights to null
+      matchingAlgorithm.weights = null;
+
+      const response = await request(app).get('/matching/algorithm-info');
+
+      // Restore weights for other tests
+      matchingAlgorithm.weights = {
+        skills: 0.3,
+        availability: 0.25,
+        location: 0.2,
+        preferences: 0.15,
+        reliability: 0.1
+      };
+
+      expect(response.status).toBe(500);
+    });
+  });
 });

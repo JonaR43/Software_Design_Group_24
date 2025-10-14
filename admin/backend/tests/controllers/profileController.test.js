@@ -483,4 +483,120 @@ describe('ProfileController', () => {
       expect(response.body.message).toBe('Invalid availability format');
     });
   });
+
+  describe('Error handling for next(error)', () => {
+    it('should call next for unexpected errors in getProfile', async () => {
+      profileService.getProfile.mockRejectedValue(new Error('Database error'));
+
+      const response = await request(app).get('/profile');
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for unexpected errors in getAvailableSkills', async () => {
+      profileService.getAvailableSkills.mockRejectedValue(new Error('Database error'));
+
+      const response = await request(app).get('/profile/skills');
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for unexpected errors in searchSkills', async () => {
+      profileService.searchSkills.mockRejectedValue(new Error('Database error'));
+
+      const response = await request(app)
+        .get('/profile/skills/search')
+        .query({ q: 'test' });
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for unexpected errors in getProficiencyLevels', async () => {
+      profileService.getProficiencyLevels.mockRejectedValue(new Error('Service error'));
+
+      const response = await request(app).get('/profile/proficiency-levels');
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for unexpected errors in addSkills', async () => {
+      profileService.addSkills.mockRejectedValue(new Error('Database error'));
+
+      const response = await request(app)
+        .post('/profile/skills')
+        .send({ skills: [{ skillId: 'skill_001' }] });
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for unexpected errors in removeSkills', async () => {
+      profileService.removeSkills.mockRejectedValue(new Error('Database error'));
+
+      const response = await request(app)
+        .delete('/profile/skills')
+        .send({ skillIds: ['skill_001'] });
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for unexpected errors in updateAvailability', async () => {
+      profileService.updateAvailability.mockRejectedValue(new Error('Database error'));
+
+      const response = await request(app)
+        .put('/profile/availability')
+        .send({ availability: [] });
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for unexpected errors in getAvailability', async () => {
+      profileService.getAvailability.mockRejectedValue(new Error('Database error'));
+
+      const response = await request(app).get('/profile/availability');
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for unexpected errors in updatePreferences', async () => {
+      profileService.updatePreferences.mockRejectedValue(new Error('Database error'));
+
+      const response = await request(app)
+        .put('/profile/preferences')
+        .send({ maxDistance: 25 });
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for unexpected errors in getProfileByUserId', async () => {
+      profileService.getProfile.mockRejectedValue(new Error('Database error'));
+
+      const response = await request(app).get('/profile/user/user_002');
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for unexpected errors in getProfileStats', async () => {
+      profileService.getProfileStats.mockRejectedValue(new Error('Database error'));
+
+      const response = await request(app).get('/profile/stats');
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for unexpected errors in uploadAvatar', async () => {
+      profileService.updateProfile.mockRejectedValue(new Error('Upload error'));
+
+      const response = await request(app).post('/profile/avatar');
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should call next for unexpected errors in deleteAvatar', async () => {
+      profileService.updateProfile.mockRejectedValue(new Error('Delete error'));
+
+      const response = await request(app).delete('/profile/avatar');
+
+      expect(response.status).toBe(500);
+    });
+  });
 });

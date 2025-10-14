@@ -294,4 +294,174 @@ describe('HistoryService', () => {
       expect(result.data.overview).toHaveProperty('averageReliability');
     });
   });
+
+  describe('recordParticipation - additional validation', () => {
+    const validParticipationData = {
+      volunteerId: 'user_999',
+      eventId: 'event_999',
+      status: 'completed',
+      hoursWorked: 8,
+      attendance: 'present',
+      performanceRating: 5
+    };
+
+    it('should handle existing record with cancelled status', async () => {
+      // Mock existing record
+      const existingCancelledRecord = {
+        volunteerId: 'user_002',
+        eventId: 'event_001',
+        status: 'cancelled'
+      };
+
+      jest.spyOn(volunteerHistory, 'find').mockReturnValue(existingCancelledRecord);
+
+      const dataWithCancelled = {
+        volunteerId: 'user_002',
+        eventId: 'event_001',
+        status: 'cancelled',
+        hoursWorked: 0,
+        attendance: 'absent'
+      };
+
+      const result = await historyService.recordParticipation(dataWithCancelled, 'admin_001');
+
+      expect(result.success).toBe(true);
+    });
+  });
+
+  describe('updateHistoryRecord - validation branches', () => {
+    it('should handle updating with null performance rating', async () => {
+      jest.spyOn(historyHelpers, 'getHistoryById').mockReturnValue({
+        id: 'history_001',
+        volunteerId: 'user_002',
+        eventId: 'event_001',
+        status: 'completed',
+        performanceRating: 4
+      });
+
+      jest.spyOn(historyHelpers, 'updateHistoryRecord').mockReturnValue({
+        id: 'history_001',
+        performanceRating: null
+      });
+
+      const updateData = { performanceRating: null };
+      const result = await historyService.updateHistoryRecord('history_001', updateData, 'admin_001');
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should validate attendance when updating', async () => {
+      jest.spyOn(historyHelpers, 'getHistoryById').mockReturnValue({
+        id: 'history_001',
+        volunteerId: 'user_002',
+        eventId: 'event_001'
+      });
+
+      const updateData = { attendance: 'invalid_attendance' };
+
+      await expect(historyService.updateHistoryRecord('history_001', updateData, 'admin_001'))
+        .rejects.toThrow('Invalid attendance');
+    });
+
+    it('should validate status when updating', async () => {
+      jest.spyOn(historyHelpers, 'getHistoryById').mockReturnValue({
+        id: 'history_001',
+        volunteerId: 'user_002',
+        eventId: 'event_001'
+      });
+
+      const updateData = { status: 'invalid_status' };
+
+      await expect(historyService.updateHistoryRecord('history_001', updateData, 'admin_001'))
+        .rejects.toThrow('Invalid status');
+    });
+
+    it('should validate hours worked when updating', async () => {
+      jest.spyOn(historyHelpers, 'getHistoryById').mockReturnValue({
+        id: 'history_001',
+        volunteerId: 'user_002',
+        eventId: 'event_001'
+      });
+
+      const updateData = { hoursWorked: 25 };
+
+      await expect(historyService.updateHistoryRecord('history_001', updateData, 'admin_001'))
+        .rejects.toThrow('Hours worked must be a number between 0 and 24');
+    });
+
+    it('should validate performance rating when updating', async () => {
+      jest.spyOn(historyHelpers, 'getHistoryById').mockReturnValue({
+        id: 'history_001',
+        volunteerId: 'user_002',
+        eventId: 'event_001'
+      });
+
+      const updateData = { performanceRating: 6 };
+
+      await expect(historyService.updateHistoryRecord('history_001', updateData, 'admin_001'))
+        .rejects.toThrow('Performance rating must be a number between 1 and 5');
+    });
+  });
+
+  describe('getAllVolunteerStats - sorting', () => {
+    it('should sort by totalHours when sortBy is not reliabilityScore', async () => {
+      const result = await historyService.getAllVolunteerStats({ sortBy: 'totalHours' });
+
+      expect(result.success).toBe(true);
+      const volunteers = result.data.volunteers;
+      for (let i = 0; i < volunteers.length - 1; i++) {
+        expect(volunteers[i].totalHours).toBeGreaterThanOrEqual(volunteers[i + 1].totalHours);
+      }
+    });
+  });
+
+  describe('getEventHistory - statistics calculation', () => {
+    it('should calculate averageRating as 0 when no completed participants', async () => {
+      const mockEvent = {
+        id: 'event_001',
+        title: 'Test Event',
+        startDate: new Date(),
+        endDate: new Date()
+      };
+
+      eventHelpers.findById.mockReturnValue(mockEvent);
+      jest.spyOn(historyHelpers, 'getEventHistory').mockReturnValue([
+        { volunteerId: 'user_001', status: 'cancelled', performanceRating: null, hoursWorked: 0, attendance: 'absent' }
+      ]);
+
+      const result = await historyService.getEventHistory('event_001');
+
+      expect(result.success).toBe(true);
+      expect(result.data.statistics.averageRating).toBe(0);
+      expect(result.data.statistics.completedParticipants).toBe(0);
+    });
+
+    it('should calculate attendanceRate as 0 when no participants', async () => {
+      const mockEvent = {
+        id: 'event_002',
+        title: 'Test Event',
+        startDate: new Date(),
+        endDate: new Date()
+      };
+
+      eventHelpers.findById.mockReturnValue(mockEvent);
+      jest.spyOn(historyHelpers, 'getEventHistory').mockReturnValue([]);
+
+      const result = await historyService.getEventHistory('event_002');
+
+      expect(result.success).toBe(true);
+      expect(result.data.statistics.attendanceRate).toBe(0);
+    });
+  });
+
+  describe('getDashboardStats - edge cases', () => {
+    it('should handle averageReliability as 0 when no volunteers', async () => {
+      jest.spyOn(historyHelpers, 'getAllVolunteerStats').mockReturnValue([]);
+
+      const result = await historyService.getDashboardStats();
+
+      expect(result.success).toBe(true);
+      expect(result.data.overview.averageReliability).toBe(0);
+    });
+  });
 });
