@@ -1,9 +1,10 @@
-const { userHelpers } = require('../data/users');
-const { skillHelpers } = require('../data/skills');
+const userRepository = require('../database/repositories/userRepository');
+const skillRepository = require('../database/repositories/skillRepository');
 
 /**
  * Profile Service
  * Handles user profile management operations
+ * Updated to use Prisma database
  */
 class ProfileService {
   /**
@@ -12,12 +13,12 @@ class ProfileService {
    * @returns {Object} User profile data
    */
   async getProfile(userId) {
-    const user = userHelpers.findById(userId);
+    const user = await userRepository.findById(userId);
     if (!user) {
       throw new Error('User not found');
     }
 
-    const profile = userHelpers.getProfile(userId);
+    const profile = await userRepository.getProfile(userId);
     if (!profile) {
       return {
         success: true,
@@ -32,9 +33,12 @@ class ProfileService {
 
     // Get skill details
     const skillsWithDetails = profile.skills.map(userSkill => {
-      const skill = skillHelpers.findById(userSkill.skillId);
+      const skill = userSkill.skill; // Prisma includes the skill via relation
       return {
-        ...userSkill,
+        skillId: userSkill.skillId,
+        proficiency: userSkill.proficiency,
+        yearsOfExp: userSkill.yearsOfExp,
+        certified: userSkill.certified,
         skillName: skill ? skill.name : 'Unknown Skill',
         skillCategory: skill ? skill.category : 'unknown'
       };
@@ -67,12 +71,12 @@ class ProfileService {
    * @returns {Object} Updated profile data
    */
   async updateProfile(userId, profileData) {
-    const user = userHelpers.findById(userId);
+    const user = await userRepository.findById(userId);
     if (!user) {
       throw new Error('User not found');
     }
 
-    const existingProfile = userHelpers.getProfile(userId);
+    const existingProfile = await userRepository.getProfile(userId);
     if (!existingProfile) {
       throw new Error('Profile not found');
     }
@@ -100,14 +104,30 @@ class ProfileService {
       this.validateAvailability(profileData.availability);
     }
 
-    // Update profile
-    const updatedProfile = userHelpers.updateProfile(userId, {
-      ...profileData,
-      updatedAt: new Date()
-    });
+    // Extract skills and availability for separate handling
+    const { skills, availability, ...profileUpdates } = profileData;
+
+    // Update profile basic fields
+    const updatedProfile = await userRepository.updateProfile(userId, profileUpdates);
 
     if (!updatedProfile) {
       throw new Error('Failed to update profile');
+    }
+
+    // Update skills if provided
+    if (skills !== undefined) {
+      // Remove all existing skills and add new ones
+      await userRepository.removeSkills(existingProfile.id,
+        existingProfile.skills.map(s => s.skillId));
+
+      if (skills.length > 0) {
+        await userRepository.addSkills(existingProfile.id, skills);
+      }
+    }
+
+    // Update availability if provided
+    if (availability !== undefined) {
+      await userRepository.updateAvailability(existingProfile.id, availability);
     }
 
     // Get updated profile with details
@@ -124,21 +144,23 @@ class ProfileService {
    * @returns {Object} List of available skills grouped by category
    */
   async getAvailableSkills() {
-    const skills = skillHelpers.getAllSkills();
-    const categories = skillHelpers.getAllCategories();
+    const skills = await skillRepository.findAll();
+    const skillsByCategory = await skillRepository.getSkillsGroupedByCategory();
+    const categories = await skillRepository.getCategories();
 
-    // Group skills by category
-    const skillsByCategory = categories.map(category => ({
-      ...category,
-      skills: skills.filter(skill => skill.category === category.id)
-    }));
+    // Transform categories into objects
+    const categoriesData = categories.map(cat => ({ id: cat, name: cat }));
 
     return {
       success: true,
       data: {
         skills,
-        categories,
-        skillsByCategory,
+        categories: categoriesData,
+        skillsByCategory: Object.entries(skillsByCategory).map(([category, categorySkills]) => ({
+          id: category,
+          name: category,
+          skills: categorySkills
+        })),
         totalSkills: skills.length,
         totalCategories: categories.length
       }
@@ -156,16 +178,10 @@ class ProfileService {
 
     if (category && !query) {
       // Filter by category only
-      const allSkills = skillHelpers.getAllSkills();
-      matchingSkills = allSkills.filter(skill => skill.category === category);
+      matchingSkills = await skillRepository.findByCategory(category);
     } else if (query && query.length >= 2) {
       // Search by query
-      matchingSkills = skillHelpers.searchSkills(query);
-
-      // Apply category filter if provided
-      if (category) {
-        matchingSkills = matchingSkills.filter(skill => skill.category === category);
-      }
+      matchingSkills = await skillRepository.searchByName(query, category);
     } else {
       // Return empty array for invalid queries
       matchingSkills = [];
@@ -190,7 +206,12 @@ class ProfileService {
     return {
       success: true,
       data: {
-        levels: skillHelpers.getProficiencyLevels()
+        levels: [
+          { id: 'beginner', name: 'Beginner', description: 'Basic knowledge' },
+          { id: 'intermediate', name: 'Intermediate', description: 'Working knowledge' },
+          { id: 'advanced', name: 'Advanced', description: 'Strong expertise' },
+          { id: 'expert', name: 'Expert', description: 'Master level' }
+        ]
       }
     };
   }
@@ -202,7 +223,7 @@ class ProfileService {
    * @returns {Object} Updated profile
    */
   async addSkills(userId, skills) {
-    const profile = userHelpers.getProfile(userId);
+    const profile = await userRepository.getProfile(userId);
     if (!profile) {
       throw new Error('Profile not found');
     }
@@ -214,9 +235,11 @@ class ProfileService {
     const existingSkillIds = profile.skills.map(s => s.skillId);
     const newSkills = skills.filter(s => !existingSkillIds.includes(s.skillId));
 
-    const updatedSkills = [...profile.skills, ...newSkills];
+    if (newSkills.length > 0) {
+      await userRepository.addSkills(profile.id, newSkills);
+    }
 
-    return await this.updateProfile(userId, { skills: updatedSkills });
+    return await this.getProfile(userId);
   }
 
   /**
@@ -226,14 +249,14 @@ class ProfileService {
    * @returns {Object} Updated profile
    */
   async removeSkills(userId, skillIds) {
-    const profile = userHelpers.getProfile(userId);
+    const profile = await userRepository.getProfile(userId);
     if (!profile) {
       throw new Error('Profile not found');
     }
 
-    const updatedSkills = profile.skills.filter(s => !skillIds.includes(s.skillId));
+    await userRepository.removeSkills(profile.id, skillIds);
 
-    return await this.updateProfile(userId, { skills: updatedSkills });
+    return await this.getProfile(userId);
   }
 
   /**
@@ -245,7 +268,14 @@ class ProfileService {
   async updateAvailability(userId, availability) {
     this.validateAvailability(availability);
 
-    return await this.updateProfile(userId, { availability });
+    const profile = await userRepository.getProfile(userId);
+    if (!profile) {
+      throw new Error('Profile not found');
+    }
+
+    await userRepository.updateAvailability(profile.id, availability);
+
+    return await this.getProfile(userId);
   }
 
   /**
@@ -256,7 +286,7 @@ class ProfileService {
    * @returns {Object} Availability data
    */
   async getAvailability(userId, startDate, endDate) {
-    const profile = userHelpers.getProfile(userId);
+    const profile = await userRepository.getProfile(userId);
     if (!profile) {
       throw new Error('Profile not found');
     }
@@ -284,17 +314,31 @@ class ProfileService {
    * @returns {Object} Updated profile
    */
   async updatePreferences(userId, preferences) {
-    const profile = userHelpers.getProfile(userId);
+    const profile = await userRepository.getProfile(userId);
     if (!profile) {
       throw new Error('Profile not found');
     }
 
-    const updatedPreferences = {
-      ...profile.preferences,
-      ...preferences
+    // Merge preferences with existing profile fields
+    const updateData = {
+      preferredDays: preferences.preferredDays || profile.preferredDays,
+      preferredTimeSlots: preferences.preferredTimeSlots || profile.preferredTimeSlots,
+      preferredCauses: preferences.causes || preferences.preferredCauses || profile.preferredCauses,
+      maxTravelDistance: preferences.maxDistance || profile.maxTravelDistance,
+      emailNotifications: preferences.emailNotifications !== undefined
+        ? preferences.emailNotifications
+        : profile.emailNotifications,
+      eventReminders: preferences.eventReminders !== undefined
+        ? preferences.eventReminders
+        : profile.eventReminders,
+      weekendsOnly: preferences.weekendsOnly !== undefined
+        ? preferences.weekendsOnly
+        : (preferences.weekdaysOnly === false ? true : profile.weekendsOnly)
     };
 
-    return await this.updateProfile(userId, { preferences: updatedPreferences });
+    await userRepository.updateProfile(userId, updateData);
+
+    return await this.getProfile(userId);
   }
 
   /**
@@ -400,13 +444,14 @@ class ProfileService {
       }
 
       // Check if skill exists
-      const skillExists = skillHelpers.findById(skill.skillId);
+      const skillExists = await skillRepository.findById(skill.skillId);
       if (!skillExists) {
         throw new Error('Invalid skill ID');
       }
 
       // Check if proficiency is valid
-      if (!skillHelpers.isValidProficiency(skill.proficiency)) {
+      const validProficiencies = ['beginner', 'intermediate', 'advanced', 'expert'];
+      if (!validProficiencies.includes(skill.proficiency.toLowerCase())) {
         throw new Error(`Invalid proficiency level: ${skill.proficiency}`);
       }
     }
@@ -422,7 +467,13 @@ class ProfileService {
     }
 
     for (const slot of availability) {
-      if (typeof slot.dayOfWeek !== 'number' || slot.dayOfWeek < 1 || slot.dayOfWeek > 7) {
+      // Accept both number (1-7) and string day names
+      const dayOfWeek = slot.dayOfWeek;
+      const isValidNumber = typeof dayOfWeek === 'number' && dayOfWeek >= 1 && dayOfWeek <= 7;
+      const isValidString = typeof dayOfWeek === 'string' &&
+        ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].includes(dayOfWeek);
+
+      if (!isValidNumber && !isValidString) {
         throw new Error('Invalid day of week');
       }
 
@@ -448,10 +499,11 @@ class ProfileService {
     // Check for overlapping slots on the same day
     const daySlots = {};
     for (const slot of availability) {
-      if (!daySlots[slot.dayOfWeek]) {
-        daySlots[slot.dayOfWeek] = [];
+      const dayKey = slot.dayOfWeek.toString();
+      if (!daySlots[dayKey]) {
+        daySlots[dayKey] = [];
       }
-      daySlots[slot.dayOfWeek].push(slot);
+      daySlots[dayKey].push(slot);
     }
 
     for (const day in daySlots) {
@@ -500,28 +552,12 @@ class ProfileService {
    */
   async getAllProfiles(options = {}) {
     const { page = 1, limit = 10 } = options;
-    const { profiles } = require('../data/users');
 
-    const totalProfiles = profiles.length;
-    const totalPages = Math.ceil(totalProfiles / limit);
-    const startIndex = (page - 1) * limit;
-    const endIndex = startIndex + limit;
-
-    const paginatedProfiles = profiles.slice(startIndex, endIndex);
+    const result = await userRepository.getAllProfiles(page, limit);
 
     return {
       success: true,
-      data: {
-        profiles: paginatedProfiles,
-        pagination: {
-          page,
-          limit,
-          totalPages,
-          totalProfiles,
-          hasNext: page < totalPages,
-          hasPrev: page > 1
-        }
-      }
+      data: result
     };
   }
 
@@ -531,20 +567,17 @@ class ProfileService {
    * @returns {Object} Success message
    */
   async deleteProfile(userId) {
-    const user = userHelpers.findById(userId);
+    const user = await userRepository.findById(userId);
     if (!user) {
       throw new Error('User not found');
     }
 
-    const profile = userHelpers.getProfile(userId);
+    const profile = await userRepository.getProfile(userId);
     if (!profile) {
       throw new Error('Profile not found');
     }
 
-    const deleted = userHelpers.deleteProfile(userId);
-    if (!deleted) {
-      throw new Error('Failed to delete profile');
-    }
+    await userRepository.deleteProfile(userId);
 
     return {
       success: true,
@@ -557,7 +590,8 @@ class ProfileService {
    * @returns {Object} Profile statistics
    */
   async getProfileStats() {
-    const { profiles } = require('../data/users');
+    const result = await userRepository.getAllProfiles(1, 10000); // Get all profiles
+    const profiles = result.profiles;
 
     const totalProfiles = profiles.length;
     const completedProfiles = profiles.filter(p => this.calculateProfileCompletion(p) === 100).length;
@@ -565,7 +599,7 @@ class ProfileService {
     const profilesWithAvailability = profiles.filter(p => p.availability && p.availability.length > 0).length;
 
     const averageCompletion = profiles.reduce((sum, p) =>
-      sum + this.calculateProfileCompletion(p), 0) / totalProfiles;
+      sum + this.calculateProfileCompletion(p), 0) / (totalProfiles || 1);
 
     return {
       success: true,
@@ -575,7 +609,9 @@ class ProfileService {
         profilesWithSkills,
         profilesWithAvailability,
         averageCompletion: Math.round(averageCompletion),
-        completionRate: Math.round((completedProfiles / totalProfiles) * 100)
+        completionRate: totalProfiles > 0
+          ? Math.round((completedProfiles / totalProfiles) * 100)
+          : 0
       }
     };
   }
