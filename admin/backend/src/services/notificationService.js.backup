@@ -1,6 +1,6 @@
-const notificationRepository = require('../database/repositories/notificationRepository');
-const userRepository = require('../database/repositories/userRepository');
-const eventRepository = require('../database/repositories/eventRepository');
+const { notificationHelpers } = require('../data/notifications');
+const { userHelpers } = require('../data/users');
+const { eventHelpers } = require('../data/events');
 
 /**
  * Notification Service
@@ -30,29 +30,58 @@ class NotificationService {
       sortOrder = 'desc'
     } = pagination;
 
-    // Get user notifications from repository
-    const { notifications, total } = await notificationRepository.getUserNotifications(
-      userId,
-      filters,
-      { page, limit, sortBy, sortOrder }
-    );
+    // Get user notifications
+    let notifications = notificationHelpers.getByUserId(userId);
 
-    // Normalize enum values to lowercase with hyphens
-    const normalizedNotifications = notifications.map(n => ({
-      ...n,
-      type: n.type.toLowerCase().replace('_', '-'),
-      priority: n.priority.toLowerCase()
-    }));
+    // Apply filters
+    if (type) {
+      notifications = notifications.filter(n => n.type === type);
+    }
 
+    if (priority) {
+      notifications = notifications.filter(n => n.priority === priority);
+    }
+
+    if (read !== undefined) {
+      const isRead = read === 'true' || read === true;
+      notifications = notifications.filter(n => n.read === isRead);
+    }
+
+    if (startDate) {
+      const start = new Date(startDate);
+      notifications = notifications.filter(n => new Date(n.createdAt) >= start);
+    }
+
+    if (endDate) {
+      const end = new Date(endDate);
+      notifications = notifications.filter(n => new Date(n.createdAt) <= end);
+    }
+
+    // Sort notifications
+    notifications.sort((a, b) => {
+      const aValue = a[sortBy];
+      const bValue = b[sortBy];
+
+      if (sortOrder === 'desc') {
+        return new Date(bValue) - new Date(aValue);
+      } else {
+        return new Date(aValue) - new Date(bValue);
+      }
+    });
+
+    // Apply pagination
+    const total = notifications.length;
     const pages = Math.ceil(total / limit);
+    const offset = (page - 1) * limit;
+    const paginatedNotifications = notifications.slice(offset, offset + limit);
 
     // Get user stats
-    const stats = await notificationRepository.getStats(userId);
+    const stats = notificationHelpers.getStats(userId);
 
     return {
       success: true,
       data: {
-        notifications: normalizedNotifications,
+        notifications: paginatedNotifications,
         pagination: {
           page,
           limit,
@@ -74,7 +103,7 @@ class NotificationService {
    * @returns {Object} Notification result
    */
   async getNotificationById(notificationId, userId) {
-    const notification = await notificationRepository.findById(notificationId);
+    const notification = notificationHelpers.findById(notificationId);
 
     if (!notification) {
       throw new Error('Notification not found');
@@ -85,16 +114,9 @@ class NotificationService {
       throw new Error('Access denied. You can only view your own notifications.');
     }
 
-    // Normalize enum values
-    const normalizedNotification = {
-      ...notification,
-      type: notification.type.toLowerCase().replace('_', '-'),
-      priority: notification.priority.toLowerCase()
-    };
-
     return {
       success: true,
-      data: normalizedNotification
+      data: notification
     };
   }
 
@@ -105,7 +127,7 @@ class NotificationService {
    * @returns {Object} Update result
    */
   async markAsRead(notificationId, userId) {
-    const notification = await notificationRepository.findById(notificationId);
+    const notification = notificationHelpers.findById(notificationId);
 
     if (!notification) {
       throw new Error('Notification not found');
@@ -116,23 +138,16 @@ class NotificationService {
       throw new Error('Access denied. You can only modify your own notifications.');
     }
 
-    const updatedNotification = await notificationRepository.markAsRead(notificationId);
+    const success = notificationHelpers.markAsRead(notificationId);
 
-    if (!updatedNotification) {
+    if (!success) {
       throw new Error('Failed to mark notification as read');
     }
-
-    // Normalize enum values
-    const normalizedNotification = {
-      ...updatedNotification,
-      type: updatedNotification.type.toLowerCase().replace('_', '-'),
-      priority: updatedNotification.priority.toLowerCase()
-    };
 
     return {
       success: true,
       message: 'Notification marked as read',
-      data: normalizedNotification
+      data: notificationHelpers.findById(notificationId)
     };
   }
 
@@ -149,7 +164,7 @@ class NotificationService {
 
     for (const id of notificationIds) {
       try {
-        const notification = await notificationRepository.findById(id);
+        const notification = notificationHelpers.findById(id);
 
         if (!notification) {
           results.push({ id, success: false, error: 'Notification not found' });
@@ -163,10 +178,10 @@ class NotificationService {
           continue;
         }
 
-        const updatedNotification = await notificationRepository.markAsRead(id);
-        results.push({ id, success: !!updatedNotification });
+        const success = notificationHelpers.markAsRead(id);
+        results.push({ id, success });
 
-        if (updatedNotification) {
+        if (success) {
           successCount++;
         } else {
           errorCount++;
@@ -197,17 +212,14 @@ class NotificationService {
    * @returns {Object} Update result
    */
   async markAllAsRead(userId) {
-    const result = await notificationRepository.markAllAsRead(userId);
-    const count = result.count || 0;
-
-    const stats = await notificationRepository.getStats(userId);
+    const count = notificationHelpers.markAllAsReadByUserId(userId);
 
     return {
       success: true,
       message: `Marked ${count} notifications as read`,
       data: {
         markedCount: count,
-        stats
+        stats: notificationHelpers.getStats(userId)
       }
     };
   }
@@ -219,7 +231,7 @@ class NotificationService {
    * @returns {Object} Delete result
    */
   async deleteNotification(notificationId, userId) {
-    const notification = await notificationRepository.findById(notificationId);
+    const notification = notificationHelpers.findById(notificationId);
 
     if (!notification) {
       throw new Error('Notification not found');
@@ -230,23 +242,16 @@ class NotificationService {
       throw new Error('Access denied. You can only delete your own notifications.');
     }
 
-    const deleted = await notificationRepository.delete(notificationId);
+    const deleted = notificationHelpers.delete(notificationId);
 
     if (!deleted) {
       throw new Error('Failed to delete notification');
     }
 
-    // Normalize enum values
-    const normalizedDeleted = {
-      ...deleted,
-      type: deleted.type.toLowerCase().replace('_', '-'),
-      priority: deleted.priority.toLowerCase()
-    };
-
     return {
       success: true,
       message: 'Notification deleted successfully',
-      data: normalizedDeleted
+      data: deleted
     };
   }
 
@@ -263,7 +268,7 @@ class NotificationService {
 
     for (const id of notificationIds) {
       try {
-        const notification = await notificationRepository.findById(id);
+        const notification = notificationHelpers.findById(id);
 
         if (!notification) {
           results.push({ id, success: false, error: 'Notification not found' });
@@ -277,7 +282,7 @@ class NotificationService {
           continue;
         }
 
-        const deleted = await notificationRepository.delete(id);
+        const deleted = notificationHelpers.delete(id);
         results.push({
           id,
           success: deleted !== null,
@@ -318,7 +323,7 @@ class NotificationService {
     const { userId, type, title, message, data, priority } = notificationData;
 
     // Validate user exists
-    const user = await userRepository.findById(userId);
+    const user = userHelpers.findById(userId);
     if (!user) {
       throw new Error('User not found');
     }
@@ -328,7 +333,7 @@ class NotificationService {
       throw new Error('Type, title, and message are required');
     }
 
-    const notification = await notificationRepository.create({
+    const notification = notificationHelpers.create({
       userId,
       type,
       title,
@@ -337,17 +342,10 @@ class NotificationService {
       priority: priority || 'normal'
     });
 
-    // Normalize enum values
-    const normalizedNotification = {
-      ...notification,
-      type: notification.type.toLowerCase().replace('_', '-'),
-      priority: notification.priority.toLowerCase()
-    };
-
     return {
       success: true,
       message: 'Notification created successfully',
-      data: normalizedNotification
+      data: notification
     };
   }
 
@@ -359,34 +357,16 @@ class NotificationService {
    * @returns {Object} Creation result
    */
   async sendAssignmentNotification(userId, eventData, assignmentData) {
-    const notification = await notificationRepository.create({
+    const notification = notificationHelpers.createAssignmentNotification(
       userId,
-      type: 'assignment',
-      priority: 'high',
-      title: `New Assignment: ${eventData.title}`,
-      message: `You have been assigned to ${eventData.title}`,
-      eventId: eventData.id,
-      relatedId: assignmentData.id,
-      actionUrl: `/events/${eventData.id}`,
-      actionLabel: 'View Event',
-      metadata: {
-        eventId: eventData.id,
-        assignmentId: assignmentData.id,
-        eventTitle: eventData.title
-      }
-    });
-
-    // Normalize enum values
-    const normalizedNotification = {
-      ...notification,
-      type: notification.type.toLowerCase().replace('_', '-'),
-      priority: notification.priority.toLowerCase()
-    };
+      eventData,
+      assignmentData
+    );
 
     return {
       success: true,
       message: 'Assignment notification sent',
-      data: normalizedNotification
+      data: notification
     };
   }
 
@@ -398,39 +378,16 @@ class NotificationService {
    * @returns {Object} Creation result
    */
   async sendReminderNotification(userId, eventData, reminderType = '24h') {
-    const reminderMessages = {
-      '1w': 'in 1 week',
-      '24h': 'in 24 hours',
-      '2h': 'in 2 hours'
-    };
-
-    const notification = await notificationRepository.create({
+    const notification = notificationHelpers.createReminderNotification(
       userId,
-      type: 'reminder',
-      priority: reminderType === '2h' ? 'high' : 'normal',
-      title: `Upcoming Event: ${eventData.title}`,
-      message: `${eventData.title} starts ${reminderMessages[reminderType] || 'soon'}`,
-      eventId: eventData.id,
-      actionUrl: `/events/${eventData.id}`,
-      actionLabel: 'View Details',
-      metadata: {
-        eventId: eventData.id,
-        reminderType,
-        eventStartDate: eventData.startDate
-      }
-    });
-
-    // Normalize enum values
-    const normalizedNotification = {
-      ...notification,
-      type: notification.type.toLowerCase().replace('_', '-'),
-      priority: notification.priority.toLowerCase()
-    };
+      eventData,
+      reminderType
+    );
 
     return {
       success: true,
       message: 'Reminder notification sent',
-      data: normalizedNotification
+      data: notification
     };
   }
 
@@ -442,33 +399,16 @@ class NotificationService {
    * @returns {Object} Creation result
    */
   async sendEventUpdateNotification(userId, eventData, updateData) {
-    const notification = await notificationRepository.create({
+    const notification = notificationHelpers.createEventUpdateNotification(
       userId,
-      type: 'event-update',
-      priority: 'normal',
-      title: `Event Updated: ${eventData.title}`,
-      message: `${eventData.title} has been updated. ${updateData.changeDescription || 'Please review the changes.'}`,
-      eventId: eventData.id,
-      actionUrl: `/events/${eventData.id}`,
-      actionLabel: 'View Changes',
-      metadata: {
-        eventId: eventData.id,
-        updates: updateData.changes || {},
-        updateDescription: updateData.changeDescription
-      }
-    });
-
-    // Normalize enum values
-    const normalizedNotification = {
-      ...notification,
-      type: notification.type.toLowerCase().replace('_', '-'),
-      priority: notification.priority.toLowerCase()
-    };
+      eventData,
+      updateData
+    );
 
     return {
       success: true,
       message: 'Event update notification sent',
-      data: normalizedNotification
+      data: notification
     };
   }
 
@@ -480,34 +420,16 @@ class NotificationService {
    * @returns {Object} Creation result
    */
   async sendMatchingSuggestionNotification(userId, eventData, matchData) {
-    const notification = await notificationRepository.create({
+    const notification = notificationHelpers.createMatchingSuggestionNotification(
       userId,
-      type: 'matching-suggestion',
-      priority: 'normal',
-      title: `Event Suggestion: ${eventData.title}`,
-      message: `Based on your skills and interests, you might be interested in ${eventData.title}`,
-      eventId: eventData.id,
-      actionUrl: `/events/${eventData.id}`,
-      actionLabel: 'View Event',
-      metadata: {
-        eventId: eventData.id,
-        matchScore: matchData.score || 0,
-        matchedSkills: matchData.matchedSkills || [],
-        matchReason: matchData.reason
-      }
-    });
-
-    // Normalize enum values
-    const normalizedNotification = {
-      ...notification,
-      type: notification.type.toLowerCase().replace('_', '-'),
-      priority: notification.priority.toLowerCase()
-    };
+      eventData,
+      matchData
+    );
 
     return {
       success: true,
       message: 'Matching suggestion notification sent',
-      data: normalizedNotification
+      data: notification
     };
   }
 
@@ -524,14 +446,14 @@ class NotificationService {
 
     for (const userId of userIds) {
       try {
-        const user = await userRepository.findById(userId);
+        const user = userHelpers.findById(userId);
         if (!user) {
           results.push({ userId, success: false, error: 'User not found' });
           errorCount++;
           continue;
         }
 
-        const notification = await notificationRepository.create({
+        const notification = notificationHelpers.create({
           ...notificationData,
           userId
         });
@@ -563,23 +485,55 @@ class NotificationService {
    * @returns {Object} Statistics
    */
   async getAdminStats() {
-    const adminStats = await notificationRepository.getAdminStats();
+    const allNotifications = notificationHelpers.getAllNotifications();
+    const users = userHelpers.getVolunteers();
 
-    // Normalize enum values in notificationsByType
-    const normalizedByType = {};
-    Object.keys(adminStats.notificationsByType).forEach(type => {
-      const normalizedType = type.toLowerCase().replace('_', '-');
-      normalizedByType[normalizedType] = adminStats.notificationsByType[type];
+    const stats = {
+      totalNotifications: allNotifications.length,
+      unreadNotifications: allNotifications.filter(n => !n.read).length,
+      notificationsByType: {},
+      notificationsByPriority: {},
+      notificationsByUser: {},
+      recentActivity: allNotifications
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+        .slice(0, 10)
+        .map(n => ({
+          id: n.id,
+          userId: n.userId,
+          type: n.type,
+          title: n.title,
+          priority: n.priority,
+          read: n.read,
+          createdAt: n.createdAt
+        }))
+    };
+
+    // Count by type
+    const types = ['assignment', 'reminder', 'event_update', 'matching_suggestion', 'assignment_cancelled'];
+    types.forEach(type => {
+      stats.notificationsByType[type] = allNotifications.filter(n => n.type === type).length;
+    });
+
+    // Count by priority
+    const priorities = ['high', 'normal', 'low'];
+    priorities.forEach(priority => {
+      stats.notificationsByPriority[priority] = allNotifications.filter(n => n.priority === priority).length;
+    });
+
+    // Count by user
+    users.forEach(user => {
+      const userNotifications = allNotifications.filter(n => n.userId === user.id);
+      stats.notificationsByUser[user.id] = {
+        userId: user.id,
+        username: user.username,
+        total: userNotifications.length,
+        unread: userNotifications.filter(n => !n.read).length
+      };
     });
 
     return {
       success: true,
-      data: {
-        totalNotifications: adminStats.totalNotifications,
-        unreadNotifications: adminStats.unreadNotifications,
-        readNotifications: adminStats.readNotifications,
-        notificationsByType: normalizedByType
-      }
+      data: stats
     };
   }
 

@@ -1,22 +1,30 @@
 /**
  * Unit Tests for History Service
+ * Updated to mock Prisma repositories
  */
 
 const historyService = require('../../src/services/historyService');
-const { volunteerHistory, historyHelpers } = require('../../src/data/history');
-const { userHelpers } = require('../../src/data/users');
-const { eventHelpers } = require('../../src/data/events');
+const historyRepository = require('../../src/database/repositories/historyRepository');
+const userRepository = require('../../src/database/repositories/userRepository');
+const eventRepository = require('../../src/database/repositories/eventRepository');
+const prisma = require('../../src/database/prisma');
 
 // Mock dependencies
-jest.mock('../../src/data/users');
-jest.mock('../../src/data/events');
+jest.mock('../../src/database/repositories/historyRepository');
+jest.mock('../../src/database/repositories/userRepository');
+jest.mock('../../src/database/repositories/eventRepository');
+jest.mock('../../src/database/prisma', () => ({
+  volunteerHistory: {
+    findMany: jest.fn()
+  }
+}));
 
 describe('HistoryService', () => {
   const mockUser = {
     id: 'user_002',
     username: 'johnsmith',
     email: 'john.smith@email.com',
-    role: 'volunteer'
+    role: 'VOLUNTEER'
   };
 
   const mockEvent = {
@@ -26,32 +34,62 @@ describe('HistoryService', () => {
     endDate: new Date('2024-12-15T17:00:00Z')
   };
 
+  const mockHistoryRecord = {
+    id: 'history_001',
+    volunteerId: 'user_002',
+    eventId: 'event_001',
+    status: 'COMPLETED',
+    hoursWorked: 8,
+    performanceRating: 5,
+    feedback: 'Great work',
+    attendance: 'PRESENT',
+    skillsUtilized: [],
+    participationDate: new Date('2024-12-15T09:00:00Z'),
+    completionDate: new Date('2024-12-15T17:00:00Z'),
+    recordedBy: 'admin_001',
+    adminNotes: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    event: mockEvent,
+    volunteer: mockUser
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
-    userHelpers.findById.mockReturnValue(mockUser);
-    eventHelpers.findById.mockReturnValue(mockEvent);
+    userRepository.findById.mockResolvedValue(mockUser);
+    eventRepository.findById.mockResolvedValue(mockEvent);
   });
 
   describe('getVolunteerHistory', () => {
     it('should get volunteer history successfully', async () => {
+      historyRepository.getVolunteerHistory.mockResolvedValue([mockHistoryRecord]);
+
       const result = await historyService.getVolunteerHistory('user_002');
 
       expect(result.success).toBe(true);
       expect(result.data).toHaveProperty('history');
       expect(result.data).toHaveProperty('pagination');
       expect(Array.isArray(result.data.history)).toBe(true);
+      expect(historyRepository.getVolunteerHistory).toHaveBeenCalledWith('user_002', {});
     });
 
     it('should handle pagination correctly', async () => {
+      const mockRecords = Array(5).fill(mockHistoryRecord).map((r, i) => ({ ...r, id: `history_${i}` }));
+      historyRepository.getVolunteerHistory.mockResolvedValue(mockRecords);
+
       const options = { page: 1, limit: 2 };
       const result = await historyService.getVolunteerHistory('user_002', {}, options);
 
       expect(result.data.pagination.page).toBe(1);
       expect(result.data.pagination.limit).toBe(2);
-      expect(result.data.pagination.totalPages).toBeGreaterThanOrEqual(1);
+      expect(result.data.pagination.totalPages).toBe(3);
+      expect(result.data.history.length).toBe(2);
     });
 
     it('should apply filters correctly', async () => {
+      const completedRecord = { ...mockHistoryRecord, status: 'COMPLETED' };
+      historyRepository.getVolunteerHistory.mockResolvedValue([completedRecord]);
+
       const filters = { status: 'completed' };
       const result = await historyService.getVolunteerHistory('user_002', filters);
 
@@ -60,9 +98,12 @@ describe('HistoryService', () => {
       result.data.history.forEach(record => {
         expect(record.status).toBe('completed');
       });
+      expect(historyRepository.getVolunteerHistory).toHaveBeenCalledWith('user_002', filters);
     });
 
     it('should filter by date range', async () => {
+      historyRepository.getVolunteerHistory.mockResolvedValue([mockHistoryRecord]);
+
       const filters = {
         startDate: new Date(Date.now() - 86400000).toISOString(),
         endDate: new Date().toISOString()
@@ -70,10 +111,11 @@ describe('HistoryService', () => {
       const result = await historyService.getVolunteerHistory('user_002', filters);
 
       expect(result.success).toBe(true);
+      expect(historyRepository.getVolunteerHistory).toHaveBeenCalledWith('user_002', filters);
     });
 
     it('should reject request for non-existent volunteer', async () => {
-      userHelpers.findById.mockReturnValue(null);
+      userRepository.findById.mockResolvedValue(null);
 
       await expect(historyService.getVolunteerHistory('non-existent'))
         .rejects.toThrow('Volunteer not found');
@@ -92,6 +134,20 @@ describe('HistoryService', () => {
     };
 
     it('should record participation successfully', async () => {
+      const mockUser = { id: 'user_999', username: 'testuser', role: 'VOLUNTEER' };
+      const mockEvent = { id: 'event_999', title: 'Test Event', startDate: new Date() };
+
+      userRepository.findById.mockResolvedValue(mockUser);
+      eventRepository.findById.mockResolvedValue(mockEvent);
+      historyRepository.existsForVolunteerAndEvent.mockResolvedValue(false);
+      historyRepository.create.mockResolvedValue({
+        ...mockHistoryRecord,
+        volunteerId: 'user_999',
+        eventId: 'event_999',
+        status: 'COMPLETED',
+        attendance: 'PRESENT'
+      });
+
       const result = await historyService.recordParticipation(validParticipationData, 'admin_001');
 
       expect(result.success).toBe(true);
@@ -99,6 +155,7 @@ describe('HistoryService', () => {
       expect(result.data).toHaveProperty('id');
       expect(result.data.volunteerId).toBe(validParticipationData.volunteerId);
       expect(result.data.eventId).toBe(validParticipationData.eventId);
+      expect(historyRepository.create).toHaveBeenCalled();
     });
 
     it('should validate required fields', async () => {
@@ -112,14 +169,14 @@ describe('HistoryService', () => {
     });
 
     it('should validate volunteer exists', async () => {
-      userHelpers.findById.mockReturnValue(null);
+      userRepository.findById.mockResolvedValue(null);
 
       await expect(historyService.recordParticipation(validParticipationData, 'admin_001'))
         .rejects.toThrow('Volunteer not found');
     });
 
     it('should validate event exists', async () => {
-      eventHelpers.findById.mockReturnValue(null);
+      eventRepository.findById.mockResolvedValue(null);
 
       await expect(historyService.recordParticipation(validParticipationData, 'admin_001'))
         .rejects.toThrow('Event not found');
@@ -156,17 +213,12 @@ describe('HistoryService', () => {
 
   describe('updateHistoryRecord', () => {
     it('should update history record successfully', async () => {
-      // Mock existing history record
-      jest.spyOn(historyHelpers, 'getHistoryById').mockReturnValue({
-        id: 'history_001',
-        volunteerId: 'user_002',
-        eventId: 'event_001'
-      });
-
-      jest.spyOn(historyHelpers, 'updateHistoryRecord').mockReturnValue({
-        id: 'history_001',
-        status: 'completed',
-        performanceRating: 4
+      historyRepository.findById.mockResolvedValue(mockHistoryRecord);
+      historyRepository.update.mockResolvedValue({
+        ...mockHistoryRecord,
+        status: 'COMPLETED',
+        performanceRating: 4,
+        attendance: 'PRESENT'
       });
 
       const updateData = { performanceRating: 4 };
@@ -174,10 +226,11 @@ describe('HistoryService', () => {
 
       expect(result.success).toBe(true);
       expect(result.message).toBe('History record updated successfully');
+      expect(historyRepository.update).toHaveBeenCalledWith('history_001', updateData);
     });
 
     it('should reject update for non-existent record', async () => {
-      jest.spyOn(historyHelpers, 'getHistoryById').mockReturnValue(null);
+      historyRepository.findById.mockResolvedValue(null);
 
       await expect(historyService.updateHistoryRecord('non-existent', {}, 'admin_001'))
         .rejects.toThrow('History record not found');
@@ -186,6 +239,16 @@ describe('HistoryService', () => {
 
   describe('getVolunteerStats', () => {
     it('should calculate volunteer statistics correctly', async () => {
+      const mockStats = {
+        totalEvents: 10,
+        completedEvents: 8,
+        totalHours: 64,
+        averageRating: 4.5,
+        attendanceRate: 95,
+        reliabilityScore: 95
+      };
+      historyRepository.getVolunteerStats.mockResolvedValue(mockStats);
+
       const result = await historyService.getVolunteerStats('user_002');
 
       expect(result.success).toBe(true);
@@ -197,10 +260,11 @@ describe('HistoryService', () => {
       expect(result.data).toHaveProperty('averageRating');
       expect(result.data).toHaveProperty('attendanceRate');
       expect(result.data).toHaveProperty('reliabilityScore');
+      expect(historyRepository.getVolunteerStats).toHaveBeenCalledWith('user_002');
     });
 
     it('should reject stats for non-existent volunteer', async () => {
-      userHelpers.findById.mockReturnValue(null);
+      userRepository.findById.mockResolvedValue(null);
 
       await expect(historyService.getVolunteerStats('non-existent'))
         .rejects.toThrow('Volunteer not found');
@@ -209,6 +273,22 @@ describe('HistoryService', () => {
 
   describe('getPerformanceMetrics', () => {
     it('should get performance metrics successfully', async () => {
+      const mockStats = {
+        totalEvents: 10,
+        completedEvents: 8,
+        totalHours: 64,
+        averageRating: 4.5,
+        attendanceRate: 95,
+        reliabilityScore: 95
+      };
+      const mockTrends = [
+        { month: '2024-11', events: 3, hoursWorked: 24, averageRating: 4.5 },
+        { month: '2024-12', events: 2, hoursWorked: 16, averageRating: 4.0 }
+      ];
+
+      historyRepository.getVolunteerStats.mockResolvedValue(mockStats);
+      historyRepository.getPerformanceTrends.mockResolvedValue(mockTrends);
+
       const result = await historyService.getPerformanceMetrics('user_002', 6);
 
       expect(result.success).toBe(true);
@@ -217,11 +297,18 @@ describe('HistoryService', () => {
       expect(result.data).toHaveProperty('monthlyTrends');
       expect(result.data).toHaveProperty('periodMonths');
       expect(result.data.periodMonths).toBe(6);
+      expect(historyRepository.getPerformanceTrends).toHaveBeenCalledWith('user_002', 6);
     });
   });
 
   describe('getAllVolunteerStats', () => {
     it('should get all volunteer statistics', async () => {
+      const mockAllStats = [
+        { volunteerId: 'user_001', volunteerName: 'John', totalEvents: 10, totalHours: 80, reliabilityScore: 95 },
+        { volunteerId: 'user_002', volunteerName: 'Jane', totalEvents: 8, totalHours: 64, reliabilityScore: 90 }
+      ];
+      historyRepository.getAllVolunteerStats.mockResolvedValue(mockAllStats);
+
       const result = await historyService.getAllVolunteerStats();
 
       expect(result.success).toBe(true);
@@ -231,6 +318,12 @@ describe('HistoryService', () => {
     });
 
     it('should sort volunteers by specified criteria', async () => {
+      const mockAllStats = [
+        { volunteerId: 'user_001', volunteerName: 'John', totalEvents: 10, totalHours: 80, reliabilityScore: 90 },
+        { volunteerId: 'user_002', volunteerName: 'Jane', totalEvents: 8, totalHours: 64, reliabilityScore: 95 }
+      ];
+      historyRepository.getAllVolunteerStats.mockResolvedValue(mockAllStats);
+
       const result = await historyService.getAllVolunteerStats({ sortBy: 'reliabilityScore' });
 
       expect(result.success).toBe(true);
@@ -244,16 +337,22 @@ describe('HistoryService', () => {
 
   describe('getEventHistory', () => {
     it('should get event history successfully', async () => {
+      const mockEventHistory = [
+        { ...mockHistoryRecord, status: 'COMPLETED', attendance: 'PRESENT' }
+      ];
+      historyRepository.getEventHistory.mockResolvedValue(mockEventHistory);
+
       const result = await historyService.getEventHistory('event_001');
 
       expect(result.success).toBe(true);
       expect(result.data).toHaveProperty('event');
       expect(result.data).toHaveProperty('participation');
       expect(result.data).toHaveProperty('statistics');
+      expect(historyRepository.getEventHistory).toHaveBeenCalledWith('event_001');
     });
 
     it('should reject request for non-existent event', async () => {
-      eventHelpers.findById.mockReturnValue(null);
+      eventRepository.findById.mockResolvedValue(null);
 
       await expect(historyService.getEventHistory('non-existent'))
         .rejects.toThrow('Event not found');
@@ -262,6 +361,8 @@ describe('HistoryService', () => {
 
   describe('getMyHistory', () => {
     it('should get current user history successfully', async () => {
+      historyRepository.getVolunteerHistory.mockResolvedValue([mockHistoryRecord]);
+
       const result = await historyService.getMyHistory('user_002');
 
       expect(result.success).toBe(true);
@@ -270,6 +371,9 @@ describe('HistoryService', () => {
     });
 
     it('should apply filters to my history', async () => {
+      const completedRecord = { ...mockHistoryRecord, status: 'COMPLETED' };
+      historyRepository.getVolunteerHistory.mockResolvedValue([completedRecord]);
+
       const filters = { status: 'completed' };
       const result = await historyService.getMyHistory('user_002', filters);
 
@@ -282,6 +386,14 @@ describe('HistoryService', () => {
 
   describe('getDashboardStats', () => {
     it('should get dashboard statistics successfully', async () => {
+      const mockAllStats = [
+        { volunteerId: 'user_001', volunteerName: 'John', totalEvents: 10, totalHours: 80, reliabilityScore: 95, completedEvents: 8 }
+      ];
+      historyRepository.getAllVolunteerStats.mockResolvedValue(mockAllStats);
+      prisma.volunteerHistory.findMany.mockResolvedValue([
+        { ...mockHistoryRecord, status: 'COMPLETED', participationDate: new Date() }
+      ]);
+
       const result = await historyService.getDashboardStats();
 
       expect(result.success).toBe(true);
@@ -306,14 +418,20 @@ describe('HistoryService', () => {
     };
 
     it('should handle existing record with cancelled status', async () => {
-      // Mock existing record
-      const existingCancelledRecord = {
+      const mockUser = { id: 'user_002', username: 'testuser', role: 'VOLUNTEER' };
+      const mockEvent = { id: 'event_001', title: 'Test Event', startDate: new Date() };
+
+      userRepository.findById.mockResolvedValue(mockUser);
+      eventRepository.findById.mockResolvedValue(mockEvent);
+      historyRepository.existsForVolunteerAndEvent.mockResolvedValue(true);
+      historyRepository.create.mockResolvedValue({
+        ...mockHistoryRecord,
         volunteerId: 'user_002',
         eventId: 'event_001',
-        status: 'cancelled'
-      };
-
-      jest.spyOn(volunteerHistory, 'find').mockReturnValue(existingCancelledRecord);
+        status: 'CANCELLED',
+        attendance: 'ABSENT',
+        hoursWorked: 0
+      });
 
       const dataWithCancelled = {
         volunteerId: 'user_002',
@@ -331,17 +449,12 @@ describe('HistoryService', () => {
 
   describe('updateHistoryRecord - validation branches', () => {
     it('should handle updating with null performance rating', async () => {
-      jest.spyOn(historyHelpers, 'getHistoryById').mockReturnValue({
-        id: 'history_001',
-        volunteerId: 'user_002',
-        eventId: 'event_001',
-        status: 'completed',
-        performanceRating: 4
-      });
-
-      jest.spyOn(historyHelpers, 'updateHistoryRecord').mockReturnValue({
-        id: 'history_001',
-        performanceRating: null
+      historyRepository.findById.mockResolvedValue(mockHistoryRecord);
+      historyRepository.update.mockResolvedValue({
+        ...mockHistoryRecord,
+        performanceRating: null,
+        status: 'COMPLETED',
+        attendance: 'PRESENT'
       });
 
       const updateData = { performanceRating: null };
@@ -351,11 +464,7 @@ describe('HistoryService', () => {
     });
 
     it('should validate attendance when updating', async () => {
-      jest.spyOn(historyHelpers, 'getHistoryById').mockReturnValue({
-        id: 'history_001',
-        volunteerId: 'user_002',
-        eventId: 'event_001'
-      });
+      historyRepository.findById.mockResolvedValue(mockHistoryRecord);
 
       const updateData = { attendance: 'invalid_attendance' };
 
@@ -364,11 +473,7 @@ describe('HistoryService', () => {
     });
 
     it('should validate status when updating', async () => {
-      jest.spyOn(historyHelpers, 'getHistoryById').mockReturnValue({
-        id: 'history_001',
-        volunteerId: 'user_002',
-        eventId: 'event_001'
-      });
+      historyRepository.findById.mockResolvedValue(mockHistoryRecord);
 
       const updateData = { status: 'invalid_status' };
 
@@ -377,11 +482,7 @@ describe('HistoryService', () => {
     });
 
     it('should validate hours worked when updating', async () => {
-      jest.spyOn(historyHelpers, 'getHistoryById').mockReturnValue({
-        id: 'history_001',
-        volunteerId: 'user_002',
-        eventId: 'event_001'
-      });
+      historyRepository.findById.mockResolvedValue(mockHistoryRecord);
 
       const updateData = { hoursWorked: 25 };
 
@@ -390,11 +491,7 @@ describe('HistoryService', () => {
     });
 
     it('should validate performance rating when updating', async () => {
-      jest.spyOn(historyHelpers, 'getHistoryById').mockReturnValue({
-        id: 'history_001',
-        volunteerId: 'user_002',
-        eventId: 'event_001'
-      });
+      historyRepository.findById.mockResolvedValue(mockHistoryRecord);
 
       const updateData = { performanceRating: 6 };
 
@@ -405,6 +502,12 @@ describe('HistoryService', () => {
 
   describe('getAllVolunteerStats - sorting', () => {
     it('should sort by totalHours when sortBy is not reliabilityScore', async () => {
+      const mockAllStats = [
+        { volunteerId: 'user_001', volunteerName: 'John', totalEvents: 10, totalHours: 64, reliabilityScore: 95 },
+        { volunteerId: 'user_002', volunteerName: 'Jane', totalEvents: 8, totalHours: 80, reliabilityScore: 90 }
+      ];
+      historyRepository.getAllVolunteerStats.mockResolvedValue(mockAllStats);
+
       const result = await historyService.getAllVolunteerStats({ sortBy: 'totalHours' });
 
       expect(result.success).toBe(true);
@@ -423,11 +526,12 @@ describe('HistoryService', () => {
         startDate: new Date(),
         endDate: new Date()
       };
+      const mockEventHistory = [
+        { ...mockHistoryRecord, volunteerId: 'user_001', status: 'CANCELLED', performanceRating: null, hoursWorked: 0, attendance: 'ABSENT' }
+      ];
 
-      eventHelpers.findById.mockReturnValue(mockEvent);
-      jest.spyOn(historyHelpers, 'getEventHistory').mockReturnValue([
-        { volunteerId: 'user_001', status: 'cancelled', performanceRating: null, hoursWorked: 0, attendance: 'absent' }
-      ]);
+      eventRepository.findById.mockResolvedValue(mockEvent);
+      historyRepository.getEventHistory.mockResolvedValue(mockEventHistory);
 
       const result = await historyService.getEventHistory('event_001');
 
@@ -444,8 +548,8 @@ describe('HistoryService', () => {
         endDate: new Date()
       };
 
-      eventHelpers.findById.mockReturnValue(mockEvent);
-      jest.spyOn(historyHelpers, 'getEventHistory').mockReturnValue([]);
+      eventRepository.findById.mockResolvedValue(mockEvent);
+      historyRepository.getEventHistory.mockResolvedValue([]);
 
       const result = await historyService.getEventHistory('event_002');
 
@@ -456,7 +560,8 @@ describe('HistoryService', () => {
 
   describe('getDashboardStats - edge cases', () => {
     it('should handle averageReliability as 0 when no volunteers', async () => {
-      jest.spyOn(historyHelpers, 'getAllVolunteerStats').mockReturnValue([]);
+      historyRepository.getAllVolunteerStats.mockResolvedValue([]);
+      prisma.volunteerHistory.findMany.mockResolvedValue([]);
 
       const result = await historyService.getDashboardStats();
 

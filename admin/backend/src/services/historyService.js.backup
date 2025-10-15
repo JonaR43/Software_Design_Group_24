@@ -1,16 +1,10 @@
-const historyRepository = require('../database/repositories/historyRepository');
-const userRepository = require('../database/repositories/userRepository');
-const eventRepository = require('../database/repositories/eventRepository');
-const prisma = require('../database/prisma');
-
-// Static constants
-const participationStatuses = ['registered', 'confirmed', 'completed', 'no_show', 'cancelled'];
-const attendanceTypes = ['present', 'absent', 'late', 'excused'];
+const { volunteerHistory, participationStatuses, attendanceTypes, historyHelpers } = require('../data/history');
+const { users, userHelpers } = require('../data/users');
+const { events, eventHelpers } = require('../data/events');
 
 /**
  * Volunteer History Service
  * Handles all business logic for tracking volunteer participation history
- * Updated to use Prisma database
  */
 
 class HistoryService {
@@ -20,13 +14,13 @@ class HistoryService {
   async getVolunteerHistory(volunteerId, filters = {}, options = {}) {
     try {
       // Validate volunteer exists
-      const volunteer = await userRepository.findById(volunteerId);
+      const volunteer = userHelpers.findById(volunteerId);
       if (!volunteer) {
         throw new Error('Volunteer not found');
       }
 
-      // Get history with filters (repository handles includes)
-      const allHistory = await historyRepository.getVolunteerHistory(volunteerId, filters);
+      // Get history with filters
+      let history = historyHelpers.getVolunteerHistory(volunteerId, filters);
 
       // Apply pagination
       const page = parseInt(options.page) || 1;
@@ -34,28 +28,25 @@ class HistoryService {
       const startIndex = (page - 1) * limit;
       const endIndex = startIndex + limit;
 
-      const paginatedHistory = allHistory.slice(startIndex, endIndex);
+      const paginatedHistory = history.slice(startIndex, endIndex);
 
-      // Normalize enum values to lowercase
-      const normalizedHistory = paginatedHistory.map(record => ({
+      // Enrich with event and user data
+      const enrichedHistory = paginatedHistory.map(record => ({
         ...record,
-        status: record.status.toLowerCase().replace('_', '-'),
-        attendance: record.attendance.toLowerCase(),
-        event: record.event,
-        volunteer: record.volunteer,
-        recordedByUser: record.recordedBy ? { id: record.recordedBy } : null
+        event: eventHelpers.findById(record.eventId),
+        recordedByUser: record.recordedBy ? userHelpers.findById(record.recordedBy) : null
       }));
 
       return {
         success: true,
         data: {
-          history: normalizedHistory,
+          history: enrichedHistory,
           pagination: {
             page,
             limit,
-            total: allHistory.length,
-            totalPages: Math.ceil(allHistory.length / limit),
-            hasMore: endIndex < allHistory.length
+            total: history.length,
+            totalPages: Math.ceil(history.length / limit),
+            hasMore: endIndex < history.length
           }
         }
       };
@@ -84,24 +75,24 @@ class HistoryService {
       }
 
       // Validate volunteer exists
-      const volunteer = await userRepository.findById(volunteerId);
+      const volunteer = userHelpers.findById(volunteerId);
       if (!volunteer) {
         throw new Error('Volunteer not found');
       }
 
       // Validate event exists
-      const event = await eventRepository.findById(eventId);
+      const event = eventHelpers.findById(eventId);
       if (!event) {
         throw new Error('Event not found');
       }
 
       // Validate status
-      if (!participationStatuses.includes(status.toLowerCase())) {
+      if (!participationStatuses.includes(status)) {
         throw new Error(`Invalid status. Must be one of: ${participationStatuses.join(', ')}`);
       }
 
       // Validate attendance
-      if (!attendanceTypes.includes(attendance.toLowerCase())) {
+      if (!attendanceTypes.includes(attendance)) {
         throw new Error(`Invalid attendance. Must be one of: ${attendanceTypes.join(', ')}`);
       }
 
@@ -119,9 +110,11 @@ class HistoryService {
       }
 
       // Check for existing history record for this volunteer/event combination
-      const exists = await historyRepository.existsForVolunteerAndEvent(volunteerId, eventId);
+      const existingRecord = volunteerHistory.find(
+        record => record.volunteerId === volunteerId && record.eventId === eventId
+      );
 
-      if (exists && status.toLowerCase() !== 'cancelled') {
+      if (existingRecord && status !== 'cancelled') {
         throw new Error('History record already exists for this volunteer and event');
       }
 
@@ -135,22 +128,22 @@ class HistoryService {
         performanceRating: participationData.performanceRating || null,
         feedback: participationData.feedback || null,
         attendance,
-        skillsUtilized: participationData.skillsUtilized || [],
+        skills_utilized: participationData.skillsUtilized || [],
         participationDate: participationData.participationDate || event.startDate,
-        completionDate: status.toLowerCase() === 'completed' ? (participationData.completionDate || new Date()) : null,
+        completionDate: status === 'completed' ? (participationData.completionDate || new Date()) : null,
         recordedBy,
         adminNotes: participationData.adminNotes || null
       };
 
-      const newRecord = await historyRepository.create(historyRecord);
+      const newRecord = historyHelpers.addHistoryRecord(historyRecord);
 
       return {
         success: true,
         message: 'Participation recorded successfully',
         data: {
           ...newRecord,
-          status: newRecord.status.toLowerCase().replace('_', '-'),
-          attendance: newRecord.attendance.toLowerCase()
+          event: event,
+          volunteer: volunteer
         }
       };
     } catch (error) {
@@ -164,18 +157,18 @@ class HistoryService {
   async updateHistoryRecord(historyId, updateData, updatedBy) {
     try {
       // Validate history record exists
-      const existingRecord = await historyRepository.findById(historyId);
+      const existingRecord = historyHelpers.getHistoryById(historyId);
       if (!existingRecord) {
         throw new Error('History record not found');
       }
 
       // Validate status if provided
-      if (updateData.status && !participationStatuses.includes(updateData.status.toLowerCase())) {
+      if (updateData.status && !participationStatuses.includes(updateData.status)) {
         throw new Error(`Invalid status. Must be one of: ${participationStatuses.join(', ')}`);
       }
 
       // Validate attendance if provided
-      if (updateData.attendance && !attendanceTypes.includes(updateData.attendance.toLowerCase())) {
+      if (updateData.attendance && !attendanceTypes.includes(updateData.attendance)) {
         throw new Error(`Invalid attendance. Must be one of: ${attendanceTypes.join(', ')}`);
       }
 
@@ -194,17 +187,19 @@ class HistoryService {
         }
       }
 
-      // Update record
-      const updatedRecord = await historyRepository.update(historyId, updateData);
+      // Add metadata
+      const dataToUpdate = {
+        ...updateData,
+        updatedBy,
+        lastUpdatedAt: new Date()
+      };
+
+      const updatedRecord = historyHelpers.updateHistoryRecord(historyId, dataToUpdate);
 
       return {
         success: true,
         message: 'History record updated successfully',
-        data: {
-          ...updatedRecord,
-          status: updatedRecord.status.toLowerCase().replace('_', '-'),
-          attendance: updatedRecord.attendance.toLowerCase()
-        }
+        data: updatedRecord
       };
     } catch (error) {
       throw new Error(`Failed to update history record: ${error.message}`);
@@ -217,18 +212,18 @@ class HistoryService {
   async getVolunteerStats(volunteerId) {
     try {
       // Validate volunteer exists
-      const volunteer = await userRepository.findById(volunteerId);
+      const volunteer = userHelpers.findById(volunteerId);
       if (!volunteer) {
         throw new Error('Volunteer not found');
       }
 
-      const stats = await historyRepository.getVolunteerStats(volunteerId);
+      const stats = historyHelpers.calculateVolunteerStats(volunteerId);
 
       return {
         success: true,
         data: {
           volunteerId,
-          volunteerName: volunteer.username,
+          volunteerName: `${volunteer.username}`,
           ...stats
         }
       };
@@ -243,13 +238,13 @@ class HistoryService {
   async getPerformanceMetrics(volunteerId, months = 6) {
     try {
       // Validate volunteer exists
-      const volunteer = await userRepository.findById(volunteerId);
+      const volunteer = userHelpers.findById(volunteerId);
       if (!volunteer) {
         throw new Error('Volunteer not found');
       }
 
-      const trends = await historyRepository.getPerformanceTrends(volunteerId, months);
-      const stats = await historyRepository.getVolunteerStats(volunteerId);
+      const trends = historyHelpers.getPerformanceTrends(volunteerId, months);
+      const stats = historyHelpers.calculateVolunteerStats(volunteerId);
 
       return {
         success: true,
@@ -271,11 +266,21 @@ class HistoryService {
    */
   async getAllVolunteerStats(options = {}) {
     try {
-      const allStats = await historyRepository.getAllVolunteerStats();
+      const allStats = historyHelpers.getAllVolunteerStats();
+
+      // Enrich with volunteer information
+      const enrichedStats = allStats.map(stats => {
+        const volunteer = userHelpers.findById(stats.volunteerId);
+        return {
+          ...stats,
+          volunteerName: volunteer ? volunteer.username : 'Unknown',
+          volunteerEmail: volunteer ? volunteer.email : 'Unknown'
+        };
+      });
 
       // Sort by total hours or reliability score
       const sortBy = options.sortBy || 'totalHours';
-      allStats.sort((a, b) => {
+      enrichedStats.sort((a, b) => {
         if (sortBy === 'reliabilityScore') {
           return b.reliabilityScore - a.reliabilityScore;
         }
@@ -285,13 +290,13 @@ class HistoryService {
       return {
         success: true,
         data: {
-          volunteers: allStats,
+          volunteers: enrichedStats,
           summary: {
-            totalVolunteers: allStats.length,
-            totalEvents: allStats.reduce((sum, v) => sum + v.totalEvents, 0),
-            totalHours: allStats.reduce((sum, v) => sum + v.totalHours, 0),
-            averageReliability: allStats.length > 0
-              ? allStats.reduce((sum, v) => sum + v.reliabilityScore, 0) / allStats.length
+            totalVolunteers: enrichedStats.length,
+            totalEvents: enrichedStats.reduce((sum, v) => sum + v.totalEvents, 0),
+            totalHours: enrichedStats.reduce((sum, v) => sum + v.totalHours, 0),
+            averageReliability: enrichedStats.length > 0
+              ? enrichedStats.reduce((sum, v) => sum + v.reliabilityScore, 0) / enrichedStats.length
               : 0
           }
         }
@@ -307,22 +312,28 @@ class HistoryService {
   async getEventHistory(eventId) {
     try {
       // Validate event exists
-      const event = await eventRepository.findById(eventId);
+      const event = eventHelpers.findById(eventId);
       if (!event) {
         throw new Error('Event not found');
       }
 
-      const eventHistory = await historyRepository.getEventHistory(eventId);
+      const eventHistory = historyHelpers.getEventHistory(eventId);
 
-      // Normalize enums to lowercase
-      const normalizedHistory = eventHistory.map(record => ({
-        ...record,
-        status: record.status.toLowerCase().replace('_', '-'),
-        attendance: record.attendance.toLowerCase()
-      }));
+      // Enrich with volunteer information
+      const enrichedHistory = eventHistory.map(record => {
+        const volunteer = userHelpers.findById(record.volunteerId);
+        return {
+          ...record,
+          volunteer: volunteer ? {
+            id: volunteer.id,
+            username: volunteer.username,
+            email: volunteer.email
+          } : null
+        };
+      });
 
       // Calculate event statistics
-      const completedParticipants = normalizedHistory.filter(record => record.status === 'completed');
+      const completedParticipants = enrichedHistory.filter(record => record.status === 'completed');
       const totalHours = completedParticipants.reduce((sum, record) => sum + record.hoursWorked, 0);
       const averageRating = completedParticipants.length > 0
         ? completedParticipants.reduce((sum, record) => sum + (record.performanceRating || 0), 0) / completedParticipants.length
@@ -337,14 +348,14 @@ class HistoryService {
             startDate: event.startDate,
             endDate: event.endDate
           },
-          participation: normalizedHistory,
+          participation: enrichedHistory,
           statistics: {
-            totalParticipants: normalizedHistory.length,
+            totalParticipants: enrichedHistory.length,
             completedParticipants: completedParticipants.length,
             totalHours,
             averageRating: Math.round(averageRating * 100) / 100,
-            attendanceRate: normalizedHistory.length > 0
-              ? (normalizedHistory.filter(record => record.attendance === 'present').length / normalizedHistory.length) * 100
+            attendanceRate: enrichedHistory.length > 0
+              ? (enrichedHistory.filter(record => record.attendance === 'present').length / enrichedHistory.length) * 100
               : 0
           }
         }
@@ -359,19 +370,16 @@ class HistoryService {
    */
   async getDashboardStats() {
     try {
-      const allStats = await historyRepository.getAllVolunteerStats();
+      const allStats = historyHelpers.getAllVolunteerStats();
+      const recentHistory = volunteerHistory
+        .filter(record => {
+          const recordDate = new Date(record.participationDate);
+          const thirtyDaysAgo = new Date();
+          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+          return recordDate >= thirtyDaysAgo;
+        });
 
-      // Get all history for calculations
-      const allHistory = await prisma.volunteerHistory.findMany();
-
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-      const recentHistory = allHistory.filter(record =>
-        new Date(record.participationDate) >= thirtyDaysAgo
-      );
-
-      const completedEvents = allHistory.filter(record => record.status === 'COMPLETED');
+      const completedEvents = volunteerHistory.filter(record => record.status === 'completed');
       const totalHours = completedEvents.reduce((sum, record) => sum + record.hoursWorked, 0);
 
       return {
@@ -379,7 +387,7 @@ class HistoryService {
         data: {
           overview: {
             totalVolunteers: allStats.length,
-            totalEvents: [...new Set(allHistory.map(record => record.eventId))].length,
+            totalEvents: [...new Set(volunteerHistory.map(record => record.eventId))].length,
             totalHours,
             averageReliability: allStats.length > 0
               ? allStats.reduce((sum, v) => sum + v.reliabilityScore, 0) / allStats.length
@@ -387,21 +395,24 @@ class HistoryService {
           },
           recentActivity: {
             last30Days: recentHistory.length,
-            completedLast30Days: recentHistory.filter(record => record.status === 'COMPLETED').length,
+            completedLast30Days: recentHistory.filter(record => record.status === 'completed').length,
             hoursLast30Days: recentHistory
-              .filter(record => record.status === 'COMPLETED')
+              .filter(record => record.status === 'completed')
               .reduce((sum, record) => sum + record.hoursWorked, 0)
           },
           topPerformers: allStats
             .sort((a, b) => b.reliabilityScore - a.reliabilityScore)
             .slice(0, 5)
-            .map(stats => ({
-              volunteerId: stats.volunteerId,
-              name: stats.volunteerName,
-              reliabilityScore: stats.reliabilityScore,
-              totalHours: stats.totalHours,
-              completedEvents: stats.completedEvents
-            }))
+            .map(stats => {
+              const volunteer = userHelpers.findById(stats.volunteerId);
+              return {
+                volunteerId: stats.volunteerId,
+                name: volunteer ? volunteer.username : 'Unknown',
+                reliabilityScore: stats.reliabilityScore,
+                totalHours: stats.totalHours,
+                completedEvents: stats.completedEvents
+              };
+            })
         }
       };
     } catch (error) {

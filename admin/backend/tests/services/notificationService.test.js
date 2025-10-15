@@ -3,14 +3,14 @@
  */
 
 const notificationService = require('../../src/services/notificationService');
-const { notificationHelpers } = require('../../src/data/notifications');
-const { userHelpers } = require('../../src/data/users');
-const { eventHelpers } = require('../../src/data/events');
+const notificationRepository = require('../../src/database/repositories/notificationRepository');
+const userRepository = require('../../src/database/repositories/userRepository');
+const eventRepository = require('../../src/database/repositories/eventRepository');
 
 // Mock dependencies
-jest.mock('../../src/data/notifications');
-jest.mock('../../src/data/users');
-jest.mock('../../src/data/events');
+jest.mock('../../src/database/repositories/notificationRepository');
+jest.mock('../../src/database/repositories/userRepository');
+jest.mock('../../src/database/repositories/eventRepository');
 
 describe('NotificationService', () => {
   const mockUser = {
@@ -31,17 +31,22 @@ describe('NotificationService', () => {
   const mockNotification = {
     id: 'notif_001',
     userId: 'user_001',
-    type: 'assignment',
+    type: 'ASSIGNMENT',  // Prisma enum uppercase
     title: 'Event Assignment Confirmed',
     message: 'You have been assigned to Community Cleanup',
-    data: {
+    eventId: 'event_001',
+    relatedId: null,
+    actionUrl: '/events/event_001',
+    actionLabel: 'View Event',
+    metadata: {
       eventId: 'event_001',
       eventTitle: 'Community Cleanup'
     },
-    priority: 'normal',
+    priority: 'NORMAL',  // Prisma enum uppercase
     read: false,
     createdAt: new Date(),
-    readAt: null
+    readAt: null,
+    expiresAt: null
   };
 
   beforeEach(() => {
@@ -51,15 +56,16 @@ describe('NotificationService', () => {
   describe('getNotifications', () => {
     it('should get notifications with default pagination', async () => {
       const mockNotifications = [mockNotification];
-      const mockStats = { total: 1, unread: 1 };
+      const mockStats = { total: 1, unread: 1, read: 0 };
 
-      notificationHelpers.getByUserId.mockReturnValue(mockNotifications);
-      notificationHelpers.getStats.mockReturnValue(mockStats);
+      notificationRepository.getUserNotifications.mockResolvedValue({ notifications: mockNotifications, total: 1 });
+      notificationRepository.getStats.mockResolvedValue(mockStats);
 
       const result = await notificationService.getNotifications('user_001');
 
       expect(result.success).toBe(true);
-      expect(result.data.notifications).toEqual(mockNotifications);
+      expect(result.data.notifications[0].type).toBe('assignment');  // Normalized to lowercase
+      expect(result.data.notifications[0].priority).toBe('normal');  // Normalized to lowercase
       expect(result.data.pagination.page).toBe(1);
       expect(result.data.pagination.limit).toBe(20);
       expect(result.data.stats).toEqual(mockStats);
@@ -67,8 +73,8 @@ describe('NotificationService', () => {
 
     it('should apply type filter correctly', async () => {
       const mockNotifications = [mockNotification];
-      notificationHelpers.getByUserId.mockReturnValue(mockNotifications);
-      notificationHelpers.getStats.mockReturnValue({ total: 1, unread: 1 });
+      notificationRepository.getUserNotifications.mockResolvedValue({ notifications: mockNotifications, total: 1 });
+      notificationRepository.getStats.mockResolvedValue({ total: 1, unread: 1, read: 0 });
 
       const result = await notificationService.getNotifications('user_001', { type: 'assignment' });
 
@@ -78,8 +84,8 @@ describe('NotificationService', () => {
 
     it('should apply priority filter correctly', async () => {
       const mockNotifications = [mockNotification];
-      notificationHelpers.getByUserId.mockReturnValue(mockNotifications);
-      notificationHelpers.getStats.mockReturnValue({ total: 1, unread: 1 });
+      notificationRepository.getUserNotifications.mockResolvedValue({ notifications: mockNotifications, total: 1 });
+      notificationRepository.getStats.mockResolvedValue({ total: 1, unread: 1, read: 0 });
 
       const result = await notificationService.getNotifications('user_001', { priority: 'high' });
 
@@ -89,8 +95,8 @@ describe('NotificationService', () => {
 
     it('should apply read filter correctly', async () => {
       const unreadNotification = { ...mockNotification, read: false };
-      notificationHelpers.getByUserId.mockReturnValue([unreadNotification]);
-      notificationHelpers.getStats.mockReturnValue({ total: 1, unread: 1 });
+      notificationRepository.getUserNotifications.mockResolvedValue({ notifications: [unreadNotification], total: 1 });
+      notificationRepository.getStats.mockResolvedValue({ total: 1, unread: 1, read: 0 });
 
       const result = await notificationService.getNotifications('user_001', { read: 'false' });
 
@@ -100,8 +106,8 @@ describe('NotificationService', () => {
 
     it('should apply date range filter', async () => {
       const mockNotifications = [mockNotification];
-      notificationHelpers.getByUserId.mockReturnValue(mockNotifications);
-      notificationHelpers.getStats.mockReturnValue({ total: 1, unread: 1 });
+      notificationRepository.getUserNotifications.mockResolvedValue({ notifications: mockNotifications, total: 1 });
+      notificationRepository.getStats.mockResolvedValue({ total: 1, unread: 1, read: 0 });
 
       const startDate = new Date(Date.now() - 86400000).toISOString();
       const endDate = new Date().toISOString();
@@ -113,8 +119,8 @@ describe('NotificationService', () => {
 
     it('should sort in descending order', async () => {
       const mockNotifications = [mockNotification];
-      notificationHelpers.getByUserId.mockReturnValue(mockNotifications);
-      notificationHelpers.getStats.mockReturnValue({ total: 1, unread: 1 });
+      notificationRepository.getUserNotifications.mockResolvedValue({ notifications: mockNotifications, total: 1 });
+      notificationRepository.getStats.mockResolvedValue({ total: 1, unread: 1, read: 0 });
 
       const result = await notificationService.getNotifications('user_001', {}, { sortOrder: 'desc' });
 
@@ -123,8 +129,8 @@ describe('NotificationService', () => {
 
     it('should sort in ascending order', async () => {
       const mockNotifications = [mockNotification];
-      notificationHelpers.getByUserId.mockReturnValue(mockNotifications);
-      notificationHelpers.getStats.mockReturnValue({ total: 1, unread: 1 });
+      notificationRepository.getUserNotifications.mockResolvedValue({ notifications: mockNotifications, total: 1 });
+      notificationRepository.getStats.mockResolvedValue({ total: 1, unread: 1, read: 0 });
 
       const result = await notificationService.getNotifications('user_001', {}, { sortOrder: 'asc' });
 
@@ -132,9 +138,9 @@ describe('NotificationService', () => {
     });
 
     it('should handle pagination correctly', async () => {
-      const mockNotifications = Array(25).fill(mockNotification);
-      notificationHelpers.getByUserId.mockReturnValue(mockNotifications);
-      notificationHelpers.getStats.mockReturnValue({ total: 25, unread: 5 });
+      const mockNotifications = Array(10).fill(mockNotification);
+      notificationRepository.getUserNotifications.mockResolvedValue({ notifications: mockNotifications, total: 25 });
+      notificationRepository.getStats.mockResolvedValue({ total: 25, unread: 5, read: 20 });
 
       const result = await notificationService.getNotifications('user_001', {}, { page: 2, limit: 10 });
 
@@ -148,23 +154,24 @@ describe('NotificationService', () => {
 
   describe('getNotificationById', () => {
     it('should get notification by ID successfully', async () => {
-      notificationHelpers.findById.mockReturnValue(mockNotification);
+      notificationRepository.findById.mockResolvedValue(mockNotification);
 
       const result = await notificationService.getNotificationById('notif_001', 'user_001');
 
       expect(result.success).toBe(true);
-      expect(result.data).toEqual(mockNotification);
+      expect(result.data.type).toBe('assignment');  // Normalized
+      expect(result.data.priority).toBe('normal');  // Normalized
     });
 
     it('should handle notification not found', async () => {
-      notificationHelpers.findById.mockReturnValue(null);
+      notificationRepository.findById.mockResolvedValue(null);
 
       await expect(notificationService.getNotificationById('nonexistent', 'user_001'))
         .rejects.toThrow('Notification not found');
     });
 
     it('should handle access denied for other user notification', async () => {
-      notificationHelpers.findById.mockReturnValue({ ...mockNotification, userId: 'user_002' });
+      notificationRepository.findById.mockResolvedValue({ ...mockNotification, userId: 'user_002' });
 
       await expect(notificationService.getNotificationById('notif_001', 'user_001'))
         .rejects.toThrow('Access denied. You can only view your own notifications.');
@@ -174,34 +181,33 @@ describe('NotificationService', () => {
   describe('markAsRead', () => {
     it('should mark notification as read successfully', async () => {
       const updatedNotification = { ...mockNotification, read: true, readAt: new Date() };
-      notificationHelpers.findById.mockReturnValue(mockNotification);
-      notificationHelpers.markAsRead.mockReturnValue(true);
-      notificationHelpers.findById.mockReturnValueOnce(mockNotification).mockReturnValueOnce(updatedNotification);
+      notificationRepository.findById.mockResolvedValue(mockNotification);
+      notificationRepository.markAsRead.mockResolvedValue(updatedNotification);
 
       const result = await notificationService.markAsRead('notif_001', 'user_001');
 
       expect(result.success).toBe(true);
       expect(result.message).toBe('Notification marked as read');
-      expect(notificationHelpers.markAsRead).toHaveBeenCalledWith('notif_001');
+      expect(notificationRepository.markAsRead).toHaveBeenCalledWith('notif_001');
     });
 
     it('should handle notification not found', async () => {
-      notificationHelpers.findById.mockReturnValue(null);
+      notificationRepository.findById.mockResolvedValue(null);
 
       await expect(notificationService.markAsRead('nonexistent', 'user_001'))
         .rejects.toThrow('Notification not found');
     });
 
     it('should handle access denied', async () => {
-      notificationHelpers.findById.mockReturnValue({ ...mockNotification, userId: 'user_002' });
+      notificationRepository.findById.mockResolvedValue({ ...mockNotification, userId: 'user_002' });
 
       await expect(notificationService.markAsRead('notif_001', 'user_001'))
         .rejects.toThrow('Access denied. You can only modify your own notifications.');
     });
 
     it('should handle failed mark as read', async () => {
-      notificationHelpers.findById.mockReturnValue(mockNotification);
-      notificationHelpers.markAsRead.mockReturnValue(false);
+      notificationRepository.findById.mockResolvedValue(mockNotification);
+      notificationRepository.markAsRead.mockResolvedValue(null);
 
       await expect(notificationService.markAsRead('notif_001', 'user_001'))
         .rejects.toThrow('Failed to mark notification as read');
@@ -211,8 +217,9 @@ describe('NotificationService', () => {
   describe('markMultipleAsRead', () => {
     it('should mark multiple notifications as read successfully', async () => {
       const notificationIds = ['notif_001', 'notif_002'];
-      notificationHelpers.findById.mockReturnValue(mockNotification);
-      notificationHelpers.markAsRead.mockReturnValue(true);
+      const updatedNotification = { ...mockNotification, read: true };
+      notificationRepository.findById.mockResolvedValue(mockNotification);
+      notificationRepository.markAsRead.mockResolvedValue(updatedNotification);
 
       const result = await notificationService.markMultipleAsRead(notificationIds, 'user_001');
 
@@ -224,8 +231,9 @@ describe('NotificationService', () => {
 
     it('should handle mixed success and failure', async () => {
       const notificationIds = ['notif_001', 'nonexistent'];
-      notificationHelpers.findById.mockReturnValueOnce(mockNotification).mockReturnValueOnce(null);
-      notificationHelpers.markAsRead.mockReturnValue(true);
+      const updatedNotification = { ...mockNotification, read: true };
+      notificationRepository.findById.mockResolvedValueOnce(mockNotification).mockResolvedValueOnce(null);
+      notificationRepository.markAsRead.mockResolvedValue(updatedNotification);
 
       const result = await notificationService.markMultipleAsRead(notificationIds, 'user_001');
 
@@ -236,7 +244,7 @@ describe('NotificationService', () => {
 
     it('should deny access to notifications owned by other users', async () => {
       const notificationIds = ['notif_001'];
-      notificationHelpers.findById.mockReturnValue({ ...mockNotification, userId: 'user_002' });
+      notificationRepository.findById.mockResolvedValue({ ...mockNotification, userId: 'user_002' });
 
       const result = await notificationService.markMultipleAsRead(notificationIds, 'user_001');
 
@@ -247,8 +255,8 @@ describe('NotificationService', () => {
 
     it('should handle markAsRead failures', async () => {
       const notificationIds = ['notif_001'];
-      notificationHelpers.findById.mockReturnValue(mockNotification);
-      notificationHelpers.markAsRead.mockReturnValue(false);
+      notificationRepository.findById.mockResolvedValue(mockNotification);
+      notificationRepository.markAsRead.mockResolvedValue(null);
 
       const result = await notificationService.markMultipleAsRead(notificationIds, 'user_001');
 
@@ -258,10 +266,8 @@ describe('NotificationService', () => {
 
     it('should handle exceptions during marking', async () => {
       const notificationIds = ['notif_001'];
-      notificationHelpers.findById.mockReturnValue(mockNotification);
-      notificationHelpers.markAsRead.mockImplementation(() => {
-        throw new Error('Database error');
-      });
+      notificationRepository.findById.mockResolvedValue(mockNotification);
+      notificationRepository.markAsRead.mockRejectedValue(new Error('Database error'));
 
       const result = await notificationService.markMultipleAsRead(notificationIds, 'user_001');
 
@@ -272,9 +278,9 @@ describe('NotificationService', () => {
 
   describe('markAllAsRead', () => {
     it('should mark all notifications as read successfully', async () => {
-      const mockStats = { total: 5, unread: 0 };
-      notificationHelpers.markAllAsReadByUserId.mockReturnValue(3);
-      notificationHelpers.getStats.mockReturnValue(mockStats);
+      const mockStats = { total: 5, unread: 0, read: 5 };
+      notificationRepository.markAllAsRead.mockResolvedValue({ count: 3 });  // Prisma updateMany returns { count }
+      notificationRepository.getStats.mockResolvedValue(mockStats);
 
       const result = await notificationService.markAllAsRead('user_001');
 
@@ -287,33 +293,33 @@ describe('NotificationService', () => {
 
   describe('deleteNotification', () => {
     it('should delete notification successfully', async () => {
-      notificationHelpers.findById.mockReturnValue(mockNotification);
-      notificationHelpers.delete.mockReturnValue(mockNotification);
+      notificationRepository.findById.mockResolvedValue(mockNotification);
+      notificationRepository.delete.mockResolvedValue(mockNotification);
 
       const result = await notificationService.deleteNotification('notif_001', 'user_001');
 
       expect(result.success).toBe(true);
       expect(result.message).toBe('Notification deleted successfully');
-      expect(result.data).toEqual(mockNotification);
+      expect(result.data.type).toBe('assignment');  // Normalized
     });
 
     it('should handle notification not found', async () => {
-      notificationHelpers.findById.mockReturnValue(null);
+      notificationRepository.findById.mockResolvedValue(null);
 
       await expect(notificationService.deleteNotification('nonexistent', 'user_001'))
         .rejects.toThrow('Notification not found');
     });
 
     it('should handle access denied', async () => {
-      notificationHelpers.findById.mockReturnValue({ ...mockNotification, userId: 'user_002' });
+      notificationRepository.findById.mockResolvedValue({ ...mockNotification, userId: 'user_002' });
 
       await expect(notificationService.deleteNotification('notif_001', 'user_001'))
         .rejects.toThrow('Access denied. You can only delete your own notifications.');
     });
 
     it('should handle failed deletion', async () => {
-      notificationHelpers.findById.mockReturnValue(mockNotification);
-      notificationHelpers.delete.mockReturnValue(null);
+      notificationRepository.findById.mockResolvedValue(mockNotification);
+      notificationRepository.delete.mockResolvedValue(null);
 
       await expect(notificationService.deleteNotification('notif_001', 'user_001'))
         .rejects.toThrow('Failed to delete notification');
@@ -323,8 +329,8 @@ describe('NotificationService', () => {
   describe('deleteMultiple', () => {
     it('should delete multiple notifications successfully', async () => {
       const notificationIds = ['notif_001', 'notif_002'];
-      notificationHelpers.findById.mockReturnValue(mockNotification);
-      notificationHelpers.delete.mockReturnValue(mockNotification);
+      notificationRepository.findById.mockResolvedValue(mockNotification);
+      notificationRepository.delete.mockResolvedValue(mockNotification);
 
       const result = await notificationService.deleteMultiple(notificationIds, 'user_001');
 
@@ -336,7 +342,7 @@ describe('NotificationService', () => {
 
     it('should handle notification not found', async () => {
       const notificationIds = ['nonexistent'];
-      notificationHelpers.findById.mockReturnValue(null);
+      notificationRepository.findById.mockResolvedValue(null);
 
       const result = await notificationService.deleteMultiple(notificationIds, 'user_001');
 
@@ -347,7 +353,7 @@ describe('NotificationService', () => {
 
     it('should deny deleting notifications owned by other users', async () => {
       const notificationIds = ['notif_001'];
-      notificationHelpers.findById.mockReturnValue({ ...mockNotification, userId: 'user_002' });
+      notificationRepository.findById.mockResolvedValue({ ...mockNotification, userId: 'user_002' });
 
       const result = await notificationService.deleteMultiple(notificationIds, 'user_001');
 
@@ -358,8 +364,8 @@ describe('NotificationService', () => {
 
     it('should handle delete failures', async () => {
       const notificationIds = ['notif_001'];
-      notificationHelpers.findById.mockReturnValue(mockNotification);
-      notificationHelpers.delete.mockReturnValue(null);
+      notificationRepository.findById.mockResolvedValue(mockNotification);
+      notificationRepository.delete.mockResolvedValue(null);
 
       const result = await notificationService.deleteMultiple(notificationIds, 'user_001');
 
@@ -369,10 +375,8 @@ describe('NotificationService', () => {
 
     it('should handle exceptions during deletion', async () => {
       const notificationIds = ['notif_001'];
-      notificationHelpers.findById.mockReturnValue(mockNotification);
-      notificationHelpers.delete.mockImplementation(() => {
-        throw new Error('Database error');
-      });
+      notificationRepository.findById.mockResolvedValue(mockNotification);
+      notificationRepository.delete.mockRejectedValue(new Error('Database error'));
 
       const result = await notificationService.deleteMultiple(notificationIds, 'user_001');
 
@@ -391,25 +395,25 @@ describe('NotificationService', () => {
     };
 
     it('should create notification successfully', async () => {
-      userHelpers.findById.mockReturnValue(mockUser);
-      notificationHelpers.create.mockReturnValue(mockNotification);
+      userRepository.findById.mockResolvedValue(mockUser);
+      notificationRepository.create.mockResolvedValue(mockNotification);
 
       const result = await notificationService.createNotification(validNotificationData);
 
       expect(result.success).toBe(true);
       expect(result.message).toBe('Notification created successfully');
-      expect(result.data).toEqual(mockNotification);
+      expect(result.data.type).toBe('assignment');  // Normalized
     });
 
     it('should handle user not found', async () => {
-      userHelpers.findById.mockReturnValue(null);
+      userRepository.findById.mockResolvedValue(null);
 
       await expect(notificationService.createNotification(validNotificationData))
         .rejects.toThrow('User not found');
     });
 
     it('should validate required fields', async () => {
-      userHelpers.findById.mockReturnValue(mockUser);
+      userRepository.findById.mockResolvedValue(mockUser);
 
       await expect(notificationService.createNotification({ userId: 'user_001' }))
         .rejects.toThrow('Type, title, and message are required');
@@ -418,52 +422,52 @@ describe('NotificationService', () => {
 
   describe('sendAssignmentNotification', () => {
     it('should send assignment notification successfully', async () => {
-      const assignmentData = { assignmentId: 'assign_001', status: 'confirmed' };
-      notificationHelpers.createAssignmentNotification.mockReturnValue(mockNotification);
+      const assignmentData = { id: 'assign_001', status: 'confirmed' };
+      notificationRepository.create.mockResolvedValue(mockNotification);
 
       const result = await notificationService.sendAssignmentNotification('user_001', mockEvent, assignmentData);
 
       expect(result.success).toBe(true);
       expect(result.message).toBe('Assignment notification sent');
-      expect(result.data).toEqual(mockNotification);
+      expect(result.data.type).toBe('assignment');  // Normalized
     });
   });
 
   describe('sendReminderNotification', () => {
     it('should send reminder notification successfully', async () => {
-      notificationHelpers.createReminderNotification.mockReturnValue(mockNotification);
+      notificationRepository.create.mockResolvedValue(mockNotification);
 
       const result = await notificationService.sendReminderNotification('user_001', mockEvent, '24h');
 
       expect(result.success).toBe(true);
       expect(result.message).toBe('Reminder notification sent');
-      expect(result.data).toEqual(mockNotification);
+      expect(result.data.type).toBe('assignment');  // Normalized
     });
   });
 
   describe('sendEventUpdateNotification', () => {
     it('should send event update notification successfully', async () => {
       const updateData = { type: 'location_change', changes: { location: 'New Location' } };
-      notificationHelpers.createEventUpdateNotification.mockReturnValue(mockNotification);
+      notificationRepository.create.mockResolvedValue(mockNotification);
 
       const result = await notificationService.sendEventUpdateNotification('user_001', mockEvent, updateData);
 
       expect(result.success).toBe(true);
       expect(result.message).toBe('Event update notification sent');
-      expect(result.data).toEqual(mockNotification);
+      expect(result.data.type).toBe('assignment');  // Normalized
     });
   });
 
   describe('sendMatchingSuggestionNotification', () => {
     it('should send matching suggestion notification successfully', async () => {
-      const matchData = { matchScore: 85, matchQuality: 'excellent', recommendations: ['Great match'] };
-      notificationHelpers.createMatchingSuggestionNotification.mockReturnValue(mockNotification);
+      const matchData = { score: 85, matchedSkills: ['First Aid'], reason: 'Great match' };
+      notificationRepository.create.mockResolvedValue(mockNotification);
 
       const result = await notificationService.sendMatchingSuggestionNotification('user_001', mockEvent, matchData);
 
       expect(result.success).toBe(true);
       expect(result.message).toBe('Matching suggestion notification sent');
-      expect(result.data).toEqual(mockNotification);
+      expect(result.data.type).toBe('assignment');  // Normalized
     });
   });
 
@@ -477,8 +481,8 @@ describe('NotificationService', () => {
         priority: 'normal'
       };
 
-      userHelpers.findById.mockReturnValue(mockUser);
-      notificationHelpers.create.mockReturnValue(mockNotification);
+      userRepository.findById.mockResolvedValue(mockUser);
+      notificationRepository.create.mockResolvedValue(mockNotification);
 
       const result = await notificationService.sendBulkNotifications(userIds, notificationData);
 
@@ -496,8 +500,8 @@ describe('NotificationService', () => {
         message: 'This is a bulk notification'
       };
 
-      userHelpers.findById.mockReturnValueOnce(mockUser).mockReturnValueOnce(null);
-      notificationHelpers.create.mockReturnValue(mockNotification);
+      userRepository.findById.mockResolvedValueOnce(mockUser).mockResolvedValueOnce(null);
+      notificationRepository.create.mockResolvedValue(mockNotification);
 
       const result = await notificationService.sendBulkNotifications(userIds, notificationData);
 
@@ -509,14 +513,18 @@ describe('NotificationService', () => {
 
   describe('getAdminStats', () => {
     it('should get admin statistics successfully', async () => {
-      const mockAllNotifications = [
-        { ...mockNotification, type: 'assignment', priority: 'high', read: false },
-        { ...mockNotification, id: 'notif_002', type: 'reminder', priority: 'normal', read: true }
-      ];
-      const mockUsers = [mockUser];
+      const mockAdminStats = {
+        totalNotifications: 10,
+        unreadNotifications: 3,
+        readNotifications: 7,
+        notificationsByType: {
+          ASSIGNMENT: 5,
+          REMINDER: 3,
+          EVENT_UPDATE: 2
+        }
+      };
 
-      notificationHelpers.getAllNotifications.mockReturnValue(mockAllNotifications);
-      userHelpers.getVolunteers.mockReturnValue(mockUsers);
+      notificationRepository.getAdminStats.mockResolvedValue(mockAdminStats);
 
       const result = await notificationService.getAdminStats();
 
@@ -524,9 +532,8 @@ describe('NotificationService', () => {
       expect(result.data).toHaveProperty('totalNotifications');
       expect(result.data).toHaveProperty('unreadNotifications');
       expect(result.data).toHaveProperty('notificationsByType');
-      expect(result.data).toHaveProperty('notificationsByPriority');
-      expect(result.data).toHaveProperty('notificationsByUser');
-      expect(result.data).toHaveProperty('recentActivity');
+      expect(result.data.notificationsByType).toHaveProperty('assignment');  // Normalized
+      expect(result.data.notificationsByType).toHaveProperty('reminder');  // Normalized
     });
   });
 
