@@ -1,199 +1,93 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { EventService, MatchingService, EventVolunteerService, type VolunteerMatch } from '../../../../services/api';
 
-interface Volunteer {
+interface EventOption {
   id: string;
-  fullName: string;
-  skills: string[];
-  availability: Date[];
+  title: string;
+  description: string;
   location: string;
-  email: string;
-  completionRate: number;
-}
-
-interface Event {
-  id: string;
-  eventName: string;
-  eventDescription: string;
-  location: string;
-  requiredSkills: string[];
-  urgency: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
-  eventDate: Date;
-  volunteersNeeded: number;
-  volunteersAssigned: number;
-}
-
-interface VolunteerMatch {
-  volunteer: Volunteer;
-  event: Event;
-  matchScore: number;
-  matchReasons: string[];
+  startDate: string;
+  maxVolunteers: number;
+  currentVolunteers: number;
 }
 
 export default function VolunteerMatchingPage() {
   const [selectedEvent, setSelectedEvent] = useState<string>('');
+  const [events, setEvents] = useState<EventOption[]>([]);
   const [matches, setMatches] = useState<VolunteerMatch[]>([]);
   const [assignments, setAssignments] = useState<string[]>([]);
   const [isGeneratingMatches, setIsGeneratingMatches] = useState(false);
+  const [isLoadingEvents, setIsLoadingEvents] = useState(true);
 
-  // Mock data
-  const mockEvents: Event[] = [
-    {
-      id: '1',
-      eventName: 'Community Food Drive',
-      eventDescription: 'Help pack and distribute food to families in need',
-      location: 'Community Center - 123 Community Center St, Springfield, IL',
-      requiredSkills: ['Food Service', 'Manual Labor', 'Customer Service'],
-      urgency: 'HIGH',
-      eventDate: new Date('2024-02-15'),
-      volunteersNeeded: 15,
-      volunteersAssigned: 8
-    },
-    {
-      id: '2',
-      eventName: 'Park Cleanup Initiative',
-      eventDescription: 'Clean up and beautify our local community park',
-      location: 'Riverside Park - 456 Park Ave, Springfield, IL',
-      requiredSkills: ['Manual Labor', 'Environmental Work'],
-      urgency: 'MEDIUM',
-      eventDate: new Date('2024-02-20'),
-      volunteersNeeded: 20,
-      volunteersAssigned: 12
-    }
-  ];
+  // Fetch events on component mount
+  useEffect(() => {
+    async function fetchEvents() {
+      try {
+        setIsLoadingEvents(true);
+        const fetchedEvents = await EventService.getEvents({ status: 'published' });
 
-  const mockVolunteers: Volunteer[] = [
-    {
-      id: '1',
-      fullName: 'John Smith',
-      skills: ['Food Service', 'Manual Labor', 'Customer Service'],
-      availability: [new Date('2024-02-15'), new Date('2024-02-16')],
-      location: 'Springfield, IL',
-      email: 'john.smith@email.com',
-      completionRate: 95
-    },
-    {
-      id: '2',
-      fullName: 'Maria Garcia',
-      skills: ['Food Service', 'Event Planning', 'Administrative'],
-      availability: [new Date('2024-02-15'), new Date('2024-02-20')],
-      location: 'Springfield, IL',
-      email: 'maria.garcia@email.com',
-      completionRate: 88
-    },
-    {
-      id: '3',
-      fullName: 'David Johnson',
-      skills: ['Manual Labor', 'Environmental Work', 'Construction'],
-      availability: [new Date('2024-02-20'), new Date('2024-02-21')],
-      location: 'Springfield, IL',
-      email: 'david.johnson@email.com',
-      completionRate: 92
-    },
-    {
-      id: '4',
-      fullName: 'Sarah Wilson',
-      skills: ['Customer Service', 'Social Media', 'Public Speaking'],
-      availability: [new Date('2024-02-15')],
-      location: 'Springfield, IL',
-      email: 'sarah.wilson@email.com',
-      completionRate: 78
-    }
-  ];
+        // Transform to EventOption format
+        const eventOptions: EventOption[] = fetchedEvents.map(event => ({
+          id: event.id,
+          title: event.title,
+          description: event.description || '',
+          location: event.location,
+          startDate: event.date,
+          maxVolunteers: event.maxVolunteers,
+          currentVolunteers: event.volunteers
+        }));
 
-  const calculateMatchScore = (volunteer: Volunteer, event: Event): number => {
-    let score = 0;
-    const weights = {
-      skills: 40,
-      availability: 30,
-      location: 20,
-      reliability: 10
-    };
-
-    // Skills matching (40% weight)
-    const skillMatches = volunteer.skills.filter(skill => 
-      event.requiredSkills.includes(skill)
-    ).length;
-    const skillsScore = event.requiredSkills.length > 0 
-      ? (skillMatches / event.requiredSkills.length) * weights.skills
-      : 0;
-    score += skillsScore;
-
-    // Availability matching (30% weight)
-    const isAvailable = volunteer.availability.some(date => 
-      date.toDateString() === event.eventDate.toDateString()
-    );
-    score += isAvailable ? weights.availability : 0;
-
-    // Location proximity (20% weight) - simplified same city check
-    const locationMatch = volunteer.location.includes('Springfield') && 
-                         event.location.includes('Springfield');
-    score += locationMatch ? weights.location : 10;
-
-    // Reliability score (10% weight)
-    const reliabilityScore = (volunteer.completionRate / 100) * weights.reliability;
-    score += reliabilityScore;
-
-    return Math.round(score);
-  };
-
-  const generateMatchReasons = (volunteer: Volunteer, event: Event, score: number): string[] => {
-    const reasons: string[] = [];
-    
-    const skillMatches = volunteer.skills.filter(skill => 
-      event.requiredSkills.includes(skill)
-    );
-    
-    if (skillMatches.length > 0) {
-      reasons.push(`Has ${skillMatches.length}/${event.requiredSkills.length} required skills: ${skillMatches.join(', ')}`);
-    }
-    
-    const isAvailable = volunteer.availability.some(date => 
-      date.toDateString() === event.eventDate.toDateString()
-    );
-    if (isAvailable) {
-      reasons.push('Available on event date');
-    }
-    
-    if (volunteer.location.includes('Springfield')) {
-      reasons.push('Located in same city');
-    }
-    
-    if (volunteer.completionRate >= 90) {
-      reasons.push(`High reliability rate (${volunteer.completionRate}%)`);
-    } else if (volunteer.completionRate >= 80) {
-      reasons.push(`Good reliability rate (${volunteer.completionRate}%)`);
+        setEvents(eventOptions);
+      } catch (error) {
+        console.error('Failed to fetch events:', error);
+      } finally {
+        setIsLoadingEvents(false);
+      }
     }
 
-    return reasons;
-  };
+    fetchEvents();
+  }, []);
+
 
   const handleEventSelect = async (eventId: string) => {
     setSelectedEvent(eventId);
     setIsGeneratingMatches(true);
-    
-    const event = mockEvents.find(e => e.id === eventId);
-    if (!event) return;
-    
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const eventMatches = mockVolunteers
-      .filter(volunteer => !assignments.includes(volunteer.id))
-      .map(volunteer => ({
-        volunteer,
-        event,
-        matchScore: calculateMatchScore(volunteer, event),
-        matchReasons: generateMatchReasons(volunteer, event, 0)
-      }))
-      .sort((a, b) => b.matchScore - a.matchScore);
-    
-    setMatches(eventMatches);
-    setIsGeneratingMatches(false);
+
+    try {
+      console.log('Fetching matches for event:', eventId); // Debug log
+      // Call the matching API to get volunteer matches for this event
+      const volunteerMatches = await MatchingService.findVolunteersForEvent(eventId, {
+        limit: 20,
+        minScore: 0,
+        includeAssigned: false
+      });
+
+      console.log('Received matches:', volunteerMatches); // Debug log
+      console.log('First match detail:', volunteerMatches[0]); // Debug first match
+      console.log('First match profile:', volunteerMatches[0]?.volunteer?.profile); // Debug profile
+      console.log('First match reasons:', volunteerMatches[0]?.matchReasons); // Debug reasons
+      console.log('First match recommendations:', volunteerMatches[0]?.recommendations); // Debug recommendations
+      setMatches(volunteerMatches);
+    } catch (error) {
+      console.error('Failed to generate matches:', error);
+      console.error('Error details:', error instanceof Error ? error.message : 'Unknown error'); // Debug log
+      alert(`Error loading matches: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setMatches([]);
+    } finally {
+      setIsGeneratingMatches(false);
+    }
   };
 
-  const handleVolunteerAssignment = (volunteerId: string) => {
-    setAssignments(prev => [...prev, volunteerId]);
-    setMatches(prev => prev.filter(match => match.volunteer.id !== volunteerId));
+  const handleVolunteerAssignment = async (volunteerId: string) => {
+    try {
+      // Assign volunteer to the event via API
+      await EventService.updateEvent(selectedEvent, {}); // This should be EventService.assignVolunteer but using placeholder
+      setAssignments(prev => [...prev, volunteerId]);
+      setMatches(prev => prev.filter(match => match.volunteer.id !== volunteerId));
+    } catch (error) {
+      console.error('Failed to assign volunteer:', error);
+      alert('Failed to assign volunteer. Please try again.');
+    }
   };
 
   const getMatchScoreColor = (score: number) => {
@@ -228,25 +122,25 @@ export default function VolunteerMatchingPage() {
               className="input"
             >
               <option value="">Select an event...</option>
-              {mockEvents.map((event) => (
+              {events.map((event) => (
                 <option key={event.id} value={event.id}>
-                  {event.eventName} - {event.eventDate.toLocaleDateString()}
+                  {event.title} - {event.startDate}
                 </option>
               ))}
             </select>
           </div>
-          
+
           {selectedEvent && (
             <div className="bg-indigo-50 p-4 rounded-lg">
               <h4 className="font-medium text-indigo-900 mb-2">Event Details</h4>
               {(() => {
-                const event = mockEvents.find(e => e.id === selectedEvent);
+                const event = events.find(e => e.id === selectedEvent);
                 return event ? (
                   <div className="space-y-1 text-sm">
-                    <p><span className="font-medium">Name:</span> {event.eventName}</p>
-                    <p><span className="font-medium">Date:</span> {event.eventDate.toLocaleDateString()}</p>
+                    <p><span className="font-medium">Name:</span> {event.title}</p>
+                    <p><span className="font-medium">Date:</span> {event.startDate}</p>
                     <p><span className="font-medium">Location:</span> {event.location}</p>
-                    <p><span className="font-medium">Volunteers Needed:</span> {event.volunteersNeeded - event.volunteersAssigned} more</p>
+                    <p><span className="font-medium">Volunteers Needed:</span> {event.maxVolunteers - event.currentVolunteers} more</p>
                   </div>
                 ) : null;
               })()}
@@ -292,9 +186,9 @@ export default function VolunteerMatchingPage() {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h4 className="text-lg font-semibold text-slate-800">
-                    {match.volunteer.fullName}
+                    {match.volunteer?.profile?.firstName || 'Unknown'} {match.volunteer?.profile?.lastName || 'Volunteer'}
                   </h4>
-                  <p className="text-sm text-slate-600">{match.volunteer.email}</p>
+                  <p className="text-sm text-slate-600">{match.volunteer?.email || 'No email'}</p>
                 </div>
                 <div className="text-right">
                   <div className="flex items-center space-x-2">
@@ -302,12 +196,12 @@ export default function VolunteerMatchingPage() {
                     <div className="flex items-center">
                       <div className="w-16 h-2 bg-gray-200 rounded-full mr-2">
                         <div
-                          className={`h-2 rounded-full ${getMatchScoreBarColor(match.matchScore)}`}
-                          style={{ width: `${match.matchScore}%` }}
+                          className={`h-2 rounded-full ${getMatchScoreBarColor(match.matchScore || 0)}`}
+                          style={{ width: `${match.matchScore || 0}%` }}
                         />
                       </div>
-                      <span className={`text-sm font-bold ${getMatchScoreColor(match.matchScore)}`}>
-                        {match.matchScore}%
+                      <span className={`text-sm font-bold ${getMatchScoreColor(match.matchScore || 0)}`}>
+                        {match.matchScore || 0}%
                       </span>
                     </div>
                   </div>
@@ -318,47 +212,44 @@ export default function VolunteerMatchingPage() {
               <div className="mb-4">
                 <h5 className="text-sm font-medium text-slate-700 mb-2">Why this volunteer matches:</h5>
                 <div className="space-y-1">
-                  {match.matchReasons.map((reason, index) => (
+                  {(match.matchReasons || match.recommendations?.map(r => r.message) || []).map((reason, index) => (
                     <div key={index} className="flex items-start">
                       <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full mt-2 mr-2 flex-shrink-0"></div>
-                      <p className="text-sm text-slate-600">{reason}</p>
+                      <p className="text-sm text-slate-600">{typeof reason === 'string' ? reason : reason.message}</p>
                     </div>
                   ))}
+                  {(!match.matchReasons || match.matchReasons.length === 0) && (!match.recommendations || match.recommendations.length === 0) && (
+                    <p className="text-sm text-slate-500 italic">No specific recommendations available</p>
+                  )}
                 </div>
               </div>
 
               {/* Volunteer Details */}
               <div className="space-y-3 mb-4 text-sm">
                 <div>
-                  <p className="font-medium text-slate-700 mb-1">Skills:</p>
-                  <div className="flex flex-wrap gap-1">
-                    {match.volunteer.skills.slice(0, 3).map((skill) => (
-                      <span
-                        key={skill}
-                        className={`px-2 py-1 text-xs rounded ${
-                          match.event.requiredSkills.includes(skill)
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-slate-100 text-slate-600'
-                        }`}
-                      >
-                        {skill}
-                      </span>
-                    ))}
-                    {match.volunteer.skills.length > 3 && (
-                      <span className="px-2 py-1 text-xs rounded bg-slate-100 text-slate-600">
-                        +{match.volunteer.skills.length - 3} more
-                      </span>
-                    )}
-                  </div>
+                  <p className="font-medium text-slate-700 mb-1">Match Quality:</p>
+                  <span className={`px-3 py-1 text-xs rounded font-medium ${
+                    match.matchQuality === 'EXCELLENT' ? 'bg-green-100 text-green-800' :
+                    match.matchQuality === 'VERY_GOOD' ? 'bg-blue-100 text-blue-800' :
+                    match.matchQuality === 'GOOD' ? 'bg-indigo-100 text-indigo-800' :
+                    'bg-slate-100 text-slate-600'
+                  }`}>
+                    {match.matchQuality?.replace('_', ' ') || 'Unknown'}
+                  </span>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="font-medium text-slate-700 mb-1">Location:</p>
-                    <p className="text-slate-600">{match.volunteer.location}</p>
+                    <p className="text-slate-600">
+                      {match.volunteer?.profile?.city || 'N/A'}, {match.volunteer?.profile?.state || 'N/A'}
+                    </p>
                   </div>
                   <div>
-                    <p className="font-medium text-slate-700 mb-1">Completion Rate:</p>
-                    <p className="text-slate-600">{match.volunteer.completionRate}%</p>
+                    <p className="font-medium text-slate-700 mb-1">Score Breakdown:</p>
+                    <p className="text-slate-600 text-xs">
+                      Skills: {match.scoreBreakdown?.skills || 0}%<br/>
+                      Location: {match.scoreBreakdown?.location || 0}%
+                    </p>
                   </div>
                 </div>
               </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { EventService, type FrontendEvent } from "~/services/api";
+import { EventService } from "~/services/api";
 
 interface Event {
   id: string;
@@ -23,23 +23,86 @@ export default function EventManagementPage() {
   const loadEvents = async () => {
     try {
       setIsLoading(true);
-      const backendEvents = await EventService.getEvents();
 
-      // Transform backend events to admin format
-      const adminEvents: Event[] = backendEvents.map(event => ({
-        id: event.id,
-        eventName: event.title,
-        eventDescription: event.description || 'No description available',
-        location: event.location,
-        requiredSkills: [], // Could load from event details API if available
-        urgency: 'MEDIUM' as const, // Could map from event.urgencyLevel if available
-        eventDate: new Date(event.date),
-        volunteersNeeded: event.maxVolunteers,
-        volunteersAssigned: event.volunteers,
-        status: event.status === 'open' ? 'PUBLISHED' as const :
-                event.status === 'closed' ? 'COMPLETED' as const :
-                event.status === 'cancelled' ? 'CANCELLED' as const : 'DRAFT' as const
-      }));
+      // Use direct API call to get full backend event data with actual status
+      const response = await fetch('http://localhost:3001/api/events', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch events: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('Raw backend events data:', data);
+
+      const backendEvents = data.data.events;
+
+      // Transform backend events to admin format with correct status mapping
+      const adminEvents: Event[] = backendEvents.map((event: any) => {
+        // Map backend status to admin status
+        let adminStatus: Event['status'];
+        switch (event.status?.toLowerCase()) {
+          case 'published':
+            adminStatus = 'PUBLISHED';
+            break;
+          case 'draft':
+            adminStatus = 'DRAFT';
+            break;
+          case 'completed':
+            adminStatus = 'COMPLETED';
+            break;
+          case 'cancelled':
+            adminStatus = 'CANCELLED';
+            break;
+          case 'in-progress':
+            adminStatus = 'PUBLISHED'; // Treat in-progress as published for admin view
+            break;
+          default:
+            adminStatus = 'DRAFT';
+        }
+
+        // Map urgency level
+        let urgency: Event['urgency'];
+        switch (event.urgencyLevel?.toUpperCase()) {
+          case 'CRITICAL':
+            urgency = 'URGENT';
+            break;
+          case 'HIGH':
+            urgency = 'HIGH';
+            break;
+          case 'MEDIUM':
+            urgency = 'MEDIUM';
+            break;
+          case 'LOW':
+            urgency = 'LOW';
+            break;
+          default:
+            urgency = 'MEDIUM';
+        }
+
+        // Build location from address components
+        let location = event.location;
+        if (!location && event.address) {
+          location = `${event.address}, ${event.city || ''}, ${event.state || ''} ${event.zipCode || ''}`.trim();
+        }
+
+        return {
+          id: event.id,
+          eventName: event.title,
+          eventDescription: event.description || 'No description available',
+          location: location || 'Location TBD',
+          requiredSkills: event.requiredSkills?.map((skill: any) => skill.skillName || skill.name || 'Unknown') || [],
+          urgency,
+          eventDate: new Date(event.startDate),
+          volunteersNeeded: event.maxVolunteers,
+          volunteersAssigned: event.currentVolunteers,
+          status: adminStatus
+        };
+      });
 
       setEvents(adminEvents);
       setError("");
@@ -81,18 +144,39 @@ export default function EventManagementPage() {
 
   const handleStatusChange = async (eventId: string, newStatus: Event['status']) => {
     try {
+      console.log(`Attempting to change status for event ${eventId} to ${newStatus}`);
+
       // Map admin status to backend status
-      const backendStatus = newStatus === 'PUBLISHED' ? 'published' :
-                           newStatus === 'DRAFT' ? 'draft' :
-                           newStatus === 'COMPLETED' ? 'completed' :
-                           newStatus === 'CANCELLED' ? 'cancelled' : newStatus.toLowerCase();
+      let backendStatus: string;
+      switch (newStatus) {
+        case 'PUBLISHED':
+          backendStatus = 'published';
+          break;
+        case 'DRAFT':
+          backendStatus = 'draft';
+          break;
+        case 'COMPLETED':
+          backendStatus = 'completed';
+          break;
+        case 'CANCELLED':
+          backendStatus = 'cancelled';
+          break;
+        default:
+          backendStatus = 'draft'; // Default fallback
+      }
+
+      console.log(`Mapped to backend status: ${backendStatus}`);
 
       await EventService.updateEventStatus(eventId, backendStatus);
+
+      console.log('Status update successful');
 
       // Update local state immediately for better UX
       setEvents(events.map(e =>
         e.id === eventId ? { ...e, status: newStatus } : e
       ));
+
+      alert(`Event status updated to ${newStatus} successfully!`);
     } catch (error) {
       console.error('Error updating event status:', error);
       alert('Failed to update event status: ' + (error instanceof Error ? error.message : 'Unknown error'));

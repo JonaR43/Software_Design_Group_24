@@ -1,7 +1,11 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router";
+import { AuthService } from "../../services/api";
 
 export default function RegisterPage() {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
+    username: '',
     email: '',
     password: '',
     confirmPassword: '',
@@ -16,23 +20,32 @@ export default function RegisterPage() {
   // Validation function
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
-    
+
+    // Username validation
+    if (!formData.username) {
+      newErrors.username = 'Username is required';
+    } else if (formData.username.length < 3) {
+      newErrors.username = 'Username must be at least 3 characters long';
+    } else if (!/^[a-zA-Z0-9_]+$/.test(formData.username)) {
+      newErrors.username = 'Username can only contain letters, numbers, and underscores';
+    }
+
     // Email validation
     if (!formData.email) {
       newErrors.email = 'Email is required';
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
       newErrors.email = 'Please enter a valid email address';
     }
-    
+
     // Password validation
     if (!formData.password) {
       newErrors.password = 'Password is required';
     } else if (formData.password.length < 8) {
       newErrors.password = 'Password must be at least 8 characters long';
-    } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(formData.password)) {
-      newErrors.password = 'Password must contain at least one uppercase letter, one lowercase letter, and one number';
+    } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])/.test(formData.password)) {
+      newErrors.password = 'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character';
     }
-    
+
     // Confirm password validation
     if (!formData.confirmPassword) {
       newErrors.confirmPassword = 'Please confirm your password';
@@ -64,21 +77,31 @@ export default function RegisterPage() {
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
 
     setIsLoading(true);
-    
-    // TODO: Replace with actual API call
+
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      console.log('Registration data:', formData);
-      alert('Registration successful! Please check your email for verification.');
+      // Call the registration API
+      const response = await AuthService.register(
+        formData.username,
+        formData.email,
+        formData.password,
+        formData.role
+      );
+
+      console.log('Registration successful:', response);
+
+      // Redirect to login page after successful registration
+      navigate('/login');
     } catch (error) {
-      setErrors({ general: 'Registration failed. Please try again.' });
+      console.error('Registration error:', error);
+      setErrors({
+        general: error instanceof Error ? error.message : 'Registration failed. Please try again.'
+      });
     } finally {
       setIsLoading(false);
     }
@@ -182,6 +205,23 @@ export default function RegisterPage() {
               )}
 
               <form className="space-y-5" onSubmit={handleSubmit}>
+                {/* Username Field */}
+                <div className="space-y-2">
+                  <label htmlFor="username" className="text-sm text-slate-700">Username *</label>
+                  <input
+                    id="username"
+                    name="username"
+                    type="text"
+                    value={formData.username}
+                    onChange={handleInputChange}
+                    placeholder="johndoe"
+                    className={`w-full rounded-xl bg-white border px-4 py-3 outline-none focus:ring-4 ring-indigo-300/40 transition ${
+                      errors.username ? 'border-red-300 focus:border-red-600 ring-red-300/40' : 'border-slate-200 focus:border-indigo-600'
+                    }`}
+                  />
+                  {errors.username && <p className="text-sm text-red-600">{errors.username}</p>}
+                </div>
+
                 {/* Email Field */}
                 <div className="space-y-2">
                   <label htmlFor="email" className="text-sm text-slate-700">Email Address *</label>

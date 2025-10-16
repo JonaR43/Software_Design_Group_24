@@ -7,6 +7,50 @@ const prisma = require('../prisma');
 
 class HistoryRepository {
   /**
+   * Get all history records
+   */
+  async findAll(filters = {}) {
+    const where = {};
+
+    if (filters.status) {
+      where.status = filters.status.toUpperCase();
+    }
+
+    if (filters.volunteerId) {
+      where.volunteerId = filters.volunteerId;
+    }
+
+    if (filters.eventId) {
+      where.eventId = filters.eventId;
+    }
+
+    return await prisma.volunteerHistory.findMany({
+      where,
+      include: {
+        event: true,
+        volunteer: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            profile: true
+          }
+        }
+      },
+      orderBy: {
+        participationDate: 'desc'
+      }
+    });
+  }
+
+  /**
+   * Get volunteer history (alias for backward compatibility)
+   */
+  async getByVolunteerId(volunteerId) {
+    return this.findAll({ volunteerId });
+  }
+
+  /**
    * Get volunteer history
    */
   async getVolunteerHistory(volunteerId, filters = {}) {

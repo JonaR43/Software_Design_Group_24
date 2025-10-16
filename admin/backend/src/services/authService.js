@@ -70,7 +70,7 @@ class AuthService {
           id: newUser.id,
           username: newUser.username,
           email: newUser.email,
-          role: newUser.role,
+          role: newUser.role.toLowerCase(),
           verified: newUser.verified,
           createdAt: newUser.createdAt
         },
@@ -119,7 +119,7 @@ class AuthService {
           id: user.id,
           username: user.username,
           email: user.email,
-          role: user.role,
+          role: user.role.toLowerCase(),
           verified: user.verified,
           lastLogin: new Date()
         },
@@ -167,7 +167,7 @@ class AuthService {
             id: user.id,
             username: user.username,
             email: user.email,
-            role: user.role,
+            role: user.role.toLowerCase(),
             verified: user.verified
           }
         }
@@ -239,7 +239,7 @@ class AuthService {
           id: user.id,
           username: user.username,
           email: user.email,
-          role: user.role,
+          role: user.role.toLowerCase(),
           verified: user.verified,
           createdAt: user.createdAt
         },

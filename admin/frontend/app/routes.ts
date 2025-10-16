@@ -19,8 +19,8 @@ export default [
     route("home", "routes/client/dashboard/home.tsx"),
     route("events", "routes/client/dashboard/events.tsx"),
     route("schedule", "routes/client/dashboard/schedule.tsx"),
-    route("profile1", "routes/client/dashboard/profile1.tsx"), // Assignment 2 compliant profile
-    route("profile", "routes/client/dashboard/profile.tsx"), // Original profile (backup)
+    // route("profile1", "routes/client/dashboard/profile1.tsx"), // DEPRECATED - Removed in favor of profile.tsx
+    route("profile", "routes/client/dashboard/profile.tsx"), // Main profile page connected to backend
     route("history", "routes/client/dashboard/volunteer-history.tsx"), // Volunteer history page
     
     // Admin-only routes
@@ -33,6 +33,7 @@ export default [
       route("matching", "routes/client/dashboard/admin/volunteer-matching.tsx"),
       route("users", "routes/client/dashboard/admin/user-management.tsx"),
       route("volunteer-metrics/:userId", "routes/client/dashboard/admin/volunteer-metrics.$userId.tsx"),
+      route("reporting", "routes/client/dashboard/admin/reporting.tsx"),
     ]),
   ]),
 ] satisfies RouteConfig;

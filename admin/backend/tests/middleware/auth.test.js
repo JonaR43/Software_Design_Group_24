@@ -4,26 +4,28 @@
 
 const jwt = require('jsonwebtoken');
 const { authenticate, authorize, optionalAuth } = require('../../src/middleware/auth');
-const { users } = require('../../src/data/users');
+const userRepository = require('../../src/database/repositories/userRepository');
 
 // Mock dependencies
 jest.mock('jsonwebtoken');
-jest.mock('../../src/data/users', () => ({
-  users: [
-    {
-      id: 'user_001',
-      username: 'volunteer1',
-      email: 'volunteer1@example.com',
-      role: 'volunteer'
-    },
-    {
-      id: 'admin_001',
-      username: 'admin',
-      email: 'admin@example.com',
-      role: 'admin'
-    }
-  ]
-}));
+jest.mock('../../src/database/repositories/userRepository');
+
+// Mock user data
+const mockVolunteer = {
+  id: 'user_001',
+  username: 'volunteer1',
+  email: 'volunteer1@example.com',
+  role: 'VOLUNTEER',
+  verified: true
+};
+
+const mockAdmin = {
+  id: 'admin_001',
+  username: 'admin',
+  email: 'admin@example.com',
+  role: 'ADMIN',
+  verified: true
+};
 
 describe('Auth Middleware', () => {
   let mockReq;
@@ -46,6 +48,7 @@ describe('Auth Middleware', () => {
     it('should authenticate valid token successfully', async () => {
       mockReq.headers.authorization = 'Bearer valid-token';
       jwt.verify.mockReturnValue({ userId: 'user_001' });
+      userRepository.findById.mockResolvedValue(mockVolunteer);
 
       await authenticate(mockReq, mockRes, mockNext);
 
@@ -120,6 +123,7 @@ describe('Auth Middleware', () => {
     it('should handle user not found', async () => {
       mockReq.headers.authorization = 'Bearer valid-token';
       jwt.verify.mockReturnValue({ userId: 'nonexistent' });
+      userRepository.findById.mockResolvedValue(null);
 
       await authenticate(mockReq, mockRes, mockNext);
 
@@ -201,6 +205,7 @@ describe('Auth Middleware', () => {
     it('should set user when valid token provided', async () => {
       mockReq.headers.authorization = 'Bearer valid-token';
       jwt.verify.mockReturnValue({ userId: 'user_001' });
+      userRepository.findById.mockResolvedValue(mockVolunteer);
 
       await optionalAuth(mockReq, mockRes, mockNext);
 
@@ -235,6 +240,7 @@ describe('Auth Middleware', () => {
     it('should not set user when user not found for token', async () => {
       mockReq.headers.authorization = 'Bearer valid-token';
       jwt.verify.mockReturnValue({ userId: 'nonexistent' });
+      userRepository.findById.mockResolvedValue(null);
 
       await optionalAuth(mockReq, mockRes, mockNext);
 

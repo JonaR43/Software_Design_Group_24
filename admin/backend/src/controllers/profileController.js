@@ -206,6 +206,46 @@ class ProfileController {
   }
 
   /**
+   * Create a new custom skill
+   * POST /api/profile/create-skill
+   */
+  async createCustomSkill(req, res, next) {
+    try {
+      const { name, category, description } = req.body;
+
+      if (!name || !name.trim()) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Skill name is required',
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      const result = await profileService.createCustomSkill({
+        name: name.trim(),
+        category: category || 'custom',
+        description: description || `Custom skill: ${name.trim()}`
+      });
+
+      res.status(201).json({
+        status: 'success',
+        message: 'Custom skill created successfully',
+        data: result.data,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      if (error.message.includes('already exists')) {
+        return res.status(409).json({
+          status: 'error',
+          message: error.message,
+          timestamp: new Date().toISOString()
+        });
+      }
+      next(error);
+    }
+  }
+
+  /**
    * Update availability
    * PUT /api/profile/availability
    */

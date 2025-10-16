@@ -310,6 +310,44 @@ class UserRepository {
   }
 
   /**
+   * Get all volunteers
+   */
+  async getVolunteers() {
+    return await prisma.user.findMany({
+      where: { role: 'VOLUNTEER' },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        role: true,
+        verified: true,
+        createdAt: true
+      }
+    });
+  }
+
+  /**
+   * Get all volunteers with their profiles
+   */
+  async getVolunteersWithProfiles() {
+    return await prisma.user.findMany({
+      where: { role: 'VOLUNTEER' },
+      include: {
+        profile: {
+          include: {
+            skills: {
+              include: {
+                skill: true
+              }
+            },
+            availability: true
+          }
+        }
+      }
+    });
+  }
+
+  /**
    * Get user statistics
    */
   async getUserStats() {
