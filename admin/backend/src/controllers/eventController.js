@@ -529,11 +529,12 @@ class EventController {
         user: req.user?.id
       });
 
-      // Find the history record for this volunteer and event
-      const { volunteerHistory } = require('../data/history');
-      const historyRecord = volunteerHistory.find(
-        h => h.eventId === eventId && h.volunteerId === volunteerId
-      );
+      // Import historyRepository instead of in-memory data
+      const historyRepository = require('../database/repositories/historyRepository');
+
+      // Find the history record for this volunteer and event using repository
+      const eventHistory = await historyRepository.getEventHistory(eventId);
+      let historyRecord = eventHistory.find(h => h.volunteerId === volunteerId);
 
       console.log('Found history record:', historyRecord ? 'Yes' : 'No');
 
@@ -542,10 +543,9 @@ class EventController {
       if (!historyRecord) {
         console.log('No history record found. Creating a new one...');
 
-        // Check if the volunteer assignment exists
-        const { eventHelpers } = require('../data/events');
-        const assignments = eventHelpers.getEventAssignments(eventId);
-        const assignment = assignments.find(a => a.volunteerId === volunteerId);
+        // Check if the volunteer assignment exists using eventService
+        const assignmentsResult = await eventService.getEventAssignments(eventId);
+        const assignment = assignmentsResult.data.assignments.find(a => a.volunteerId === volunteerId);
 
         if (!assignment) {
           console.log('No assignment found either');
@@ -556,47 +556,43 @@ class EventController {
           });
         }
 
-        // Create a new history record
-        const newHistoryRecord = {
-          id: `history_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        // Create a new history record using repository
+        const newHistoryData = {
           volunteerId: volunteerId,
           eventId: eventId,
           assignmentId: assignment.id,
-          status: status || 'confirmed',
+          status: status || 'CONFIRMED',
           hoursWorked: hoursWorked ? parseFloat(hoursWorked) : 0,
           performanceRating: performanceRating ? parseInt(performanceRating) : null,
           feedback: feedback || null,
-          attendance: 'pending',
-          skills_utilized: [],
+          attendance: 'PENDING',
           participationDate: assignment.assignedAt || new Date(),
           completionDate: null,
           recordedBy: req.user.id,
-          recordedAt: new Date(),
           adminNotes: adminNotes || null
         };
 
-        volunteerHistory.push(newHistoryRecord);
-        recordToUpdate = newHistoryRecord;
-        console.log('Created new history record:', newHistoryRecord);
+        recordToUpdate = await historyRepository.create(newHistoryData);
+        console.log('Created new history record:', recordToUpdate);
       } else {
-        // Update existing history record
-        if (status !== undefined) historyRecord.status = status;
-        if (hoursWorked !== undefined) historyRecord.hoursWorked = parseFloat(hoursWorked);
-        if (performanceRating !== undefined) historyRecord.performanceRating = parseInt(performanceRating);
-        if (feedback !== undefined) historyRecord.feedback = feedback;
-        if (adminNotes !== undefined) historyRecord.adminNotes = adminNotes;
+        // Update existing history record using repository
+        const updateData = {};
+        if (status !== undefined) updateData.status = status;
+        if (hoursWorked !== undefined) updateData.hoursWorked = parseFloat(hoursWorked);
+        if (performanceRating !== undefined) updateData.performanceRating = parseInt(performanceRating);
+        if (feedback !== undefined) updateData.feedback = feedback;
+        if (adminNotes !== undefined) updateData.adminNotes = adminNotes;
 
-        historyRecord.recordedBy = req.user.id;
-        historyRecord.recordedAt = new Date();
+        updateData.recordedBy = req.user.id;
 
-        recordToUpdate = historyRecord;
+        // If marking as completed, set completion date
+        if (status === 'completed' || status === 'COMPLETED') {
+          updateData.completionDate = new Date();
+          updateData.attendance = 'PRESENT';
+        }
+
+        recordToUpdate = await historyRepository.update(historyRecord.id, updateData);
         console.log('Updated existing history record');
-      }
-
-      // If marking as completed, set completion date
-      if (status === 'completed' && !recordToUpdate.completionDate) {
-        recordToUpdate.completionDate = new Date();
-        recordToUpdate.attendance = 'present';
       }
 
       console.log('Final record:', recordToUpdate);

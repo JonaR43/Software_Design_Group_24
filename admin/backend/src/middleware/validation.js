@@ -122,6 +122,9 @@ const schemas = {
     bio: Joi.string()
       .max(500)
       .allow(''),
+    emergencyContact: Joi.string()
+      .max(200)
+      .allow(''),
     skills: Joi.array()
       .items(Joi.object({
         skillId: Joi.string().required(),
@@ -129,9 +132,9 @@ const schemas = {
           .valid('beginner', 'intermediate', 'advanced', 'expert')
           .required()
       }))
-      .min(1)
+      .min(0)
       .max(10)
-      .required(),
+      .default([]),
     availability: Joi.array()
       .items(Joi.object({
         dayOfWeek: Joi.number()
@@ -153,8 +156,8 @@ const schemas = {
           }),
         isRecurring: Joi.boolean().default(true)
       }))
-      .min(1)
-      .required(),
+      .min(0)
+      .default([]),
     preferences: Joi.object({
       causes: Joi.array()
         .items(Joi.string())
@@ -179,10 +182,35 @@ const schemas = {
       .min(10)
       .max(1000)
       .required(),
-    location: Joi.string()
+    address: Joi.string()
       .min(5)
       .max(200)
-      .required(),
+      .required()
+      .messages({
+        'any.required': 'Street address is required'
+      }),
+    city: Joi.string()
+      .min(2)
+      .max(100)
+      .required()
+      .messages({
+        'any.required': 'City is required'
+      }),
+    state: Joi.string()
+      .length(2)
+      .uppercase()
+      .required()
+      .messages({
+        'any.required': 'State is required',
+        'string.length': 'State must be 2 characters (e.g., TX)'
+      }),
+    zipCode: Joi.string()
+      .pattern(/^\d{5}(-\d{4})?$/)
+      .required()
+      .messages({
+        'any.required': 'ZIP code is required',
+        'string.pattern.base': 'ZIP code must be in format 12345 or 12345-6789'
+      }),
     startDate: Joi.date()
       .min('now')
       .required()
@@ -201,8 +229,8 @@ const schemas = {
       .max(1000)
       .required(),
     urgencyLevel: Joi.string()
-      .valid('low', 'normal', 'high', 'urgent')
-      .default('normal'),
+      .valid('low', 'medium', 'high', 'critical')
+      .default('medium'),
     requiredSkills: Joi.array()
       .items(Joi.object({
         skillId: Joi.string().required(),
@@ -224,9 +252,17 @@ const schemas = {
     description: Joi.string()
       .min(10)
       .max(1000),
-    location: Joi.string()
+    address: Joi.string()
       .min(5)
       .max(200),
+    city: Joi.string()
+      .min(2)
+      .max(100),
+    state: Joi.string()
+      .length(2)
+      .uppercase(),
+    zipCode: Joi.string()
+      .pattern(/^\d{5}(-\d{4})?$/),
     startDate: Joi.date()
       .min('now'),
     endDate: Joi.date()
@@ -236,7 +272,7 @@ const schemas = {
       .min(1)
       .max(1000),
     urgencyLevel: Joi.string()
-      .valid('low', 'normal', 'high', 'urgent'),
+      .valid('low', 'medium', 'high', 'critical'),
     requiredSkills: Joi.array()
       .items(Joi.object({
         skillId: Joi.string().required(),

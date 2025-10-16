@@ -1,11 +1,12 @@
 const bcrypt = require('bcryptjs');
-const { userHelpers } = require('../data/users');
-const { events } = require('../data/events');
-const { volunteerHistory } = require('../data/history');
+const userRepository = require('../database/repositories/userRepository');
+const eventRepository = require('../database/repositories/eventRepository');
+const historyRepository = require('../database/repositories/historyRepository');
 
 /**
  * Admin Controller
  * Handles HTTP requests for admin user management operations
+ * Updated to use Prisma database
  */
 class AdminController {
   /**
@@ -14,12 +15,18 @@ class AdminController {
    */
   async getAllUsers(req, res, next) {
     try {
-      const users = userHelpers.getAllUsers();
+      const users = await userRepository.findAll();
+
+      // Normalize roles to lowercase
+      const normalizedUsers = users.map(user => ({
+        ...user,
+        role: user.role.toLowerCase()
+      }));
 
       res.status(200).json({
         status: 'success',
         data: {
-          users
+          users: normalizedUsers
         },
         timestamp: new Date().toISOString()
       });
@@ -36,7 +43,7 @@ class AdminController {
     try {
       const { userId } = req.params;
 
-      const user = userHelpers.findById(userId);
+      const user = await userRepository.findById(userId);
       if (!user) {
         return res.status(404).json({
           status: 'error',
@@ -45,7 +52,7 @@ class AdminController {
         });
       }
 
-      const profile = userHelpers.getProfile(userId);
+      const profile = await userRepository.getProfile(userId);
 
       res.status(200).json({
         status: 'success',
@@ -53,7 +60,7 @@ class AdminController {
           id: user.id,
           username: user.username,
           email: user.email,
-          role: user.role,
+          role: user.role.toLowerCase(),
           verified: user.verified,
           createdAt: user.createdAt,
           updatedAt: user.updatedAt,
@@ -92,7 +99,7 @@ class AdminController {
       }
 
       // Check if user already exists
-      const existingUserByEmail = userHelpers.findByEmail(email);
+      const existingUserByEmail = await userRepository.findByEmail(email);
       if (existingUserByEmail) {
         return res.status(409).json({
           status: 'error',
@@ -101,7 +108,7 @@ class AdminController {
         });
       }
 
-      const existingUserByUsername = userHelpers.findByUsername(username);
+      const existingUserByUsername = await userRepository.findByUsername(username);
       if (existingUserByUsername) {
         return res.status(409).json({
           status: 'error',
@@ -114,7 +121,7 @@ class AdminController {
       const hashedPassword = await bcrypt.hash(password, 12);
 
       // Create new user
-      const newUser = userHelpers.createUser({
+      const newUser = await userRepository.create({
         username: username.toLowerCase(),
         email: email.toLowerCase(),
         password: hashedPassword,
@@ -123,7 +130,7 @@ class AdminController {
       });
 
       // Create initial profile
-      userHelpers.createProfile(newUser.id, {
+      await userRepository.createProfile(newUser.id, {
         firstName: '',
         lastName: '',
         phone: '',
@@ -132,14 +139,14 @@ class AdminController {
         state: '',
         zipCode: '',
         bio: '',
-        skills: [],
-        availability: [],
-        preferences: {
-          causes: [],
-          maxDistance: 50,
-          weekdaysOnly: false,
-          preferredTimeSlots: []
-        }
+        maxTravelDistance: 50,
+        preferredDays: [],
+        preferredTimeSlots: [],
+        preferredCauses: [],
+        emailNotifications: true,
+        eventReminders: true,
+        weekendsOnly: false,
+        profileCompleteness: 0
       });
 
       res.status(201).json({
@@ -148,7 +155,7 @@ class AdminController {
           id: newUser.id,
           username: newUser.username,
           email: newUser.email,
-          role: newUser.role,
+          role: newUser.role.toLowerCase(),
           verified: newUser.verified,
           createdAt: newUser.createdAt
         },
@@ -168,7 +175,7 @@ class AdminController {
       const { userId } = req.params;
       const { username, email, role, verified, password } = req.body;
 
-      const user = userHelpers.findById(userId);
+      const user = await userRepository.findById(userId);
       if (!user) {
         return res.status(404).json({
           status: 'error',
@@ -179,7 +186,7 @@ class AdminController {
 
       // Check if new email is already taken by another user
       if (email && email !== user.email) {
-        const existingUser = userHelpers.findByEmail(email);
+        const existingUser = await userRepository.findByEmail(email);
         if (existingUser && existingUser.id !== userId) {
           return res.status(409).json({
             status: 'error',
@@ -191,7 +198,7 @@ class AdminController {
 
       // Check if new username is already taken by another user
       if (username && username !== user.username) {
-        const existingUser = userHelpers.findByUsername(username);
+        const existingUser = await userRepository.findByUsername(username);
         if (existingUser && existingUser.id !== userId) {
           return res.status(409).json({
             status: 'error',
@@ -214,7 +221,7 @@ class AdminController {
       }
 
       // Update user
-      const updatedUser = userHelpers.updateUser(userId, updateData);
+      const updatedUser = await userRepository.update(userId, updateData);
 
       res.status(200).json({
         status: 'success',
@@ -222,7 +229,7 @@ class AdminController {
           id: updatedUser.id,
           username: updatedUser.username,
           email: updatedUser.email,
-          role: updatedUser.role,
+          role: updatedUser.role.toLowerCase(),
           verified: updatedUser.verified,
           createdAt: updatedUser.createdAt,
           updatedAt: updatedUser.updatedAt
@@ -242,7 +249,7 @@ class AdminController {
     try {
       const { userId } = req.params;
 
-      const user = userHelpers.findById(userId);
+      const user = await userRepository.findById(userId);
       if (!user) {
         return res.status(404).json({
           status: 'error',
@@ -260,21 +267,13 @@ class AdminController {
         });
       }
 
-      const deleted = userHelpers.deleteUser(userId);
+      await userRepository.delete(userId);
 
-      if (deleted) {
-        res.status(200).json({
-          status: 'success',
-          message: 'User deleted successfully',
-          timestamp: new Date().toISOString()
-        });
-      } else {
-        res.status(500).json({
-          status: 'error',
-          message: 'Failed to delete user',
-          timestamp: new Date().toISOString()
-        });
-      }
+      res.status(200).json({
+        status: 'success',
+        message: 'User deleted successfully',
+        timestamp: new Date().toISOString()
+      });
     } catch (error) {
       next(error);
     }
@@ -288,7 +287,7 @@ class AdminController {
     try {
       const { userId } = req.params;
 
-      const user = userHelpers.findById(userId);
+      const user = await userRepository.findById(userId);
       if (!user) {
         return res.status(404).json({
           status: 'error',
@@ -297,7 +296,7 @@ class AdminController {
         });
       }
 
-      if (user.role !== 'volunteer') {
+      if (user.role.toLowerCase() !== 'volunteer') {
         return res.status(400).json({
           status: 'error',
           message: 'User is not a volunteer',
@@ -306,7 +305,7 @@ class AdminController {
       }
 
       // Get volunteer's history
-      const volunteerParticipation = volunteerHistory.filter(h => h.volunteerId === userId);
+      const volunteerParticipation = await historyRepository.getByVolunteerId(userId);
 
       // Basic stats
       const totalEvents = volunteerParticipation.length;
@@ -373,8 +372,8 @@ class AdminController {
 
       // Event categories breakdown
       const eventsByCategory = {};
-      volunteerParticipation.forEach(h => {
-        const event = events.find(e => e.id === h.eventId);
+      for (const h of volunteerParticipation) {
+        const event = await eventRepository.findById(h.eventId);
         if (event) {
           const category = event.category || 'other';
           if (!eventsByCategory[category]) {
@@ -385,7 +384,7 @@ class AdminController {
             eventsByCategory[category].hours += h.hoursWorked || 0;
           }
         }
-      });
+      }
 
       const categoryBreakdown = Object.values(eventsByCategory).map(cat => ({
         ...cat,
@@ -393,22 +392,24 @@ class AdminController {
       }));
 
       // Recent events
-      const recentEvents = volunteerParticipation
+      const sortedParticipation = volunteerParticipation
         .sort((a, b) => new Date(b.participationDate).getTime() - new Date(a.participationDate).getTime())
-        .slice(0, 10)
-        .map(h => {
-          const event = events.find(e => e.id === h.eventId);
-          return {
-            eventId: h.eventId,
-            eventName: event?.title || 'Unknown Event',
-            eventCategory: event?.category || 'other',
-            date: h.participationDate,
-            status: h.status,
-            hours: h.hoursWorked || 0,
-            rating: h.performanceRating || null,
-            feedback: h.feedback || null
-          };
+        .slice(0, 10);
+
+      const recentEvents = [];
+      for (const h of sortedParticipation) {
+        const event = await eventRepository.findById(h.eventId);
+        recentEvents.push({
+          eventId: h.eventId,
+          eventName: event?.title || 'Unknown Event',
+          eventCategory: event?.category || 'other',
+          date: h.participationDate,
+          status: h.status,
+          hours: h.hoursWorked || 0,
+          rating: h.performanceRating || null,
+          feedback: h.feedback || null
         });
+      }
 
       res.status(200).json({
         status: 'success',
@@ -449,12 +450,12 @@ class AdminController {
    */
   async getMetrics(req, res, next) {
     try {
-      const users = userHelpers.getAllUsers();
+      const users = await userRepository.findAll();
 
       // User metrics
       const totalUsers = users.length;
-      const adminUsers = users.filter(u => u.role === 'admin').length;
-      const volunteerUsers = users.filter(u => u.role === 'volunteer').length;
+      const adminUsers = users.filter(u => u.role.toLowerCase() === 'admin').length;
+      const volunteerUsers = users.filter(u => u.role.toLowerCase() === 'volunteer').length;
       const verifiedUsers = users.filter(u => u.verified).length;
 
       // User registration trend (last 6 months)
@@ -477,21 +478,22 @@ class AdminController {
           users: count,
           volunteers: users.filter(u => {
             const createdAt = new Date(u.createdAt);
-            return u.role === 'volunteer' && createdAt >= monthStart && createdAt <= monthEnd;
+            return u.role.toLowerCase() === 'volunteer' && createdAt >= monthStart && createdAt <= monthEnd;
           }).length,
           admins: users.filter(u => {
             const createdAt = new Date(u.createdAt);
-            return u.role === 'admin' && createdAt >= monthStart && createdAt <= monthEnd;
+            return u.role.toLowerCase() === 'admin' && createdAt >= monthStart && createdAt <= monthEnd;
           }).length
         });
       }
 
       // Event metrics
+      const { events } = await eventRepository.findAll();
       const totalEvents = events.length;
-      const publishedEvents = events.filter(e => e.status === 'published').length;
-      const completedEvents = events.filter(e => e.status === 'completed').length;
-      const cancelledEvents = events.filter(e => e.status === 'cancelled').length;
-      const draftEvents = events.filter(e => e.status === 'draft').length;
+      const publishedEvents = events.filter(e => e.status.toLowerCase() === 'published').length;
+      const completedEvents = events.filter(e => e.status.toLowerCase() === 'completed').length;
+      const cancelledEvents = events.filter(e => e.status.toLowerCase() === 'cancelled').length;
+      const draftEvents = events.filter(e => e.status.toLowerCase() === 'draft').length;
 
       // Event status distribution
       const eventStatusDistribution = [
@@ -524,6 +526,7 @@ class AdminController {
       }));
 
       // Volunteer history metrics
+      const volunteerHistory = await historyRepository.findAll();
       const completedParticipations = volunteerHistory.filter(h => h.status === 'completed').length;
       const noShows = volunteerHistory.filter(h => h.status === 'no_show').length;
       const cancelledParticipations = volunteerHistory.filter(h => h.status === 'cancelled').length;
@@ -541,29 +544,28 @@ class AdminController {
         : 0;
 
       // Top volunteers by hours
-      const volunteerHours = volunteerHistory
-        .filter(h => h.status === 'completed')
-        .reduce((acc, h) => {
-          if (!acc[h.volunteerId]) {
-            const user = users.find(u => u.id === h.volunteerId);
-            acc[h.volunteerId] = {
-              id: h.volunteerId,
-              name: user?.profile ? `${user.profile.firstName} ${user.profile.lastName}` : user?.username || 'Unknown',
-              hours: 0,
-              events: 0,
-              avgRating: 0,
-              totalRating: 0,
-              ratingCount: 0
-            };
-          }
-          acc[h.volunteerId].hours += h.hoursWorked || 0;
-          acc[h.volunteerId].events += 1;
-          if (h.performanceRating) {
-            acc[h.volunteerId].totalRating += h.performanceRating;
-            acc[h.volunteerId].ratingCount += 1;
-          }
-          return acc;
-        }, {});
+      const volunteerHours = {};
+      for (const h of volunteerHistory.filter(h => h.status === 'completed')) {
+        if (!volunteerHours[h.volunteerId]) {
+          const user = users.find(u => u.id === h.volunteerId);
+          const profile = user ? await userRepository.getProfile(user.id) : null;
+          volunteerHours[h.volunteerId] = {
+            id: h.volunteerId,
+            name: profile ? `${profile.firstName} ${profile.lastName}` : user?.username || 'Unknown',
+            hours: 0,
+            events: 0,
+            avgRating: 0,
+            totalRating: 0,
+            ratingCount: 0
+          };
+        }
+        volunteerHours[h.volunteerId].hours += h.hoursWorked || 0;
+        volunteerHours[h.volunteerId].events += 1;
+        if (h.performanceRating) {
+          volunteerHours[h.volunteerId].totalRating += h.performanceRating;
+          volunteerHours[h.volunteerId].ratingCount += 1;
+        }
+      }
 
       const topVolunteers = Object.values(volunteerHours)
         .map(v => ({

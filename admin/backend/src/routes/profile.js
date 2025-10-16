@@ -52,6 +52,13 @@ router.get('/skills/search', profileController.searchSkills);
 router.post('/skills', profileController.addSkills);
 
 /**
+ * @route   POST /api/profile/create-skill
+ * @desc    Create a new custom skill
+ * @access  Private
+ */
+router.post('/create-skill', profileController.createCustomSkill);
+
+/**
  * @route   DELETE /api/profile/skills
  * @desc    Remove skills from profile
  * @access  Private

@@ -4,13 +4,13 @@
 
 const matchingService = require('../../src/services/matchingService');
 const matchingAlgorithm = require('../../src/utils/matchingAlgorithm');
-const { eventHelpers } = require('../../src/data/events');
-const { userHelpers } = require('../../src/data/users');
+const eventRepository = require('../../src/database/repositories/eventRepository');
+const userRepository = require('../../src/database/repositories/userRepository');
 
 // Mock dependencies
 jest.mock('../../src/utils/matchingAlgorithm');
-jest.mock('../../src/data/events');
-jest.mock('../../src/data/users');
+jest.mock('../../src/database/repositories/eventRepository');
+jest.mock('../../src/database/repositories/userRepository');
 
 describe('MatchingService', () => {
   const mockEvent = {
@@ -58,8 +58,25 @@ describe('MatchingService', () => {
     id: 'user_001',
     username: 'volunteer1',
     email: 'volunteer1@example.com',
-    role: 'volunteer',
-    verified: true
+    role: 'VOLUNTEER',  // Prisma enum uppercase
+    verified: true,
+    profile: {  // Include profile for repository mock
+      userId: 'user_001',
+      firstName: 'John',
+      lastName: 'Doe',
+      phone: '+1-555-0123',
+      skills: [
+        { skillId: 'skill_001', proficiency: 'INTERMEDIATE' }
+      ],
+      availability: [
+        { dayOfWeek: 1, startTime: '09:00', endTime: '17:00', isRecurring: true }
+      ],
+      preferences: {
+        maxDistance: 25,
+        causes: ['environmental'],
+        weekdaysOnly: false
+      }
+    }
   };
 
   beforeEach(() => {
@@ -68,9 +85,9 @@ describe('MatchingService', () => {
 
   describe('findMatchesForEvent', () => {
     it('should find matches for event successfully', async () => {
-      eventHelpers.findById.mockReturnValue(mockEvent);
-      userHelpers.getVolunteerProfiles.mockReturnValue([mockVolunteerProfile]);
-      eventHelpers.getEventAssignments.mockReturnValue([]);
+      eventRepository.findById.mockResolvedValue(mockEvent);
+      userRepository.getVolunteersWithProfiles.mockResolvedValue([mockUser]);
+      eventRepository.getAssignments.mockResolvedValue([]);
       matchingAlgorithm.calculateMatchScore.mockReturnValue({
         totalScore: 85,
         scoreBreakdown: {
@@ -94,16 +111,16 @@ describe('MatchingService', () => {
     });
 
     it('should handle event not found', async () => {
-      eventHelpers.findById.mockReturnValue(null);
+      eventRepository.findById.mockResolvedValue(null);
 
       await expect(matchingService.findMatchesForEvent('nonexistent'))
         .rejects.toThrow('Event not found');
     });
 
     it('should handle match calculation errors gracefully', async () => {
-      eventHelpers.findById.mockReturnValue(mockEvent);
-      userHelpers.getVolunteerProfiles.mockReturnValue([mockVolunteerProfile]);
-      eventHelpers.getEventAssignments.mockReturnValue([]);
+      eventRepository.findById.mockResolvedValue(mockEvent);
+      userRepository.getVolunteersWithProfiles.mockResolvedValue([mockUser]);
+      eventRepository.getAssignments.mockResolvedValue([]);
       matchingAlgorithm.calculateMatchScore.mockImplementation(() => {
         throw new Error('Calculation error');
       });
@@ -117,19 +134,18 @@ describe('MatchingService', () => {
 
   describe('findMatchesForVolunteer', () => {
     it('should handle volunteer profile not found', async () => {
-      userHelpers.findById.mockReturnValue(mockUser);
-      userHelpers.getProfile.mockReturnValue(null);
+      userRepository.findById.mockResolvedValue(mockUser);
+      userRepository.getProfile.mockResolvedValue(null);
 
       await expect(matchingService.findMatchesForVolunteer('user_001'))
         .rejects.toThrow('Volunteer profile not found');
     });
 
     it('should return empty matches when no events available', async () => {
-      userHelpers.findById.mockReturnValue(mockUser);
-      userHelpers.getProfile.mockReturnValue(mockVolunteerProfile);
-      eventHelpers.getAllEvents.mockReturnValue([]);
-      eventHelpers.getByStatus.mockReturnValue([]);
-      eventHelpers.getVolunteerAssignments.mockReturnValue([]);
+      userRepository.findById.mockResolvedValue(mockUser);
+      userRepository.getProfile.mockResolvedValue(mockVolunteerProfile);
+      eventRepository.findAll.mockResolvedValue({ events: [], total: 0 });
+      eventRepository.getVolunteerAssignments.mockResolvedValue([]);
 
       const result = await matchingService.findMatchesForVolunteer('user_001');
 
@@ -139,9 +155,9 @@ describe('MatchingService', () => {
     });
 
     it('should apply minimum score filter', async () => {
-      eventHelpers.findById.mockReturnValue(mockEvent);
-      userHelpers.getVolunteerProfiles.mockReturnValue([mockVolunteerProfile]);
-      eventHelpers.getEventAssignments.mockReturnValue([]);
+      eventRepository.findById.mockResolvedValue(mockEvent);
+      userRepository.getVolunteersWithProfiles.mockResolvedValue([mockVolunteerProfile]);
+      eventRepository.getAssignments.mockResolvedValue([]);
       matchingAlgorithm.calculateMatchScore.mockReturnValue({
         totalScore: 45, // Below minimum
         scoreBreakdown: { skills: 40, availability: 50, location: 45, preferences: 45 },
@@ -157,9 +173,9 @@ describe('MatchingService', () => {
     });
 
     it('should handle no available volunteers', async () => {
-      eventHelpers.findById.mockReturnValue(mockEvent);
-      userHelpers.getVolunteerProfiles.mockReturnValue([]);
-      eventHelpers.getEventAssignments.mockReturnValue([]);
+      eventRepository.findById.mockResolvedValue(mockEvent);
+      userRepository.getVolunteersWithProfiles.mockResolvedValue([]);
+      eventRepository.getAssignments.mockResolvedValue([]);
 
       const result = await matchingService.findMatchesForEvent('event_001');
 
@@ -172,9 +188,9 @@ describe('MatchingService', () => {
 
   describe('findMatchesForVolunteer', () => {
     it('should find events for volunteer successfully', async () => {
-      userHelpers.findById.mockReturnValue(mockUser);
-      userHelpers.getProfile.mockReturnValue(mockVolunteerProfile);
-      jest.spyOn(matchingService, 'getAvailableEvents').mockReturnValue([mockEvent]);
+      userRepository.findById.mockResolvedValue(mockUser);
+      userRepository.getProfile.mockResolvedValue(mockVolunteerProfile);
+      jest.spyOn(matchingService, 'getAvailableEvents').mockResolvedValue([mockEvent]);
       matchingAlgorithm.calculateMatchScore.mockReturnValue({
         totalScore: 82,
         scoreBreakdown: {
@@ -197,15 +213,15 @@ describe('MatchingService', () => {
     });
 
     it('should handle volunteer not found', async () => {
-      userHelpers.findById.mockReturnValue(null);
+      userRepository.findById.mockResolvedValue(null);
 
       await expect(matchingService.findMatchesForVolunteer('nonexistent'))
         .rejects.toThrow('Volunteer not found');
     });
 
     it('should handle non-volunteer user', async () => {
-      const mockAdmin = { ...mockUser, role: 'admin' };
-      userHelpers.findById.mockReturnValue(mockAdmin);
+      const mockAdmin = { ...mockUser, role: 'ADMIN' };  // Prisma enum
+      userRepository.findById.mockResolvedValue(mockAdmin);
 
       await expect(matchingService.findMatchesForVolunteer('admin_001'))
         .rejects.toThrow('User is not a volunteer');
@@ -214,9 +230,9 @@ describe('MatchingService', () => {
 
   describe('calculateMatch', () => {
     it('should calculate match between volunteer and event', async () => {
-      userHelpers.findById.mockReturnValue(mockUser);
-      eventHelpers.findById.mockReturnValue(mockEvent);
-      userHelpers.getProfile.mockReturnValue(mockVolunteerProfile);
+      userRepository.findById.mockResolvedValue(mockUser);
+      eventRepository.findById.mockResolvedValue(mockEvent);
+      userRepository.getProfile.mockResolvedValue(mockVolunteerProfile);
       matchingAlgorithm.calculateMatchScore.mockReturnValue({
         totalScore: 88,
         scoreBreakdown: {
@@ -240,15 +256,15 @@ describe('MatchingService', () => {
     });
 
     it('should handle volunteer not found', async () => {
-      userHelpers.findById.mockReturnValue(null);
+      userRepository.findById.mockResolvedValue(null);
 
       await expect(matchingService.calculateMatch('nonexistent', 'event_001'))
         .rejects.toThrow('Volunteer not found');
     });
 
     it('should handle event not found', async () => {
-      userHelpers.findById.mockReturnValue(mockUser);
-      eventHelpers.findById.mockReturnValue(null);
+      userRepository.findById.mockResolvedValue(mockUser);
+      eventRepository.findById.mockResolvedValue(null);
 
       await expect(matchingService.calculateMatch('user_001', 'nonexistent'))
         .rejects.toThrow('Event not found');
@@ -258,7 +274,7 @@ describe('MatchingService', () => {
   describe('getAutomaticSuggestions', () => {
     it('should get automatic suggestions successfully', async () => {
       const mockEventsNeedingVolunteers = [mockEvent];
-      eventHelpers.getEventsNeedingVolunteers.mockReturnValue(mockEventsNeedingVolunteers);
+      eventRepository.getEventsNeedingVolunteers.mockResolvedValue(mockEventsNeedingVolunteers);
 
       // Mock the findMatchesForEvent method call
       jest.spyOn(matchingService, 'findMatchesForEvent').mockResolvedValue({
@@ -286,8 +302,8 @@ describe('MatchingService', () => {
 
   describe('optimizeAssignments', () => {
     it('should optimize assignments successfully', async () => {
-      eventHelpers.findById.mockReturnValue(mockEvent);
-      eventHelpers.getEventAssignments.mockReturnValue([]);
+      eventRepository.findById.mockResolvedValue(mockEvent);
+      eventRepository.getAssignments.mockResolvedValue([]);
 
       // Mock the findMatchesForEvent method call
       jest.spyOn(matchingService, 'findMatchesForEvent').mockResolvedValue({
@@ -312,7 +328,7 @@ describe('MatchingService', () => {
     });
 
     it('should handle event not found', async () => {
-      eventHelpers.findById.mockReturnValue(null);
+      eventRepository.findById.mockResolvedValue(null);
 
       await expect(matchingService.optimizeAssignments('nonexistent'))
         .rejects.toThrow('Event not found');
@@ -327,14 +343,14 @@ describe('MatchingService', () => {
         id: 'assign_001',
         volunteerId: 'user_001',
         eventId: 'event_001',
-        status: 'confirmed',
+        status: 'CONFIRMED',  // Prisma enum
         matchScore: 85
       }];
 
-      eventHelpers.getAllEvents.mockReturnValue(mockEvents);
-      userHelpers.getVolunteers.mockReturnValue(mockVolunteers);
-      eventHelpers.getEventAssignments.mockReturnValue(mockAssignments);
-      eventHelpers.getEventsNeedingVolunteers.mockReturnValue([mockEvent]);
+      eventRepository.findAll.mockResolvedValue(mockEvents);
+      userRepository.getVolunteers.mockResolvedValue(mockVolunteers);
+      eventRepository.getAssignments.mockResolvedValue(mockAssignments);
+      eventRepository.getEventsNeedingVolunteers.mockResolvedValue([mockEvent]);
 
       const result = await matchingService.getMatchingStats();
 
@@ -348,9 +364,9 @@ describe('MatchingService', () => {
 
   describe('findMatchesForVolunteer - error handling', () => {
     it('should handle calculation errors gracefully', async () => {
-      userHelpers.findById.mockReturnValue(mockUser);
-      userHelpers.getProfile.mockReturnValue(mockVolunteerProfile);
-      jest.spyOn(matchingService, 'getAvailableEvents').mockReturnValue([mockEvent]);
+      userRepository.findById.mockResolvedValue(mockUser);
+      userRepository.getProfile.mockResolvedValue(mockVolunteerProfile);
+      jest.spyOn(matchingService, 'getAvailableEvents').mockResolvedValue([mockEvent]);
       matchingAlgorithm.calculateMatchScore.mockImplementation(() => {
         throw new Error('Calculation error');
       });
@@ -364,9 +380,9 @@ describe('MatchingService', () => {
 
   describe('calculateMatch - profile validation', () => {
     it('should handle volunteer profile not found', async () => {
-      userHelpers.findById.mockReturnValue(mockUser);
-      eventHelpers.findById.mockReturnValue(mockEvent);
-      userHelpers.getProfile.mockReturnValue(null);
+      userRepository.findById.mockResolvedValue(mockUser);
+      eventRepository.findById.mockResolvedValue(mockEvent);
+      userRepository.getProfile.mockResolvedValue(null);
 
       await expect(matchingService.calculateMatch('user_001', 'event_001'))
         .rejects.toThrow('Volunteer profile not found');
@@ -376,7 +392,7 @@ describe('MatchingService', () => {
   describe('getAutomaticSuggestions - error handling', () => {
     it('should handle errors gracefully during suggestion generation', async () => {
       const mockEventsNeedingVolunteers = [mockEvent];
-      eventHelpers.getEventsNeedingVolunteers.mockReturnValue(mockEventsNeedingVolunteers);
+      eventRepository.getEventsNeedingVolunteers.mockResolvedValue(mockEventsNeedingVolunteers);
 
       jest.spyOn(matchingService, 'findMatchesForEvent').mockRejectedValue(new Error('Matching error'));
 
@@ -388,7 +404,7 @@ describe('MatchingService', () => {
 
     it('should handle events with no matches', async () => {
       const mockEventsNeedingVolunteers = [mockEvent];
-      eventHelpers.getEventsNeedingVolunteers.mockReturnValue(mockEventsNeedingVolunteers);
+      eventRepository.getEventsNeedingVolunteers.mockResolvedValue(mockEventsNeedingVolunteers);
 
       jest.spyOn(matchingService, 'findMatchesForEvent').mockResolvedValue({
         data: {
@@ -406,7 +422,7 @@ describe('MatchingService', () => {
       const urgentEvent = { ...mockEvent, id: 'event_002', urgencyLevel: 'urgent', maxVolunteers: 20, currentVolunteers: 5 };
       const normalEvent = { ...mockEvent, id: 'event_003', urgencyLevel: 'normal', maxVolunteers: 10, currentVolunteers: 5 };
 
-      eventHelpers.getEventsNeedingVolunteers.mockReturnValue([normalEvent, urgentEvent]);
+      eventRepository.getEventsNeedingVolunteers.mockResolvedValue([normalEvent, urgentEvent]);
 
       jest.spyOn(matchingService, 'findMatchesForEvent').mockResolvedValue({
         data: {
@@ -432,13 +448,13 @@ describe('MatchingService', () => {
   describe('optimizeAssignments - edge cases', () => {
     it('should handle event at capacity', async () => {
       const fullEvent = { ...mockEvent, currentVolunteers: 10, maxVolunteers: 10 };
-      eventHelpers.findById.mockReturnValue(fullEvent);
+      eventRepository.findById.mockResolvedValue(fullEvent);
       // Return 10 confirmed assignments to fill all spots
       const assignments = Array.from({ length: 10 }, (_, i) => ({
         volunteerId: `user_${i}`,
-        status: 'confirmed'
+        status: 'CONFIRMED'  // Prisma enum
       }));
-      eventHelpers.getEventAssignments.mockReturnValue(assignments);
+      eventRepository.getAssignments.mockResolvedValue(assignments);
 
       const result = await matchingService.optimizeAssignments('event_001', { preserveConfirmed: true });
 
@@ -448,10 +464,10 @@ describe('MatchingService', () => {
     });
 
     it('should handle event with confirmed assignments when preserveConfirmed is true', async () => {
-      eventHelpers.findById.mockReturnValue(mockEvent);
-      eventHelpers.getEventAssignments.mockReturnValue([
-        { volunteerId: 'user_001', status: 'confirmed' },
-        { volunteerId: 'user_002', status: 'confirmed' }
+      eventRepository.findById.mockResolvedValue(mockEvent);
+      eventRepository.getAssignments.mockResolvedValue([
+        { volunteerId: 'user_001', status: 'CONFIRMED' },  // Prisma enum
+        { volunteerId: 'user_002', status: 'CONFIRMED' }   // Prisma enum
       ]);
 
       jest.spyOn(matchingService, 'findMatchesForEvent').mockResolvedValue({
@@ -477,12 +493,12 @@ describe('MatchingService', () => {
 
   describe('getAvailableVolunteers - includeAssigned flag', () => {
     it('should include assigned volunteers when includeAssigned is true', async () => {
-      userHelpers.getVolunteerProfiles.mockReturnValue([mockVolunteerProfile]);
+      userRepository.getVolunteersWithProfiles.mockResolvedValue([mockVolunteerProfile]);
 
       const result = await matchingService.getAvailableVolunteers('event_001', true);
 
       expect(result).toHaveLength(1);
-      expect(eventHelpers.getEventAssignments).not.toHaveBeenCalled();
+      expect(eventRepository.getAssignments).not.toHaveBeenCalled();
     });
   });
 
@@ -515,10 +531,10 @@ describe('MatchingService', () => {
       const mockVolunteers = [mockUser];
       const mockAssignments = [];
 
-      eventHelpers.getAllEvents.mockReturnValue(mockEvents);
-      userHelpers.getVolunteers.mockReturnValue(mockVolunteers);
-      eventHelpers.getEventAssignments.mockReturnValue(mockAssignments);
-      eventHelpers.getEventsNeedingVolunteers.mockReturnValue([mockEvent]);
+      eventRepository.findAll.mockResolvedValue(mockEvents);
+      userRepository.getVolunteers.mockResolvedValue(mockVolunteers);
+      eventRepository.getAssignments.mockResolvedValue(mockAssignments);
+      eventRepository.getEventsNeedingVolunteers.mockResolvedValue([mockEvent]);
 
       const result = await matchingService.getMatchingStats();
 
@@ -530,10 +546,10 @@ describe('MatchingService', () => {
       const mockEvents = [mockEvent];
       const mockVolunteers = [];
 
-      eventHelpers.getAllEvents.mockReturnValue(mockEvents);
-      userHelpers.getVolunteers.mockReturnValue(mockVolunteers);
-      eventHelpers.getEventAssignments.mockReturnValue([]);
-      eventHelpers.getEventsNeedingVolunteers.mockReturnValue([mockEvent]);
+      eventRepository.findAll.mockResolvedValue(mockEvents);
+      userRepository.getVolunteers.mockResolvedValue(mockVolunteers);
+      eventRepository.getAssignments.mockResolvedValue([]);
+      eventRepository.getEventsNeedingVolunteers.mockResolvedValue([mockEvent]);
 
       const result = await matchingService.getMatchingStats();
 

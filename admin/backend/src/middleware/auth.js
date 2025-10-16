@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const { users } = require('../data/users');
+const userRepository = require('../database/repositories/userRepository');
 
 /**
  * Authentication Middleware
@@ -21,8 +21,8 @@ const authenticate = async (req, res, next) => {
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Find user in our hardcoded data
-    const user = users.find(u => u.id === decoded.userId);
+    // Find user in database
+    const user = await userRepository.findById(decoded.userId);
 
     if (!user) {
       return res.status(401).json({
@@ -32,10 +32,11 @@ const authenticate = async (req, res, next) => {
     }
 
     // Add user info to request object
+    // Normalize Prisma enum to lowercase for consistency
     req.user = {
       id: user.id,
       email: user.email,
-      role: user.role,
+      role: user.role.toLowerCase(),
       username: user.username
     };
 
@@ -97,13 +98,13 @@ const optionalAuth = async (req, res, next) => {
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.substring(7);
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const user = users.find(u => u.id === decoded.userId);
+      const user = await userRepository.findById(decoded.userId);
 
       if (user) {
         req.user = {
           id: user.id,
           email: user.email,
-          role: user.role,
+          role: user.role.toLowerCase(),
           username: user.username
         };
       }

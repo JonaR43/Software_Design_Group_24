@@ -276,8 +276,8 @@ class AuthController {
         });
       }
 
-      const { userHelpers } = require('../data/users');
-      const existingUser = userHelpers.findByEmail(email);
+      const userRepository = require('../database/repositories/userRepository');
+      const existingUser = await userRepository.findByEmail(email);
 
       res.status(200).json({
         status: 'success',
@@ -308,8 +308,8 @@ class AuthController {
         });
       }
 
-      const { userHelpers } = require('../data/users');
-      const existingUser = userHelpers.findByUsername(username);
+      const userRepository = require('../database/repositories/userRepository');
+      const existingUser = await userRepository.findByUsername(username);
 
       res.status(200).json({
         status: 'success',

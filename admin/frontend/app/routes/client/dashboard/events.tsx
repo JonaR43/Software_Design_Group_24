@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { EventService, type FrontendEvent, type EventFilters } from "~/services/api";
+import { EventService, AuthService, type FrontendEvent, type EventFilters } from "~/services/api";
 import EventsMap from "~/components/EventsMap";
 
 export default function Events() {
@@ -8,11 +8,14 @@ export default function Events() {
   const [error, setError] = useState<string>("");
   const [joiningEvent, setJoiningEvent] = useState<string | null>(null);
 
+  // Get current user to check role
+  const currentUser = AuthService.getCurrentUser();
+
   // View state
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
 
-  // Filter state
-  const [filters, setFilters] = useState<EventFilters>({});
+  // Filter state - show only published events by default (exclude drafts)
+  const [filters, setFilters] = useState<EventFilters>({ status: 'published' });
   const [showFilters, setShowFilters] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -338,19 +341,38 @@ export default function Events() {
                 </svg>
                 {event.volunteers}/{event.maxVolunteers} volunteers
               </div>
-              {event.status !== 'registered' && (
-                <button
-                  onClick={() => handleJoinEvent(event.id)}
-                  disabled={joiningEvent === event.id}
-                  className="bg-gradient-to-r from-indigo-700 to-violet-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:from-indigo-600 hover:to-violet-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {joiningEvent === event.id ? "Joining..." : "Join Event"}
-                </button>
+              {/* Only show join button for volunteers, not admins */}
+              {currentUser?.role === 'volunteer' && (
+                <>
+                  {event.status === 'full' && (
+                    <button
+                      disabled
+                      className="bg-gray-400 text-white px-4 py-2 rounded-lg text-sm font-medium cursor-not-allowed"
+                    >
+                      Full
+                    </button>
+                  )}
+                  {event.status === 'registered' && (
+                    <button className="bg-gray-500 text-white px-4 py-2 rounded-lg text-sm font-medium">
+                      Registered
+                    </button>
+                  )}
+                  {event.status === 'open' && (
+                    <button
+                      onClick={() => handleJoinEvent(event.id)}
+                      disabled={joiningEvent === event.id}
+                      className="bg-gradient-to-r from-indigo-700 to-violet-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:from-indigo-600 hover:to-violet-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {joiningEvent === event.id ? "Joining..." : "Join Event"}
+                    </button>
+                  )}
+                </>
               )}
-              {event.status === 'registered' && (
-                <button className="bg-gray-500 text-white px-4 py-2 rounded-lg text-sm font-medium">
-                  Registered
-                </button>
+              {/* Show message for admins */}
+              {currentUser?.role === 'admin' && (
+                <div className="text-sm text-slate-500 italic">
+                  Admin users cannot join events
+                </div>
               )}
             </div>
           </div>

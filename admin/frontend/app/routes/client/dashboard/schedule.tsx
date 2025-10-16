@@ -1,8 +1,28 @@
 import { useState, useEffect } from "react";
-import { ScheduleService, HistoryService, type VolunteerHistoryRecord } from "~/services/api";
+import { HistoryService, type VolunteerHistoryRecord } from "~/services/api";
+
+interface MyEvent {
+  id: string;
+  title: string;
+  description: string;
+  startDate: string;
+  endDate: string;
+  location?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  assignment: {
+    id: string;
+    status: string;
+    assignedAt: string;
+    confirmedAt?: string;
+    notes: string;
+  };
+}
 
 export default function Schedule() {
-  const [upcomingEvents, setUpcomingEvents] = useState<VolunteerHistoryRecord[]>([]);
+  const [upcomingEvents, setUpcomingEvents] = useState<MyEvent[]>([]);
   const [completedEvents, setCompletedEvents] = useState<VolunteerHistoryRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>("");
@@ -14,9 +34,19 @@ export default function Schedule() {
         setIsLoading(true);
         setError("");
 
-        // Get upcoming events for schedule
-        const upcoming = await ScheduleService.getMySchedule();
-        setUpcomingEvents(upcoming);
+        // Get upcoming events from assignments (my-events endpoint)
+        const response = await fetch('http://localhost:3001/api/events/my-events?timeFilter=upcoming', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log('My events data:', data);
+          setUpcomingEvents(data.data.events || []);
+        }
 
         // Get completed events from history
         const allHistory = await HistoryService.getMyHistory();

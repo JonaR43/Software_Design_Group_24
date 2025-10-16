@@ -1,13 +1,19 @@
 /**
  * Unit Tests for Admin Controller
+ * Updated to use Prisma repository mocks
  */
 
 const request = require('supertest');
 const express = require('express');
 const adminController = require('../../src/controllers/adminController');
-const { userHelpers } = require('../../src/data/users');
-const { events } = require('../../src/data/events');
-const { volunteerHistory } = require('../../src/data/history');
+const userRepository = require('../../src/database/repositories/userRepository');
+const eventRepository = require('../../src/database/repositories/eventRepository');
+const historyRepository = require('../../src/database/repositories/historyRepository');
+
+// Mock the repositories
+jest.mock('../../src/database/repositories/userRepository');
+jest.mock('../../src/database/repositories/eventRepository');
+jest.mock('../../src/database/repositories/historyRepository');
 
 const app = express();
 app.use(express.json());

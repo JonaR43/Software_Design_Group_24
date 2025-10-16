@@ -56,7 +56,7 @@ class ProfileService {
             id: user.id,
             username: user.username,
             email: user.email,
-            role: user.role,
+            role: user.role.toLowerCase(),
             verified: user.verified
           }
         }
@@ -257,6 +257,45 @@ class ProfileService {
     await userRepository.removeSkills(profile.id, skillIds);
 
     return await this.getProfile(userId);
+  }
+
+  /**
+   * Create a new custom skill
+   * @param {Object} skillData - Skill data (name, category, description)
+   * @returns {Object} Created skill
+   */
+  async createCustomSkill(skillData) {
+    const { name, category, description } = skillData;
+
+    // Check if skill already exists (case-insensitive)
+    const existingSkills = await skillRepository.searchByName(name);
+    const exactMatch = existingSkills.find(
+      skill => skill.name.toLowerCase() === name.toLowerCase()
+    );
+
+    if (exactMatch) {
+      // Return the existing skill instead of throwing an error
+      return {
+        success: true,
+        data: {
+          skill: exactMatch
+        }
+      };
+    }
+
+    // Create new skill
+    const newSkill = await skillRepository.create({
+      name,
+      category: category || 'custom',
+      description: description || `Custom skill: ${name}`
+    });
+
+    return {
+      success: true,
+      data: {
+        skill: newSkill
+      }
+    };
   }
 
   /**

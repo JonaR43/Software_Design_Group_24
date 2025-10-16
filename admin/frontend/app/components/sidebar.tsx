@@ -121,12 +121,12 @@ export default function Sidebar() {
             History
           </NavLink>
           
-          <NavLink 
-            to="profile1" 
-            className={({ isActive }) => 
+          <NavLink
+            to="profile"
+            className={({ isActive }) =>
               `flex items-center gap-3 p-3 rounded-lg transition-colors ${
-                isActive 
-                  ? "bg-indigo-100 text-indigo-700 font-semibold" 
+                isActive
+                  ? "bg-indigo-100 text-indigo-700 font-semibold"
                   : "text-slate-700 hover:bg-indigo-50 hover:text-indigo-600"
               }`
             }

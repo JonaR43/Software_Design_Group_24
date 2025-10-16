@@ -1,6 +1,6 @@
 const matchingAlgorithm = require('../utils/matchingAlgorithm');
-const { eventHelpers } = require('../data/events');
-const { userHelpers } = require('../data/users');
+const eventRepository = require('../database/repositories/eventRepository');
+const userRepository = require('../database/repositories/userRepository');
 
 /**
  * Matching Service
@@ -16,7 +16,7 @@ class MatchingService {
   async findMatchesForEvent(eventId, options = {}) {
     const { limit = 20, minScore = 0, includeAssigned = false } = options;
 
-    const event = eventHelpers.findById(eventId);
+    const event = await eventRepository.findById(eventId);
     if (!event) {
       throw new Error('Event not found');
     }
@@ -40,7 +40,25 @@ class MatchingService {
     const matches = [];
     for (const volunteer of availableVolunteers) {
       try {
+        // Log volunteer data structure for debugging
+        console.log(`Processing volunteer ${volunteer.id}:`, {
+          hasProfile: !!volunteer.profile,
+          hasSkills: !!(volunteer.profile?.skills),
+          skillsCount: volunteer.profile?.skills?.length || 0,
+          hasAvailability: !!(volunteer.profile?.availability),
+          availabilityCount: volunteer.profile?.availability?.length || 0,
+          city: volunteer.profile?.city,
+          state: volunteer.profile?.state
+        });
+
         const matchResult = matchingAlgorithm.calculateMatchScore(volunteer, event);
+
+        console.log(`Match result for volunteer ${volunteer.id}:`, {
+          totalScore: matchResult.totalScore,
+          breakdown: matchResult.scoreBreakdown,
+          quality: matchResult.matchQuality,
+          recommendationCount: matchResult.recommendations?.length || 0
+        });
 
         if (matchResult.totalScore >= minScore) {
           matches.push({
@@ -52,6 +70,8 @@ class MatchingService {
                 firstName: volunteer.profile.firstName,
                 lastName: volunteer.profile.lastName,
                 phone: volunteer.profile.phone,
+                city: volunteer.profile.city,
+                state: volunteer.profile.state,
                 skills: volunteer.profile.skills,
                 availability: volunteer.profile.availability,
                 preferences: volunteer.profile.preferences
@@ -60,12 +80,14 @@ class MatchingService {
             matchScore: matchResult.totalScore,
             scoreBreakdown: matchResult.scoreBreakdown,
             matchQuality: matchResult.matchQuality,
+            matchReasons: matchResult.recommendations?.map(r => r.message) || [],
             recommendations: matchResult.recommendations,
             calculatedAt: matchResult.calculatedAt
           });
         }
       } catch (error) {
         console.error(`Error calculating match for volunteer ${volunteer.id}:`, error);
+        console.error('Error details:', error.stack);
       }
     }
 
@@ -110,16 +132,16 @@ class MatchingService {
   async findMatchesForVolunteer(volunteerId, options = {}) {
     const { limit = 10, minScore = 0, statusFilter = 'published' } = options;
 
-    const volunteer = userHelpers.findById(volunteerId);
+    const volunteer = await userRepository.findById(volunteerId);
     if (!volunteer) {
       throw new Error('Volunteer not found');
     }
 
-    if (volunteer.role !== 'volunteer') {
+    if (volunteer.role !== 'VOLUNTEER') {
       throw new Error('User is not a volunteer');
     }
 
-    const profile = userHelpers.getProfile(volunteerId);
+    const profile = await userRepository.getProfile(volunteerId);
     if (!profile) {
       throw new Error('Volunteer profile not found');
     }
@@ -127,7 +149,7 @@ class MatchingService {
     const volunteerData = { ...volunteer, profile };
 
     // Get available events
-    const availableEvents = this.getAvailableEvents(volunteerId, statusFilter);
+    const availableEvents = await this.getAvailableEvents(volunteerId, statusFilter);
 
     if (availableEvents.length === 0) {
       return {
@@ -212,17 +234,17 @@ class MatchingService {
    * @returns {Object} Match score result
    */
   async calculateMatch(volunteerId, eventId) {
-    const volunteer = userHelpers.findById(volunteerId);
+    const volunteer = await userRepository.findById(volunteerId);
     if (!volunteer) {
       throw new Error('Volunteer not found');
     }
 
-    const event = eventHelpers.findById(eventId);
+    const event = await eventRepository.findById(eventId);
     if (!event) {
       throw new Error('Event not found');
     }
 
-    const profile = userHelpers.getProfile(volunteerId);
+    const profile = await userRepository.getProfile(volunteerId);
     if (!profile) {
       throw new Error('Volunteer profile not found');
     }
@@ -265,7 +287,7 @@ class MatchingService {
   async getAutomaticSuggestions(options = {}) {
     const { minScore = 70, maxSuggestionsPerEvent = 5 } = options;
 
-    const events = eventHelpers.getEventsNeedingVolunteers();
+    const events = await eventRepository.getEventsNeedingVolunteers();
     const suggestions = [];
 
     for (const event of events) {
@@ -325,14 +347,14 @@ class MatchingService {
   async optimizeAssignments(eventId, options = {}) {
     const { maxAssignments, preserveConfirmed = true } = options;
 
-    const event = eventHelpers.findById(eventId);
+    const event = await eventRepository.findById(eventId);
     if (!event) {
       throw new Error('Event not found');
     }
 
-    const currentAssignments = eventHelpers.getEventAssignments(eventId);
+    const currentAssignments = await eventRepository.getAssignments(eventId);
     const availableSlots = event.maxVolunteers -
-      (preserveConfirmed ? currentAssignments.filter(a => a.status === 'confirmed').length : 0);
+      (preserveConfirmed ? currentAssignments.filter(a => a.status === 'CONFIRMED').length : 0);
 
     if (availableSlots <= 0) {
       return {
@@ -395,25 +417,17 @@ class MatchingService {
    * @returns {Array} Available volunteers
    */
   async getAvailableVolunteers(eventId, includeAssigned = false) {
-    const volunteers = userHelpers.getVolunteerProfiles();
+    const volunteers = await userRepository.getVolunteersWithProfiles();
 
     if (!includeAssigned) {
       // Exclude volunteers already assigned to this event
-      const assignments = eventHelpers.getEventAssignments(eventId);
+      const assignments = await eventRepository.getAssignments(eventId);
       const assignedVolunteerIds = assignments.map(a => a.volunteerId);
 
-      return volunteers
-        .filter(v => !assignedVolunteerIds.includes(v.userId))
-        .map(v => ({
-          ...v.user,
-          profile: v
-        }));
+      return volunteers.filter(v => !assignedVolunteerIds.includes(v.id));
     }
 
-    return volunteers.map(v => ({
-      ...v.user,
-      profile: v
-    }));
+    return volunteers;
   }
 
   /**
@@ -422,9 +436,9 @@ class MatchingService {
    * @param {string} statusFilter - Event status filter
    * @returns {Array} Available events
    */
-  getAvailableEvents(volunteerId, statusFilter = 'published') {
-    const events = eventHelpers.getByStatus(statusFilter);
-    const assignments = eventHelpers.getVolunteerAssignments(volunteerId);
+  async getAvailableEvents(volunteerId, statusFilter = 'published') {
+    const { events } = await eventRepository.findAll({ status: statusFilter });
+    const assignments = await eventRepository.getVolunteerAssignments(volunteerId);
     const assignedEventIds = assignments.map(a => a.eventId);
 
     // Filter out events the volunteer is already assigned to
@@ -502,16 +516,21 @@ class MatchingService {
    * @returns {Object} Overall matching statistics
    */
   async getMatchingStats() {
-    const events = eventHelpers.getAllEvents();
-    const volunteers = userHelpers.getVolunteers();
-    const assignments = eventHelpers.getAllEvents()
-      .flatMap(event => eventHelpers.getEventAssignments(event.id));
+    const events = await eventRepository.findAll();
+    const volunteers = await userRepository.getVolunteers();
 
-    const confirmedAssignments = assignments.filter(a => a.status === 'confirmed');
+    // Get all assignments for all events
+    const allAssignments = [];
+    for (const event of events) {
+      const assignments = await eventRepository.getAssignments(event.id);
+      allAssignments.push(...assignments);
+    }
+
+    const confirmedAssignments = allAssignments.filter(a => a.status === 'CONFIRMED');
     const averageMatchScore = confirmedAssignments.length > 0 ?
       Math.round(confirmedAssignments.reduce((sum, a) => sum + (a.matchScore || 0), 0) / confirmedAssignments.length) : 0;
 
-    const eventsNeedingVolunteers = eventHelpers.getEventsNeedingVolunteers();
+    const eventsNeedingVolunteers = await eventRepository.getEventsNeedingVolunteers();
     const totalSlotsAvailable = eventsNeedingVolunteers.reduce(
       (sum, event) => sum + (event.maxVolunteers - event.currentVolunteers), 0
     );
@@ -521,7 +540,7 @@ class MatchingService {
       data: {
         totalEvents: events.length,
         totalVolunteers: volunteers.length,
-        totalAssignments: assignments.length,
+        totalAssignments: allAssignments.length,
         confirmedAssignments: confirmedAssignments.length,
         averageMatchScore,
         eventsNeedingVolunteers: eventsNeedingVolunteers.length,

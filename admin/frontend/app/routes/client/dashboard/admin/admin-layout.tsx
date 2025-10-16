@@ -79,6 +79,12 @@ export default function AdminLayout() {
           >
             User Management
           </a>
+          <a
+            href="/dashboard/admin/reporting"
+            className="px-4 py-2 rounded-lg text-sm font-medium transition-colors text-slate-600 hover:text-slate-800 hover:bg-slate-50 whitespace-nowrap"
+          >
+            Reporting
+          </a>
         </nav>
       </div>
 

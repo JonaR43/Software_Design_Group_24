@@ -1,12 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
-import { SkillsService } from "~/services/api";
+import { SkillsService, EventService } from "~/services/api";
 
 interface EventFormData {
   eventName: string;
   eventDescription: string;
-  location: string;
+  address: string;
+  city: string;
+  state: string;
+  zipCode: string;
   requiredSkills: string[];
   urgency: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  category: string;
   eventDate: string;
   eventTime: string;
   volunteersNeeded: number;
@@ -15,9 +19,13 @@ interface EventFormData {
 interface FormErrors {
   eventName?: string;
   eventDescription?: string;
-  location?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
   requiredSkills?: string;
   urgency?: string;
+  category?: string;
   eventDate?: string;
   eventTime?: string;
   volunteersNeeded?: string;
@@ -27,9 +35,13 @@ export default function CreateEventPage() {
   const [formData, setFormData] = useState<EventFormData>({
     eventName: '',
     eventDescription: '',
-    location: '',
+    address: '',
+    city: '',
+    state: '',
+    zipCode: '',
     requiredSkills: [],
     urgency: 'MEDIUM',
+    category: 'community',
     eventDate: '',
     eventTime: '09:00',
     volunteersNeeded: 1
@@ -89,11 +101,25 @@ export default function CreateEventPage() {
       case 'eventDescription':
         if (!value) return 'Event description is required';
         return null;
-      
-      case 'location':
-        if (!value) return 'Location is required';
+
+      case 'address':
+        if (!value) return 'Street address is required';
         return null;
-      
+
+      case 'city':
+        if (!value) return 'City is required';
+        return null;
+
+      case 'state':
+        if (!value) return 'State is required';
+        if (value.length !== 2) return 'State must be 2 characters (e.g., TX)';
+        return null;
+
+      case 'zipCode':
+        if (!value) return 'ZIP code is required';
+        if (!/^\d{5}(-\d{4})?$/.test(value)) return 'Invalid ZIP code format';
+        return null;
+
       case 'requiredSkills':
         if (!Array.isArray(value) || value.length === 0) {
           return 'At least one required skill must be selected';
@@ -103,7 +129,11 @@ export default function CreateEventPage() {
       case 'urgency':
         if (!value) return 'Urgency level is required';
         return null;
-      
+
+      case 'category':
+        if (!value) return 'Category is required';
+        return null;
+
       case 'eventDate':
         if (!value) return 'Event date is required';
         const selectedDate = new Date(value);
@@ -334,36 +364,84 @@ export default function CreateEventPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
-    
+
     setIsSubmitting(true);
-    
+
     try {
-      // Mock API call - in real app would make actual request
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
+      // Combine date and time into startDate
+      const startDateTime = new Date(`${formData.eventDate}T${formData.eventTime}`);
+      // Set end date to 4 hours after start for now (can be made configurable)
+      const endDateTime = new Date(startDateTime.getTime() + 4 * 60 * 60 * 1000);
+
+      // Get skill IDs from skill names
+      const allSkills = await SkillsService.getSkills();
+      const skillNameToId = new Map(allSkills.map(skill => [skill.name, skill.id]));
+      const requiredSkillsArray = formData.requiredSkills
+        .map(skillName => {
+          const skillId = skillNameToId.get(skillName);
+          if (skillId) {
+            return {
+              skillId: skillId,
+              minLevel: 'beginner',
+              required: true
+            };
+          }
+          return null;
+        })
+        .filter(skill => skill !== null);
+
+      // Map urgency level to match Prisma enum values (LOW, MEDIUM, HIGH, CRITICAL)
+      const urgencyMap: Record<string, string> = {
+        'LOW': 'low',
+        'MEDIUM': 'medium',
+        'HIGH': 'high',
+        'URGENT': 'critical'
+      };
+
+      // Create the event
+      await EventService.createEvent({
+        title: formData.eventName,
+        description: formData.eventDescription,
+        address: formData.address,
+        city: formData.city,
+        state: formData.state,
+        zipCode: formData.zipCode,
+        startDate: startDateTime.toISOString(),
+        endDate: endDateTime.toISOString(),
+        maxVolunteers: formData.volunteersNeeded,
+        urgencyLevel: urgencyMap[formData.urgency] || 'medium',
+        requiredSkills: requiredSkillsArray as any,
+        category: formData.category
+      });
+
       setShowSuccess(true);
-      
+
       // Reset form after success
       setTimeout(() => {
         setFormData({
           eventName: '',
           eventDescription: '',
-          location: '',
+          address: '',
+          city: '',
+          state: '',
+          zipCode: '',
           requiredSkills: [],
           urgency: 'MEDIUM',
+          category: 'community',
           eventDate: '',
           eventTime: '09:00',
           volunteersNeeded: 1
         });
         setShowSuccess(false);
       }, 3000);
-      
+
     } catch (error) {
       console.error('Error creating event:', error);
+      alert(`Failed to create event: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -460,19 +538,65 @@ export default function CreateEventPage() {
             )}
           </div>
 
-          {/* Location */}
-          <div>
-            <label className="label">Location *</label>
-            <textarea
-              value={formData.location}
-              onChange={(e) => handleInputChange('location', e.target.value)}
-              className={`input min-h-20 ${errors.location ? 'border-red-500' : ''}`}
-              placeholder="Enter full address and any specific location details"
-              rows={3}
+          {/* Address */}
+          <div className="mb-4">
+            <label className="label">Street Address *</label>
+            <input
+              type="text"
+              value={formData.address}
+              onChange={(e) => handleInputChange('address', e.target.value)}
+              className={`input ${errors.address ? 'border-red-500' : ''}`}
+              placeholder="123 Main St"
             />
-            {errors.location && (
-              <p className="text-sm text-red-600 mt-1">{errors.location}</p>
+            {errors.address && (
+              <p className="text-sm text-red-600 mt-1">{errors.address}</p>
             )}
+          </div>
+
+          {/* City, State, ZIP in a grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="label">City *</label>
+              <input
+                type="text"
+                value={formData.city}
+                onChange={(e) => handleInputChange('city', e.target.value)}
+                className={`input ${errors.city ? 'border-red-500' : ''}`}
+                placeholder="Houston"
+              />
+              {errors.city && (
+                <p className="text-sm text-red-600 mt-1">{errors.city}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="label">State *</label>
+              <input
+                type="text"
+                value={formData.state}
+                onChange={(e) => handleInputChange('state', e.target.value.toUpperCase())}
+                className={`input ${errors.state ? 'border-red-500' : ''}`}
+                placeholder="TX"
+                maxLength={2}
+              />
+              {errors.state && (
+                <p className="text-sm text-red-600 mt-1">{errors.state}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="label">ZIP Code *</label>
+              <input
+                type="text"
+                value={formData.zipCode}
+                onChange={(e) => handleInputChange('zipCode', e.target.value)}
+                className={`input ${errors.zipCode ? 'border-red-500' : ''}`}
+                placeholder="77001"
+              />
+              {errors.zipCode && (
+                <p className="text-sm text-red-600 mt-1">{errors.zipCode}</p>
+              )}
+            </div>
           </div>
         </div>
 
@@ -534,6 +658,30 @@ export default function CreateEventPage() {
               </select>
               {errors.urgency && (
                 <p className="text-sm text-red-600 mt-1">{errors.urgency}</p>
+              )}
+            </div>
+          </div>
+
+          {/* Category - Separate row */}
+          <div className="mt-4">
+            <div className="max-w-xs">
+              <label className="label">Event Category *</label>
+              <select
+                value={formData.category}
+                onChange={(e) => handleInputChange('category', e.target.value)}
+                className={`input ${errors.category ? 'border-red-500' : ''}`}
+              >
+                <option value="community">Community</option>
+                <option value="environmental">Environmental</option>
+                <option value="educational">Educational</option>
+                <option value="healthcare">Healthcare</option>
+                <option value="food">Food</option>
+                <option value="disaster">Disaster Relief</option>
+                <option value="fundraising">Fundraising</option>
+                <option value="administrative">Administrative</option>
+              </select>
+              {errors.category && (
+                <p className="text-sm text-red-600 mt-1">{errors.category}</p>
               )}
             </div>
           </div>

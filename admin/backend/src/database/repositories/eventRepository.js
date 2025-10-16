@@ -353,6 +353,35 @@ class EventRepository {
   }
 
   /**
+   * Get events that need volunteers (published events with available spots)
+   */
+  async getEventsNeedingVolunteers() {
+    // Get published events where currentVolunteers < maxVolunteers
+    const events = await prisma.event.findMany({
+      where: {
+        status: 'PUBLISHED'
+      },
+      include: {
+        creator: {
+          select: {
+            id: true,
+            username: true,
+            email: true
+          }
+        },
+        requirements: {
+          include: {
+            skill: true
+          }
+        }
+      }
+    });
+
+    // Filter for events needing volunteers
+    return events.filter(event => event.currentVolunteers < event.maxVolunteers);
+  }
+
+  /**
    * Get event statistics
    */
   async getEventStats() {
