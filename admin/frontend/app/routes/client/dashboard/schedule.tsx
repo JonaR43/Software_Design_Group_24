@@ -1,47 +1,52 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { ScheduleService, HistoryService, type VolunteerHistoryRecord } from "~/services/api";
 
 export default function Schedule() {
-  const [scheduleItems, setScheduleItems] = useState([
-    {
-      id: 1,
-      title: "Youth Mentorship Program",
-      date: "2024-01-18",
-      time: "3:00 PM - 5:00 PM",
-      location: "Local High School",
-      type: "upcoming"
-    },
-    {
-      id: 2,
-      title: "Park Cleanup Initiative",
-      date: "2024-01-20",
-      time: "8:00 AM - 12:00 PM",
-      location: "Central Park",
-      type: "upcoming"
-    },
-    {
-      id: 3,
-      title: "Community Food Drive",
-      date: "2024-01-14",
-      time: "9:00 AM - 2:00 PM",
-      location: "Community Center",
-      type: "completed"
-    }
-  ]);
+  const [upcomingEvents, setUpcomingEvents] = useState<VolunteerHistoryRecord[]>([]);
+  const [completedEvents, setCompletedEvents] = useState<VolunteerHistoryRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string>("");
 
-  const upcomingEvents = scheduleItems.filter(item => item.type === 'upcoming');
-  const completedEvents = scheduleItems.filter(item => item.type === 'completed');
+  // Load schedule data from backend
+  useEffect(() => {
+    const loadSchedule = async () => {
+      try {
+        setIsLoading(true);
+        setError("");
 
-  const handleEditEvent = (eventId: number) => {
+        // Get upcoming events for schedule
+        const upcoming = await ScheduleService.getMySchedule();
+        setUpcomingEvents(upcoming);
+
+        // Get completed events from history
+        const allHistory = await HistoryService.getMyHistory();
+        const completed = allHistory.filter(record =>
+          record.participationStatus === 'COMPLETED'
+        );
+        setCompletedEvents(completed);
+
+      } catch (err) {
+        setError("Failed to load schedule");
+        console.error("Error loading schedule:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadSchedule();
+  }, []);
+
+  const handleEditEvent = (eventId: string) => {
     alert(`Edit functionality for event ${eventId} would open an edit modal or form here.`);
   };
 
-  const handleDeleteEvent = (eventId: number) => {
+  const handleDeleteEvent = (eventId: string) => {
     if (confirm('Are you sure you want to remove this event from your schedule?')) {
-      setScheduleItems(items => items.filter(item => item.id !== eventId));
+      setUpcomingEvents(events => events.filter(event => event.id !== eventId));
     }
   };
 
-  const handleViewDetails = (eventId: number) => {
+  const handleViewDetails = (eventId: string) => {
     alert(`View details functionality for event ${eventId} would show more information here.`);
   };
 
@@ -52,6 +57,27 @@ export default function Schedule() {
   const handleAddAvailability = () => {
     alert('Add availability functionality would open a calendar to set your available times.');
   };
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-slate-600">Loading your schedule...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl">
+        {error}
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -101,7 +127,9 @@ export default function Schedule() {
             </div>
             <div>
               <p className="text-sm text-slate-600">Hours This Month</p>
-              <p className="text-xl font-semibold text-slate-900">24</p>
+              <p className="text-xl font-semibold text-slate-900">
+                {completedEvents.reduce((total, event) => total + (event.hoursWorked || 0), 0)}
+              </p>
             </div>
           </div>
         </div>
@@ -134,10 +162,14 @@ export default function Schedule() {
                     </svg>
                   </div>
                   <div>
-                    <h3 className="font-semibold text-slate-900">{event.title}</h3>
+                    <h3 className="font-semibold text-slate-900">{event.eventTitle}</h3>
                     <div className="flex items-center gap-4 text-sm text-slate-600 mt-1">
-                      <span>{event.date}</span>
-                      <span>{event.time}</span>
+                      <span>{new Date(event.eventDate).toLocaleDateString()}</span>
+                      <span>{new Date(event.eventDate).toLocaleTimeString('en-US', {
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        hour12: true
+                      })}</span>
                       <span>{event.location}</span>
                     </div>
                   </div>
@@ -182,12 +214,16 @@ export default function Schedule() {
                     </svg>
                   </div>
                   <div>
-                    <h3 className="font-semibold text-slate-900">{event.title}</h3>
+                    <h3 className="font-semibold text-slate-900">{event.eventTitle}</h3>
                     <div className="flex items-center gap-4 text-sm text-slate-600 mt-1">
-                      <span>{event.date}</span>
-                      <span>{event.time}</span>
+                      <span>{new Date(event.eventDate).toLocaleDateString()}</span>
+                      <span>{new Date(event.eventDate).toLocaleTimeString('en-US', {
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        hour12: true
+                      })}</span>
                       <span>{event.location}</span>
-                      <span className="text-green-600 font-medium">Completed</span>
+                      <span className="text-green-600 font-medium">Completed ({event.hoursWorked || 0} hrs)</span>
                     </div>
                   </div>
                 </div>

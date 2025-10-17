@@ -1,35 +1,110 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { ProfileService, type FrontendProfile } from "~/services/api";
 
 export default function Profile() {
   const [isEditing, setIsEditing] = useState(false);
-  const [profile, setProfile] = useState({
-    firstName: "John",
-    lastName: "Doe",
-    email: "john.doe@example.com",
-    phone: "+1 (555) 123-4567",
-    address: "123 Main St, City, State 12345",
-    bio: "Passionate about community service and helping others. I love volunteering for environmental causes and youth programs.",
-    skills: ["Event Planning", "Public Speaking", "Team Leadership", "Photography"],
-    emergencyContact: "Jane Doe - (555) 987-6543"
-  });
+  const [profile, setProfile] = useState<FrontendProfile | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string>("");
+  const [isSaving, setIsSaving] = useState(false);
 
-  const handleSave = () => {
-    setIsEditing(false);
-    alert('Profile changes saved successfully!');
-  };
+  // Load profile from backend
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        setIsLoading(true);
+        const profileData = await ProfileService.getProfile();
+        setProfile(profileData);
+        setError("");
+      } catch (err) {
+        setError("Failed to load profile");
+        console.error("Error loading profile:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-  const handleAddSkill = () => {
-    const newSkill = prompt('Enter a new skill:');
-    if (newSkill && newSkill.trim()) {
-      setProfile(prev => ({
-        ...prev,
-        skills: [...prev.skills, newSkill.trim()]
-      }));
+    loadProfile();
+  }, []);
+
+  const handleSave = async () => {
+    if (!profile) return;
+
+    try {
+      setIsSaving(true);
+      await ProfileService.updateProfile(profile);
+      setIsEditing(false);
+      setError("");
+      // Optionally show success message instead of alert
+      alert('Profile changes saved successfully!');
+    } catch (err) {
+      setError("Failed to save profile changes");
+      console.error("Error saving profile:", err);
+    } finally {
+      setIsSaving(false);
     }
   };
 
+  const handleAddSkill = () => {
+    if (!profile) return;
+
+    const newSkill = prompt('Enter a new skill:');
+    if (newSkill && newSkill.trim()) {
+      setProfile(prev => prev ? ({
+        ...prev,
+        skills: [...prev.skills, newSkill.trim()]
+      }) : null);
+    }
+  };
+
+  const handleRemoveSkill = (skillToRemove: string) => {
+    if (!profile) return;
+
+    setProfile(prev => prev ? ({
+      ...prev,
+      skills: prev.skills.filter(skill => skill !== skillToRemove)
+    }) : null);
+  };
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-slate-600">Loading profile...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl">
+        {error}
+      </div>
+    );
+  }
+
+  // No profile data
+  if (!profile) {
+    return (
+      <div className="p-4 bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-xl">
+        No profile data available.
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
+      {/* Error Message */}
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl">
+          {error}
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -38,13 +113,14 @@ export default function Profile() {
         </div>
         <button
           onClick={isEditing ? handleSave : () => setIsEditing(true)}
+          disabled={isSaving}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
             isEditing
-              ? "bg-green-600 text-white hover:bg-green-700"
+              ? "bg-green-600 text-white hover:bg-green-700 disabled:bg-green-400"
               : "bg-indigo-600 text-white hover:bg-indigo-700"
           }`}
         >
-          {isEditing ? "Save Changes" : "Edit Profile"}
+          {isSaving ? "Saving..." : isEditing ? "Save Changes" : "Edit Profile"}
         </button>
       </div>
 

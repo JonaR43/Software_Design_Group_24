@@ -2,3 +2,5 @@
 /admin/frontend/.react-router/
 /admin/frontend/build/
 /admin/node_modules
+admin/backend/.env
+admin/frontend/.env

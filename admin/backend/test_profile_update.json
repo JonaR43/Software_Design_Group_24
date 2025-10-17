@@ -1,0 +1,40 @@
+{
+  "firstName": "Test",
+  "lastName": "User",
+  "phone": "+1-555-1234",
+  "address": "123 Test Street",
+  "city": "Houston",
+  "state": "Texas",
+  "zipCode": "77005",
+  "bio": "I'm a passionate volunteer who loves helping my community.",
+  "skills": [
+    {
+      "skillId": "skill_001",
+      "proficiency": "intermediate"
+    },
+    {
+      "skillId": "skill_003",
+      "proficiency": "advanced"
+    }
+  ],
+  "availability": [
+    {
+      "dayOfWeek": 6,
+      "startTime": "09:00",
+      "endTime": "17:00",
+      "isRecurring": true
+    },
+    {
+      "dayOfWeek": 0,
+      "startTime": "10:00",
+      "endTime": "16:00",
+      "isRecurring": true
+    }
+  ],
+  "preferences": {
+    "causes": ["community", "educational"],
+    "maxDistance": 25,
+    "weekdaysOnly": false,
+    "preferredTimeSlots": ["morning", "afternoon"]
+  }
+}

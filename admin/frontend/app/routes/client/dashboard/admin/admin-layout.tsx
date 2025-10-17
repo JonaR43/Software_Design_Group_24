@@ -1,12 +1,11 @@
 import { Outlet } from "react-router";
-import { useState } from "react";
+import { useAuth } from "~/contexts/AuthContext";
 
 export default function AdminLayout() {
-  // Mock user role - in real app this would come from auth context
-  const [userRole] = useState<'VOLUNTEER' | 'ADMIN'>('ADMIN');
+  const { user } = useAuth();
 
   // Redirect non-admin users
-  if (userRole !== 'ADMIN') {
+  if (user?.role !== 'admin') {
     return (
       <div className="flex items-center justify-center min-h-64">
         <div className="card p-8 text-center">
@@ -49,24 +48,36 @@ export default function AdminLayout() {
 
       {/* Admin Navigation Tabs */}
       <div className="card p-1">
-        <nav className="flex space-x-1">
+        <nav className="flex space-x-1 overflow-x-auto">
+          <a
+            href="/dashboard/admin/metrics"
+            className="px-4 py-2 rounded-lg text-sm font-medium transition-colors text-slate-600 hover:text-slate-800 hover:bg-slate-50 whitespace-nowrap"
+          >
+            Analytics
+          </a>
           <a
             href="/dashboard/admin/events"
-            className="px-4 py-2 rounded-lg text-sm font-medium transition-colors text-slate-600 hover:text-slate-800 hover:bg-slate-50"
+            className="px-4 py-2 rounded-lg text-sm font-medium transition-colors text-slate-600 hover:text-slate-800 hover:bg-slate-50 whitespace-nowrap"
           >
             Event Management
           </a>
           <a
             href="/dashboard/admin/create-event"
-            className="px-4 py-2 rounded-lg text-sm font-medium transition-colors text-slate-600 hover:text-slate-800 hover:bg-slate-50"
+            className="px-4 py-2 rounded-lg text-sm font-medium transition-colors text-slate-600 hover:text-slate-800 hover:bg-slate-50 whitespace-nowrap"
           >
             Create Event
           </a>
           <a
             href="/dashboard/admin/matching"
-            className="px-4 py-2 rounded-lg text-sm font-medium transition-colors text-slate-600 hover:text-slate-800 hover:bg-slate-50"
+            className="px-4 py-2 rounded-lg text-sm font-medium transition-colors text-slate-600 hover:text-slate-800 hover:bg-slate-50 whitespace-nowrap"
           >
             Volunteer Matching
+          </a>
+          <a
+            href="/dashboard/admin/users"
+            className="px-4 py-2 rounded-lg text-sm font-medium transition-colors text-slate-600 hover:text-slate-800 hover:bg-slate-50 whitespace-nowrap"
+          >
+            User Management
           </a>
         </nav>
       </div>
