@@ -16,8 +16,53 @@ export default function VolunteerHistoryPage() {
     const loadHistory = async () => {
       try {
         setIsLoading(true);
-        const historyData = await HistoryService.getMyHistory();
-        setHistory(historyData);
+
+        // Fetch both upcoming events (from assignments) and completed events (from history)
+        const [myEventsResponse, historyData] = await Promise.all([
+          fetch('http://localhost:3001/api/events/my-events', {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+              'Content-Type': 'application/json'
+            }
+          }),
+          HistoryService.getMyHistory()
+        ]);
+
+        let allEvents: VolunteerHistoryRecord[] = [...historyData];
+
+        // Add upcoming events from assignments if available
+        if (myEventsResponse.ok) {
+          const myEventsData = await myEventsResponse.json();
+
+          if (myEventsData.data?.events) {
+            const upcomingEvents: VolunteerHistoryRecord[] = myEventsData.data.events.map((event: any) => {
+              // Build location from address components if needed
+              const location = event.location ||
+                (event.address ? `${event.address}, ${event.city || ''}, ${event.state || ''} ${event.zipCode || ''}`.trim() : 'Location TBD');
+
+              return {
+                id: event.id,
+                eventId: event.id,
+                eventTitle: event.title,
+                eventDescription: event.description || 'No description available',
+                location: location,
+                eventDate: event.startDate,
+                participationStatus: 'UPCOMING' as const,
+                hoursWorked: 0,
+                feedback: '',
+                urgencyLevel: event.urgencyLevel?.toUpperCase() || 'NORMAL',
+                requiredSkills: event.requiredSkills?.map((skill: any) => skill.skillName || skill.name || 'Unknown') || []
+              };
+            });
+
+            // Combine upcoming events with history, avoiding duplicates
+            const historyEventIds = new Set(historyData.map(h => h.eventId));
+            const newUpcomingEvents = upcomingEvents.filter(e => !historyEventIds.has(e.eventId));
+            allEvents = [...newUpcomingEvents, ...historyData];
+          }
+        }
+
+        setHistory(allEvents);
         setError("");
       } catch (err) {
         setError("Failed to load volunteer history");

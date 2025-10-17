@@ -303,6 +303,11 @@ class EventService {
       notes: assignmentData.notes || ''
     });
 
+    // Increment the event's currentVolunteers count
+    await eventRepository.update(eventId, {
+      currentVolunteers: event.currentVolunteers + 1
+    });
+
     return {
       success: true,
       message: 'Volunteer assigned successfully',
@@ -344,20 +349,22 @@ class EventService {
   async getVolunteerEvents(volunteerId, filters = {}) {
     const assignments = await eventRepository.getVolunteerAssignments(volunteerId);
 
-    let volunteerEvents = assignments.map(assignment => {
-      const event = assignment.event;
-      return {
-        ...event,
-        assignment: {
-          id: assignment.id,
-          status: assignment.status.toLowerCase(),
-          matchScore: assignment.matchScore,
-          assignedAt: assignment.assignedAt,
-          confirmedAt: assignment.confirmedAt,
-          notes: assignment.notes
-        }
-      };
-    }).filter(event => event.id); // Filter out null events
+    let volunteerEvents = assignments
+      .filter(assignment => assignment.status.toLowerCase() !== 'cancelled') // Exclude cancelled assignments
+      .map(assignment => {
+        const event = assignment.event;
+        return {
+          ...event,
+          assignment: {
+            id: assignment.id,
+            status: assignment.status.toLowerCase(),
+            matchScore: assignment.matchScore,
+            assignedAt: assignment.assignedAt,
+            confirmedAt: assignment.confirmedAt,
+            notes: assignment.notes
+          }
+        };
+      }).filter(event => event.id); // Filter out null events
 
     // Apply status filter if provided
     if (filters.status) {

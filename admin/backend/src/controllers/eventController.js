@@ -419,10 +419,59 @@ class EventController {
         'Volunteer cancelled their participation'
       );
 
+      // Decrement the event's currentVolunteers count
+      const eventRepository = require('../database/repositories/eventRepository');
+      const event = await eventRepository.findById(eventId);
+      if (event && event.currentVolunteers > 0) {
+        await eventRepository.update(eventId, {
+          currentVolunteers: event.currentVolunteers - 1
+        });
+      }
+
       res.status(200).json({
         status: 'success',
         message: 'Successfully left the event',
         data: result.data,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Update volunteer's own assignment notes
+   * PUT /api/events/:id/update-notes
+   */
+  async updateVolunteerNotes(req, res, next) {
+    try {
+      const { id: eventId } = req.params;
+      const { notes } = req.body;
+
+      // Find the volunteer's assignment
+      const assignmentResult = await eventService.getEventAssignments(eventId);
+      const userAssignment = assignmentResult.data.assignments.find(
+        assignment => assignment.volunteerId === req.user.id
+      );
+
+      if (!userAssignment) {
+        return res.status(404).json({
+          status: 'error',
+          message: 'You are not assigned to this event',
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      // Update assignment notes using the repository
+      const assignmentRepository = require('../database/repositories/assignmentRepository');
+      const updatedAssignment = await assignmentRepository.update(userAssignment.id, {
+        notes: notes || ''
+      });
+
+      res.status(200).json({
+        status: 'success',
+        message: 'Notes updated successfully',
+        data: updatedAssignment,
         timestamp: new Date().toISOString()
       });
     } catch (error) {

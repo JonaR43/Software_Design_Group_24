@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { DashboardService, type DashboardStats } from "~/services/api";
+import { DashboardService, type DashboardStats, HistoryService } from "~/services/api";
 import { useAuth } from "~/contexts/AuthContext";
 
 export default function Home() {
@@ -12,8 +12,91 @@ export default function Home() {
     const loadStats = async () => {
       try {
         setIsLoading(true);
-        const dashboardStats = await DashboardService.getDashboardStats();
-        setStats(dashboardStats);
+
+        if (user?.role === 'volunteer') {
+          // For volunteers, get both their assignments (upcoming) and history (completed)
+          const [myEventsResponse, historyRecords] = await Promise.all([
+            fetch('http://localhost:3001/api/events/my-events', {
+              headers: {
+                'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+                'Content-Type': 'application/json'
+              }
+            }),
+            HistoryService.getMyHistory()
+          ]);
+
+          let upcomingEvents = 0;
+          let recentActivities: any[] = [];
+
+          if (myEventsResponse.ok) {
+            const myEventsData = await myEventsResponse.json();
+            upcomingEvents = myEventsData.data?.events?.length || 0;
+
+            // Get recent upcoming events for activity feed
+            if (myEventsData.data?.events) {
+              recentActivities = myEventsData.data.events.slice(0, 3).map((event: any) => ({
+                eventTitle: event.title,
+                eventDate: event.startDate,
+                status: 'UPCOMING',
+                hoursWorked: 0
+              }));
+            }
+          }
+
+          // Add completed events to activity feed
+          const completedEvents = historyRecords
+            .filter(record => record.participationStatus === 'COMPLETED')
+            .slice(0, 3)
+            .map(record => ({
+              eventTitle: record.eventTitle,
+              eventDate: record.eventDate,
+              status: 'COMPLETED',
+              hoursWorked: record.hoursWorked
+            }));
+
+          // Merge and sort activities by date
+          const allActivities = [...recentActivities, ...completedEvents]
+            .sort((a, b) => new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime())
+            .slice(0, 3);
+
+          // Calculate total hours from history
+          const totalHours = historyRecords
+            .filter(record => record.participationStatus === 'COMPLETED')
+            .reduce((sum, record) => sum + (record.hoursWorked || 0), 0);
+
+          const hoursLast30Days = historyRecords
+            .filter(record => {
+              const recordDate = new Date(record.eventDate);
+              const thirtyDaysAgo = new Date();
+              thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+              return record.participationStatus === 'COMPLETED' && recordDate >= thirtyDaysAgo;
+            })
+            .reduce((sum, record) => sum + (record.hoursWorked || 0), 0);
+
+          // Create dashboard stats from the data
+          const dashboardStats: DashboardStats = {
+            overview: {
+              totalVolunteers: 1,
+              totalEvents: upcomingEvents,
+              totalHours: totalHours,
+              averageReliability: 0
+            },
+            recentActivity: {
+              last30Days: upcomingEvents,
+              completedLast30Days: historyRecords.filter(r => r.participationStatus === 'COMPLETED').length,
+              hoursLast30Days: hoursLast30Days,
+              activities: allActivities
+            },
+            topPerformers: []
+          };
+
+          setStats(dashboardStats);
+        } else {
+          // For admins, use the existing dashboard service
+          const dashboardStats = await DashboardService.getDashboardStats();
+          setStats(dashboardStats);
+        }
+
         setError("");
       } catch (err) {
         setError("Failed to load dashboard statistics");
@@ -24,7 +107,7 @@ export default function Home() {
     };
 
     loadStats();
-  }, []);
+  }, [user]);
 
   if (isLoading) {
     return (

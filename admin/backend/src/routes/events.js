@@ -94,6 +94,17 @@ router.delete('/:id/leave',
 );
 
 /**
+ * @route   PUT /api/events/:id/update-notes
+ * @desc    Update volunteer's own assignment notes
+ * @access  Private (Volunteers only)
+ */
+router.put('/:id/update-notes',
+  authenticate,
+  authorize('volunteer'),
+  eventController.updateVolunteerNotes
+);
+
+/**
  * @route   GET /api/events/:id/assignments
  * @desc    Get event assignments
  * @access  Private
