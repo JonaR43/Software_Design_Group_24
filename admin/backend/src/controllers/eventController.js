@@ -330,7 +330,8 @@ class EventController {
     try {
       const filters = {
         status: req.query.status,
-        timeFilter: req.query.timeFilter
+        timeFilter: req.query.timeFilter,
+        includeCancelled: req.query.includeCancelled
       };
 
       const result = await eventService.getVolunteerEvents(req.user.id, filters);
@@ -426,6 +427,28 @@ class EventController {
         await eventRepository.update(eventId, {
           currentVolunteers: event.currentVolunteers - 1
         });
+      }
+
+      // Send cancellation notification to volunteer
+      try {
+        const notificationRepository = require('../database/repositories/notificationRepository');
+
+        console.log('Creating SYSTEM notification for cancellation - user:', req.user.id, 'event:', event.title);
+
+        const notification = await notificationRepository.create({
+          userId: req.user.id,
+          type: 'SYSTEM',
+          priority: 'MEDIUM',
+          title: `Cancelled: ${event.title}`,
+          message: `You have successfully cancelled your participation in ${event.title}`,
+          eventId: eventId,
+          actionUrl: `/dashboard/history`
+        });
+
+        console.log('Cancellation notification created successfully:', notification.id);
+      } catch (notificationError) {
+        // Log error but don't fail the leave operation if notification fails
+        console.error('Failed to send cancellation notification:', notificationError);
       }
 
       res.status(200).json({

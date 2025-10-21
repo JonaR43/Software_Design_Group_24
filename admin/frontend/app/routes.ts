@@ -21,8 +21,9 @@ export default [
     route("schedule", "routes/client/dashboard/schedule.tsx"),
     // route("profile1", "routes/client/dashboard/profile1.tsx"), // DEPRECATED - Removed in favor of profile.tsx
     route("profile", "routes/client/dashboard/profile.tsx"), // Main profile page connected to backend
+    route("availability", "routes/client/dashboard/availability.tsx"), // Availability calendar page
     route("history", "routes/client/dashboard/volunteer-history.tsx"), // Volunteer history page
-    
+
     // Admin-only routes
     route("admin", "routes/client/dashboard/admin/admin-layout.tsx", [
       route("metrics", "routes/client/dashboard/admin/metrics.tsx"),

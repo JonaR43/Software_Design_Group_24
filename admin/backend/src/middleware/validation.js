@@ -137,11 +137,12 @@ const schemas = {
       .default([]),
     availability: Joi.array()
       .items(Joi.object({
-        dayOfWeek: Joi.number()
-          .integer()
-          .min(0)
-          .max(6)
-          .required(),
+        dayOfWeek: Joi.string()
+          .valid('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday')
+          .required()
+          .messages({
+            'any.only': 'Day of week must be a valid day name (Monday-Sunday)'
+          }),
         startTime: Joi.string()
           .pattern(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/)
           .required()

@@ -17,9 +17,9 @@ export default function VolunteerHistoryPage() {
       try {
         setIsLoading(true);
 
-        // Fetch both upcoming events (from assignments) and completed events (from history)
+        // Fetch both upcoming/cancelled events (from assignments) and completed events (from history)
         const [myEventsResponse, historyData] = await Promise.all([
-          fetch('http://localhost:3001/api/events/my-events', {
+          fetch('http://localhost:3001/api/events/my-events?includeCancelled=true', {
             headers: {
               'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
               'Content-Type': 'application/json'
@@ -28,11 +28,14 @@ export default function VolunteerHistoryPage() {
           HistoryService.getMyHistory()
         ]);
 
+        console.log('History page - History data:', historyData);
+
         let allEvents: VolunteerHistoryRecord[] = [...historyData];
 
         // Add upcoming events from assignments if available
         if (myEventsResponse.ok) {
           const myEventsData = await myEventsResponse.json();
+          console.log('History page - My events data:', myEventsData);
 
           if (myEventsData.data?.events) {
             const upcomingEvents: VolunteerHistoryRecord[] = myEventsData.data.events.map((event: any) => {
@@ -40,27 +43,42 @@ export default function VolunteerHistoryPage() {
               const location = event.location ||
                 (event.address ? `${event.address}, ${event.city || ''}, ${event.state || ''} ${event.zipCode || ''}`.trim() : 'Location TBD');
 
+              // Map assignment status to participation status
+              let participationStatus: 'UPCOMING' | 'CANCELLED' = 'UPCOMING';
+              if (event.assignment?.status === 'cancelled') {
+                participationStatus = 'CANCELLED';
+              }
+
+              console.log(`Event ${event.id} (${event.title}): assignment status = ${event.assignment?.status}, mapped to ${participationStatus}`);
+
               return {
-                id: event.id,
+                id: event.assignment?.id || event.id,
                 eventId: event.id,
                 eventTitle: event.title,
                 eventDescription: event.description || 'No description available',
                 location: location,
                 eventDate: event.startDate,
-                participationStatus: 'UPCOMING' as const,
+                participationStatus: participationStatus,
                 hoursWorked: 0,
-                feedback: '',
+                feedback: event.assignment?.notes || '',
                 urgencyLevel: event.urgencyLevel?.toUpperCase() || 'NORMAL',
                 requiredSkills: event.requiredSkills?.map((skill: any) => skill.skillName || skill.name || 'Unknown') || []
               };
             });
 
+            console.log('Upcoming/cancelled events from assignments:', upcomingEvents);
+
             // Combine upcoming events with history, avoiding duplicates
             const historyEventIds = new Set(historyData.map(h => h.eventId));
             const newUpcomingEvents = upcomingEvents.filter(e => !historyEventIds.has(e.eventId));
+
+            console.log('New upcoming events after deduplication:', newUpcomingEvents);
+
             allEvents = [...newUpcomingEvents, ...historyData];
           }
         }
+
+        console.log('All events combined:', allEvents);
 
         setHistory(allEvents);
         setError("");

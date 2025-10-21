@@ -32,6 +32,26 @@ router.get('/preferences',
 );
 
 /**
+ * @route   PUT /api/notifications/all/read
+ * @desc    Mark all notifications as read
+ * @access  Private
+ */
+router.put('/all/read',
+  authenticate,
+  notificationController.markAllAsRead
+);
+
+/**
+ * @route   PUT /api/notifications/bulk/read
+ * @desc    Mark multiple notifications as read
+ * @access  Private
+ */
+router.put('/bulk/read',
+  authenticate,
+  notificationController.markMultipleAsRead
+);
+
+/**
  * @route   GET /api/notifications/:id
  * @desc    Get notification by ID
  * @access  Private
@@ -49,26 +69,6 @@ router.get('/:id',
 router.put('/:id/read',
   authenticate,
   notificationController.markAsRead
-);
-
-/**
- * @route   PUT /api/notifications/bulk/read
- * @desc    Mark multiple notifications as read
- * @access  Private
- */
-router.put('/bulk/read',
-  authenticate,
-  notificationController.markMultipleAsRead
-);
-
-/**
- * @route   PUT /api/notifications/all/read
- * @desc    Mark all notifications as read
- * @access  Private
- */
-router.put('/all/read',
-  authenticate,
-  notificationController.markAllAsRead
 );
 
 /**

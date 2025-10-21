@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { ProfileService, SkillsService, DashboardService, type FrontendProfile } from "~/services/api";
+import { ProfileService, SkillsService, DashboardService, EventService, type FrontendProfile } from "~/services/api";
+import AvailabilityCalendar from "~/components/AvailabilityCalendar";
 
 export default function Profile() {
   const [isEditing, setIsEditing] = useState(false);
@@ -14,19 +15,36 @@ export default function Profile() {
     totalEvents: 0,
     impactScore: 0
   });
+  const [availability, setAvailability] = useState<Array<{id?: string; dayOfWeek: string; startTime: string; endTime: string}>>([]);
+  const [registeredEvents, setRegisteredEvents] = useState<Array<{title: string; date: Date; startTime: string; endTime: string}>>([]);
 
   // Load profile and skills from backend
   useEffect(() => {
     const loadProfile = async () => {
       try {
         setIsLoading(true);
-        const [profileData, skills, dashboardStats] = await Promise.all([
+        const [profileData, skills, dashboardStats, myEvents] = await Promise.all([
           ProfileService.getProfile(),
           SkillsService.getSkills(),
-          DashboardService.getDashboardStats()
+          DashboardService.getDashboardStats(),
+          EventService.getEvents({ status: 'published' }).catch(() => [])
         ]);
 
         setAvailableSkills(skills);
+
+        // Get user's registered events and convert to calendar format
+        const userEvents = myEvents.filter(e => e.status === 'registered').map(event => ({
+          title: event.title,
+          date: new Date(event.date),
+          startTime: event.time.split(' - ')[0] || '09:00',
+          endTime: event.time.split(' - ')[1] || '17:00'
+        }));
+        setRegisteredEvents(userEvents);
+
+        // Fetch availability from backend profile
+        const backendProfile = await ProfileService.getCurrentBackendProfile();
+        const availability = backendProfile?.availability || [];
+        setAvailability(availability);
 
         // Ensure all fields have default values to prevent display issues
         const normalizedProfile: FrontendProfile = {
@@ -69,7 +87,10 @@ export default function Profile() {
 
     try {
       setIsSaving(true);
-      await ProfileService.updateProfile(profile);
+      await ProfileService.updateProfile({
+        ...profile,
+        availability: availability
+      });
       setIsEditing(false);
       setError("");
       // Optionally show success message instead of alert
@@ -196,30 +217,44 @@ export default function Profile() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Profile Picture & Basic Info */}
-        <div className="card p-6">
-          <div className="flex flex-col items-center text-center">
-            <div className="h-24 w-24 bg-gradient-to-r from-indigo-400 to-violet-400 rounded-full flex items-center justify-center text-white text-2xl font-semibold mb-4">
-              {(profile.firstName?.[0] || '').toUpperCase()}{(profile.lastName?.[0] || '').toUpperCase() || '?'}
-            </div>
-            <h2 className="text-xl font-semibold text-slate-900">
-              {profile.firstName || 'Unknown'} {profile.lastName || 'User'}
-            </h2>
-            <p className="text-slate-600 text-sm mb-4">Volunteer Member</p>
-            <div className="w-full space-y-2 text-sm">
-              <div className="flex items-center gap-2 text-slate-600">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-                {profile.email || 'No email'}
+        {/* Left Column - Profile Picture & Availability */}
+        <div className="space-y-6">
+          {/* Profile Picture & Basic Info */}
+          <div className="card p-6">
+            <div className="flex flex-col items-center text-center">
+              <div className="h-24 w-24 bg-gradient-to-r from-indigo-400 to-violet-400 rounded-full flex items-center justify-center text-white text-2xl font-semibold mb-4">
+                {(profile.firstName?.[0] || '').toUpperCase()}{(profile.lastName?.[0] || '').toUpperCase() || '?'}
               </div>
-              <div className="flex items-center gap-2 text-slate-600">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                </svg>
-                {profile.phone || 'No phone'}
+              <h2 className="text-xl font-semibold text-slate-900">
+                {profile.firstName || 'Unknown'} {profile.lastName || 'User'}
+              </h2>
+              <p className="text-slate-600 text-sm mb-4">Volunteer Member</p>
+              <div className="w-full space-y-2 text-sm">
+                <div className="flex items-center gap-2 text-slate-600">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  {profile.email || 'No email'}
+                </div>
+                <div className="flex items-center gap-2 text-slate-600">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                  </svg>
+                  {profile.phone || 'No phone'}
+                </div>
               </div>
             </div>
+          </div>
+
+          {/* Availability Calendar */}
+          <div className="card p-6">
+            <h3 className="title-gradient mb-4">Availability</h3>
+            <AvailabilityCalendar
+              availability={availability}
+              registeredEvents={registeredEvents}
+              isEditing={isEditing}
+              onAvailabilityChange={setAvailability}
+            />
           </div>
         </div>
 

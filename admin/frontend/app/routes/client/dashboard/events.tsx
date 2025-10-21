@@ -53,7 +53,7 @@ export default function Events() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'registered': return 'bg-green-100 text-green-800';
+      case 'registered': return 'bg-emerald-100 text-emerald-800';
       case 'open': return 'bg-blue-100 text-blue-800';
       case 'full': return 'bg-gray-100 text-gray-800';
       default: return 'bg-gray-100 text-gray-800';
@@ -353,8 +353,11 @@ export default function Events() {
                     </button>
                   )}
                   {event.status === 'registered' && (
-                    <button className="bg-gray-500 text-white px-4 py-2 rounded-lg text-sm font-medium">
-                      Registered
+                    <button
+                      disabled
+                      className="bg-gray-400 text-white px-4 py-2 rounded-lg text-sm font-medium cursor-not-allowed opacity-75"
+                    >
+                      Joined
                     </button>
                   )}
                   {event.status === 'open' && (

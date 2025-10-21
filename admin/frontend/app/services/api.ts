@@ -488,12 +488,35 @@ export class EventService {
 
         // Check user's registration status for each event
         try {
-          const userHistory = await HistoryService.getMyHistory();
-          console.log('Full user history:', userHistory); // Debug log - see all records
+          // Fetch both history records (completed events) and active assignments (upcoming events)
+          const [userHistory, myEventsResponse] = await Promise.all([
+            HistoryService.getMyHistory(),
+            fetch('http://localhost:3001/api/events/my-events', {
+              headers: {
+                'Authorization': `Bearer ${TokenManager.getToken()}`,
+                'Content-Type': 'application/json'
+              }
+            }).catch(() => null)
+          ]);
 
+          console.log('Full user history:', userHistory); // Debug log
+
+          // Get event IDs from history
           const registeredEventIds = new Set(userHistory.map(record => record.eventId));
 
-          console.log('User registered event IDs:', Array.from(registeredEventIds)); // Debug log
+          // Get event IDs from active assignments
+          if (myEventsResponse && myEventsResponse.ok) {
+            const myEventsData = await myEventsResponse.json();
+            console.log('My events data:', myEventsData); // Debug log
+
+            if (myEventsData.data?.events) {
+              myEventsData.data.events.forEach((event: any) => {
+                registeredEventIds.add(event.id);
+              });
+            }
+          }
+
+          console.log('User registered event IDs (history + assignments):', Array.from(registeredEventIds)); // Debug log
           console.log('Available events:', events.map(e => ({ id: e.id, title: e.title, status: e.status }))); // Debug log
 
           const updatedEvents = events.map(event => {
@@ -508,7 +531,7 @@ export class EventService {
           console.log('Final events with status:', updatedEvents.map(e => ({ id: e.id, title: e.title, status: e.status }))); // Debug log
           return updatedEvents;
         } catch (historyError) {
-          console.warn('Could not fetch user history to check registration status:', historyError);
+          console.warn('Could not fetch user registration status:', historyError);
           return events;
         }
       }
@@ -634,7 +657,9 @@ export class ProfileService {
     }
   }
 
-  static async updateProfile(profileData: Partial<FrontendProfile>): Promise<void> {
+  static async updateProfile(profileData: Partial<FrontendProfile> & {
+    availability?: Array<{dayOfWeek: string; startTime: string; endTime: string}>
+  }): Promise<void> {
     try {
       console.log('Updating profile with data:', profileData); // Debug log
 
@@ -659,6 +684,16 @@ export class ProfileService {
       if (profileData.city !== undefined) backendData.city = profileData.city;
       if (profileData.state !== undefined) backendData.state = profileData.state;
       if (profileData.zipCode !== undefined) backendData.zipCode = profileData.zipCode;
+
+      // Update availability if provided
+      if (profileData.availability !== undefined) {
+        // Keep day names as strings (database schema expects strings)
+        backendData.availability = profileData.availability.map(slot => ({
+          dayOfWeek: slot.dayOfWeek,
+          startTime: slot.startTime,
+          endTime: slot.endTime
+        }));
+      }
 
       // Convert skill names to skill IDs if skills are being updated
       if (profileData.skills !== undefined) {
@@ -723,7 +758,7 @@ export class ProfileService {
     }
   }
 
-  private static async getCurrentBackendProfile(): Promise<any> {
+  static async getCurrentBackendProfile(): Promise<any> {
     try {
       const response = await HttpClient.get<{
         status?: string;
@@ -1242,6 +1277,93 @@ export class EventVolunteerService {
       }
     } catch (error) {
       throw new Error(`Failed to update volunteer review: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+}
+
+// Notification types
+export interface Notification {
+  id: string;
+  userId: string;
+  type: 'assignment' | 'event-assignment' | 'event-update' | 'reminder' | 'cancellation' | 'system' | 'matching-suggestion';
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  title: string;
+  message: string;
+  read: boolean;
+  actionUrl?: string;
+  relatedEventId?: string;
+  relatedUserId?: string;
+  createdAt: string;
+  readAt?: string;
+}
+
+export class NotificationService {
+  static async getNotifications(filters?: {
+    type?: string;
+    priority?: string;
+    read?: boolean;
+    limit?: number;
+  }): Promise<Notification[]> {
+    try {
+      const queryParams = new URLSearchParams();
+
+      if (filters) {
+        Object.entries(filters).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && value !== '') {
+            queryParams.append(key, value.toString());
+          }
+        });
+      }
+
+      const queryString = queryParams.toString();
+      const endpoint = queryString ? `/notifications?${queryString}` : '/notifications';
+
+      console.log('Fetching notifications from:', endpoint);
+
+      const response = await HttpClient.get<{
+        status: string;
+        data: {
+          notifications: Notification[];
+          total: number;
+          unreadCount: number;
+        };
+      }>(endpoint);
+
+      console.log('Notifications API response:', response);
+
+      if (response.status === 'success') {
+        console.log('Notifications count:', response.data.notifications.length);
+        return response.data.notifications;
+      }
+
+      throw new Error('Failed to fetch notifications');
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+      throw new Error(`Failed to fetch notifications: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  static async markAsRead(notificationId: string): Promise<void> {
+    try {
+      await HttpClient.put(`/notifications/${notificationId}/read`, {});
+    } catch (error) {
+      throw new Error(`Failed to mark notification as read: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  static async markAllAsRead(): Promise<void> {
+    try {
+      await HttpClient.put('/notifications/all/read', {});
+    } catch (error) {
+      throw new Error(`Failed to mark all notifications as read: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  static async deleteNotification(notificationId: string): Promise<void> {
+    try {
+      await HttpClient.delete(`/notifications/${notificationId}`);
+    } catch (error) {
+      throw new Error(`Failed to delete notification: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 }

@@ -289,24 +289,69 @@ class EventService {
 
     // Check if volunteer is already assigned
     const existingAssignments = await eventRepository.getVolunteerAssignments(volunteerId);
-    const alreadyAssigned = existingAssignments.some(a => a.eventId === eventId);
-    if (alreadyAssigned) {
+    const existingAssignment = existingAssignments.find(a => a.eventId === eventId);
+
+    // If there's an active (non-cancelled) assignment, prevent duplicate
+    if (existingAssignment && existingAssignment.status.toLowerCase() !== 'cancelled') {
       throw new Error('Volunteer is already assigned to this event');
     }
 
-    // Create assignment
-    const assignment = await eventRepository.createAssignment({
-      eventId,
-      volunteerId,
-      status: assignmentData.status || 'pending',
-      matchScore: assignmentData.matchScore || 0,
-      notes: assignmentData.notes || ''
-    });
+    let assignment;
+
+    // If there's a cancelled assignment, reactivate it instead of creating new
+    if (existingAssignment && existingAssignment.status.toLowerCase() === 'cancelled') {
+      // Reactivate the cancelled assignment by updating its status, notes, and matchScore
+      const prisma = require('../database/prisma');
+      assignment = await prisma.assignment.update({
+        where: { id: existingAssignment.id },
+        data: {
+          status: (assignmentData.status || 'pending').toUpperCase(),
+          notes: assignmentData.notes || '',
+          matchScore: assignmentData.matchScore || 0,
+          updatedAt: new Date()
+        },
+        include: {
+          event: true,
+          volunteer: true
+        }
+      });
+    } else {
+      // Create new assignment
+      assignment = await eventRepository.createAssignment({
+        eventId,
+        volunteerId,
+        status: assignmentData.status || 'pending',
+        matchScore: assignmentData.matchScore || 0,
+        notes: assignmentData.notes || ''
+      });
+    }
 
     // Increment the event's currentVolunteers count
     await eventRepository.update(eventId, {
       currentVolunteers: event.currentVolunteers + 1
     });
+
+    // Send assignment notification to volunteer
+    try {
+      const notificationRepository = require('../database/repositories/notificationRepository');
+
+      console.log('Creating ASSIGNMENT notification for user:', volunteerId, 'event:', event.title);
+
+      const notification = await notificationRepository.create({
+        userId: volunteerId,
+        type: 'ASSIGNMENT',
+        priority: 'HIGH',
+        title: `Joined: ${event.title}`,
+        message: `You have successfully joined ${event.title}. Check your schedule for details.`,
+        eventId: event.id,
+        actionUrl: `/dashboard/schedule`
+      });
+
+      console.log('Notification created successfully:', notification.id);
+    } catch (notificationError) {
+      // Log error but don't fail the assignment if notification fails
+      console.error('Failed to send assignment notification:', notificationError);
+    }
 
     return {
       success: true,
@@ -350,7 +395,14 @@ class EventService {
     const assignments = await eventRepository.getVolunteerAssignments(volunteerId);
 
     let volunteerEvents = assignments
-      .filter(assignment => assignment.status.toLowerCase() !== 'cancelled') // Exclude cancelled assignments
+      .filter(assignment => {
+        // Include cancelled assignments if specifically requested (for history page)
+        if (filters.includeCancelled === 'true' || filters.includeCancelled === true) {
+          return true;
+        }
+        // Otherwise exclude cancelled assignments
+        return assignment.status.toLowerCase() !== 'cancelled';
+      })
       .map(assignment => {
         const event = assignment.event;
         return {
