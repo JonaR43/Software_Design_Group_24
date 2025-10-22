@@ -44,6 +44,9 @@ class ProfileService {
       };
     });
 
+    // Log availability data for debugging
+    console.log('Profile availability from database:', JSON.stringify(profile.availability, null, 2));
+
     return {
       success: true,
       data: {
@@ -506,16 +509,40 @@ class ProfileService {
     }
 
     for (const slot of availability) {
-      // Accept both number (1-7) and string day names
-      const dayOfWeek = slot.dayOfWeek;
-      const isValidNumber = typeof dayOfWeek === 'number' && dayOfWeek >= 1 && dayOfWeek <= 7;
-      const isValidString = typeof dayOfWeek === 'string' &&
-        ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].includes(dayOfWeek);
+      // Log the slot for debugging
+      console.log('Validating availability slot:', JSON.stringify(slot));
 
-      if (!isValidNumber && !isValidString) {
-        throw new Error('Invalid day of week');
+      // Explicitly check isRecurring - if false, it's specific date; otherwise recurring
+      const isRecurring = slot.isRecurring === false ? false : true;
+
+      // Validate based on type
+      if (isRecurring) {
+        // For recurring availability, dayOfWeek is required
+        const dayOfWeek = slot.dayOfWeek;
+        const isValidNumber = typeof dayOfWeek === 'number' && dayOfWeek >= 1 && dayOfWeek <= 7;
+        const isValidString = typeof dayOfWeek === 'string' &&
+          ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].includes(dayOfWeek);
+
+        if (!isValidNumber && !isValidString) {
+          console.error('Invalid recurring availability - missing dayOfWeek:', slot);
+          throw new Error('dayOfWeek is required for recurring availability');
+        }
+      } else {
+        // For specific date availability, specificDate is required
+        if (!slot.specificDate) {
+          console.error('Invalid specific date availability - missing specificDate:', slot);
+          throw new Error('specificDate is required when isRecurring is false');
+        }
+
+        // Validate date format
+        const date = new Date(slot.specificDate);
+        if (isNaN(date.getTime())) {
+          console.error('Invalid date format:', slot.specificDate);
+          throw new Error('specificDate must be a valid date');
+        }
       }
 
+      // Validate time fields (required for both types)
       if (!slot.startTime || !slot.endTime) {
         throw new Error('startTime and endTime are required');
       }
@@ -535,16 +562,29 @@ class ProfileService {
       }
     }
 
-    // Check for overlapping slots on the same day
+    // Check for overlapping slots on the same day (for recurring) or same date (for specific)
     const daySlots = {};
+    const dateSlots = {};
+
     for (const slot of availability) {
-      const dayKey = slot.dayOfWeek.toString();
-      if (!daySlots[dayKey]) {
-        daySlots[dayKey] = [];
+      const isRecurring = slot.isRecurring !== false;
+
+      if (isRecurring && slot.dayOfWeek) {
+        const dayKey = slot.dayOfWeek.toString();
+        if (!daySlots[dayKey]) {
+          daySlots[dayKey] = [];
+        }
+        daySlots[dayKey].push(slot);
+      } else if (!isRecurring && slot.specificDate) {
+        const dateKey = new Date(slot.specificDate).toISOString().split('T')[0];
+        if (!dateSlots[dateKey]) {
+          dateSlots[dateKey] = [];
+        }
+        dateSlots[dateKey].push(slot);
       }
-      daySlots[dayKey].push(slot);
     }
 
+    // Check for overlaps in recurring slots
     for (const day in daySlots) {
       const slots = daySlots[day];
       if (slots.length > 1) {
@@ -552,6 +592,20 @@ class ProfileService {
           for (let j = i + 1; j < slots.length; j++) {
             if (this.slotsOverlap(slots[i], slots[j])) {
               throw new Error(`Overlapping availability slots found for day ${day}`);
+            }
+          }
+        }
+      }
+    }
+
+    // Check for overlaps in specific date slots
+    for (const date in dateSlots) {
+      const slots = dateSlots[date];
+      if (slots.length > 1) {
+        for (let i = 0; i < slots.length; i++) {
+          for (let j = i + 1; j < slots.length; j++) {
+            if (this.slotsOverlap(slots[i], slots[j])) {
+              throw new Error(`Overlapping availability slots found for date ${date}`);
             }
           }
         }

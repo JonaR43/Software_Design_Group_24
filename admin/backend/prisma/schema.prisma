@@ -167,13 +167,15 @@ model VolunteerSkill {
 
 // Availability
 model Availability {
-  id        String   @id @default(uuid())
-  profileId String
-  dayOfWeek String   @db.VarChar(20)
-  startTime String   @db.VarChar(10)
-  endTime   String   @db.VarChar(10)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String    @id @default(uuid())
+  profileId    String
+  dayOfWeek    String?   @db.VarChar(20)  // Optional for specific dates
+  specificDate DateTime? @db.Date         // For date-specific availability
+  isRecurring  Boolean   @default(true)   // True for weekly recurring, false for specific dates
+  startTime    String    @db.VarChar(10)
+  endTime      String    @db.VarChar(10)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
 

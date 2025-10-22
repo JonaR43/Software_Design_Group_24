@@ -3,7 +3,9 @@ import { ProfileService } from '~/services/api';
 
 interface TimeSlot {
   id?: string;
-  dayOfWeek: string;
+  dayOfWeek?: string;
+  specificDate?: string;
+  isRecurring?: boolean;
   startTime: string;
   endTime: string;
 }
@@ -41,6 +43,25 @@ export default function Availability() {
         const availability = backendProfile?.availability || [];
         setRecurringAvailability(availability);
         console.log('Loaded availability:', availability);
+
+        // Convert loaded availability to selectedDates format for display
+        const loadedDateSlots: DateTimeSlot[] = [];
+        availability.forEach((slot: TimeSlot) => {
+          // Only load specific date availability (not recurring)
+          if (!slot.isRecurring && slot.specificDate) {
+            // Parse the ISO date string and extract just the date part (YYYY-MM-DD)
+            // This avoids timezone conversion issues
+            const dateStr = slot.specificDate.split('T')[0];
+            loadedDateSlots.push({
+              date: dateStr,
+              startTime: slot.startTime,
+              endTime: slot.endTime
+            });
+          }
+        });
+
+        setSelectedDates(loadedDateSlots);
+        console.log('Loaded date slots into UI:', loadedDateSlots);
 
         // Load registered events
         const response = await fetch('http://localhost:3001/api/events/my-events', {
@@ -125,13 +146,27 @@ export default function Availability() {
   const hasRecurringAvailability = (date: Date): boolean => {
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const dayOfWeek = dayNames[date.getDay()];
-    return recurringAvailability.some(slot => slot.dayOfWeek === dayOfWeek);
+
+    // Only check for recurring patterns (not specific dates, as those are in selectedDates)
+    return recurringAvailability.some(slot => {
+      if (slot.isRecurring !== false && slot.dayOfWeek) {
+        return slot.dayOfWeek === dayOfWeek;
+      }
+      return false;
+    });
   };
 
   const getRecurringAvailabilityForDate = (date: Date): TimeSlot[] => {
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const dayOfWeek = dayNames[date.getDay()];
-    return recurringAvailability.filter(slot => slot.dayOfWeek === dayOfWeek);
+
+    // Only return recurring slots (not specific dates, as those are in selectedDates)
+    return recurringAvailability.filter(slot => {
+      if (slot.isRecurring !== false && slot.dayOfWeek) {
+        return slot.dayOfWeek === dayOfWeek;
+      }
+      return false;
+    });
   };
 
   const handleDateClick = (date: Date) => {
@@ -162,47 +197,59 @@ export default function Availability() {
     try {
       setIsSaving(true);
 
-      // Convert date-specific availability to recurring weekly availability
-      // Group by day of week
-      const dayOfWeekMap: { [key: string]: TimeSlot[] } = {};
+      // Convert selected dates to specific date availability slots
+      const availability = selectedDates.map(slot => ({
+        specificDate: slot.date + 'T12:00:00Z', // Use noon UTC to avoid timezone shift issues
+        isRecurring: false, // Mark as date-specific, not recurring
+        startTime: slot.startTime,
+        endTime: slot.endTime
+      }));
 
-      selectedDates.forEach(slot => {
-        const date = new Date(slot.date);
-        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-        const dayOfWeek = dayNames[date.getDay()];
+      console.log('Availability data to send:', availability);
 
-        if (!dayOfWeekMap[dayOfWeek]) {
-          dayOfWeekMap[dayOfWeek] = [];
-        }
+      // Get current profile
+      const currentProfile = await ProfileService.getProfile();
 
-        // Check if this time slot already exists for this day
-        const exists = dayOfWeekMap[dayOfWeek].some(
-          s => s.startTime === slot.startTime && s.endTime === slot.endTime
-        );
+      // Create a clean profile object without spreading to avoid TypeScript issues
+      const profileUpdate = {
+        firstName: currentProfile.firstName,
+        lastName: currentProfile.lastName,
+        phone: currentProfile.phone,
+        address: currentProfile.address,
+        city: currentProfile.city,
+        state: currentProfile.state,
+        zipCode: currentProfile.zipCode,
+        bio: currentProfile.bio || '',
+        skills: currentProfile.skills || [],
+        availability: availability as any // Our new specific date availability
+      };
 
-        if (!exists) {
-          dayOfWeekMap[dayOfWeek].push({
-            dayOfWeek,
+      console.log('Profile update payload:', profileUpdate);
+
+      // Update profile with new availability
+      await ProfileService.updateProfile(profileUpdate);
+
+      setMessage({ type: 'success', text: 'Availability saved successfully!' });
+      setTimeout(() => setMessage(null), 3000);
+
+      // Reload availability after saving
+      const backendProfile = await ProfileService.getCurrentBackendProfile();
+      const freshAvailability = backendProfile?.availability || [];
+      setRecurringAvailability(freshAvailability);
+
+      // Reload the selectedDates from the fresh data to avoid duplicates
+      const freshDateSlots: DateTimeSlot[] = [];
+      freshAvailability.forEach((slot: TimeSlot) => {
+        if (!slot.isRecurring && slot.specificDate) {
+          const dateStr = slot.specificDate.split('T')[0];
+          freshDateSlots.push({
+            date: dateStr,
             startTime: slot.startTime,
             endTime: slot.endTime
           });
         }
       });
-
-      // Flatten to array
-      const availability = Object.values(dayOfWeekMap).flat();
-
-      // Get current profile
-      const currentProfile = await ProfileService.getProfile();
-
-      // Update profile with new availability
-      await ProfileService.updateProfile({
-        ...currentProfile,
-        availability
-      });
-
-      setMessage({ type: 'success', text: 'Availability saved successfully!' });
-      setTimeout(() => setMessage(null), 3000);
+      setSelectedDates(freshDateSlots);
     } catch (error) {
       console.error('Failed to save availability:', error);
       setMessage({ type: 'error', text: 'Failed to save availability' });
@@ -486,16 +533,23 @@ export default function Availability() {
         <div className="card p-6">
           <h3 className="font-semibold text-slate-800 mb-4">Availability Summary</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {selectedDates.map((slot, index) => (
-              <div key={index} className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                <div className="font-medium text-green-900">
-                  {new Date(slot.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+            {selectedDates.map((slot, index) => {
+              // Parse date without timezone conversion
+              // slot.date is in YYYY-MM-DD format
+              const [year, month, day] = slot.date.split('-').map(Number);
+              const dateObj = new Date(year, month - 1, day); // month is 0-indexed
+
+              return (
+                <div key={index} className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="font-medium text-green-900">
+                    {dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                  </div>
+                  <div className="text-sm text-green-700">
+                    {slot.startTime} - {slot.endTime}
+                  </div>
                 </div>
-                <div className="text-sm text-green-700">
-                  {slot.startTime} - {slot.endTime}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

@@ -137,11 +137,19 @@ const schemas = {
       .default([]),
     availability: Joi.array()
       .items(Joi.object({
+        isRecurring: Joi.boolean().optional(),
         dayOfWeek: Joi.string()
           .valid('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday')
-          .required()
+          .optional()
+          .allow(null, '')
           .messages({
             'any.only': 'Day of week must be a valid day name (Monday-Sunday)'
+          }),
+        specificDate: Joi.date()
+          .optional()
+          .allow(null)
+          .messages({
+            'date.base': 'Specific date must be a valid date'
           }),
         startTime: Joi.string()
           .pattern(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/)
@@ -154,8 +162,7 @@ const schemas = {
           .required()
           .messages({
             'string.pattern.base': 'Time must be in HH:MM format'
-          }),
-        isRecurring: Joi.boolean().default(true)
+          })
       }))
       .min(0)
       .default([]),

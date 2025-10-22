@@ -569,6 +569,122 @@ class EventService {
   }
 
   /**
+   * Get recommended events based on user's availability
+   * @param {string} userId - User ID
+   * @param {Array} availability - User's availability slots
+   * @param {number} limit - Maximum number of recommendations
+   * @returns {Object} Recommended events
+   */
+  async getRecommendedEventsByAvailability(userId, availability, limit = 10) {
+    // Get all published events that are upcoming
+    const { events } = await eventRepository.findAll(
+      { status: 'published' },
+      { page: 1, limit: 1000 }
+    );
+
+    const now = new Date();
+    const upcomingEvents = events.filter(event => new Date(event.startDate) > now);
+
+    // Get user's existing event assignments to exclude them
+    const userAssignments = await eventRepository.getVolunteerAssignments(userId);
+    const assignedEventIds = userAssignments
+      .filter(a => a.status.toLowerCase() !== 'cancelled')
+      .map(a => a.eventId);
+
+    // Filter out events user is already assigned to
+    const availableEvents = upcomingEvents.filter(
+      event => !assignedEventIds.includes(event.id)
+    );
+
+    // Match events with user's availability
+    const recommendedEvents = [];
+
+    for (const event of availableEvents) {
+      const eventDate = new Date(event.startDate);
+      const eventEndDate = new Date(event.endDate);
+
+      // Extract just the date part (YYYY-MM-DD) for matching
+      const eventDateStr = eventDate.toISOString().split('T')[0];
+
+      // Check if user has availability on this date
+      const hasAvailability = availability.some(slot => {
+        // Check specific date availability
+        if (!slot.isRecurring && slot.specificDate) {
+          // Convert Date object to string if needed
+          const slotDateStr = slot.specificDate instanceof Date
+            ? slot.specificDate.toISOString().split('T')[0]
+            : slot.specificDate.split('T')[0];
+          return slotDateStr === eventDateStr;
+        }
+
+        // Check recurring availability (day of week matching)
+        if (slot.isRecurring !== false && slot.dayOfWeek) {
+          const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+          const eventDayOfWeek = dayNames[eventDate.getDay()];
+          return slot.dayOfWeek === eventDayOfWeek;
+        }
+
+        return false;
+      });
+
+      if (hasAvailability) {
+        // Calculate a match score based on various factors
+        let matchScore = 50; // Base score
+
+        // Bonus for urgency
+        if (event.urgencyLevel) {
+          const urgency = event.urgencyLevel.toLowerCase();
+          if (urgency === 'critical') matchScore += 30;
+          else if (urgency === 'high') matchScore += 20;
+          else if (urgency === 'medium') matchScore += 10;
+        }
+
+        // Bonus for events that need more volunteers
+        const fillPercentage = (event.currentVolunteers / event.maxVolunteers) * 100;
+        if (fillPercentage < 25) matchScore += 20;
+        else if (fillPercentage < 50) matchScore += 15;
+        else if (fillPercentage < 75) matchScore += 10;
+
+        // Add days until event (sooner events get higher score)
+        const daysUntilEvent = Math.floor((eventDate - now) / (1000 * 60 * 60 * 24));
+        if (daysUntilEvent <= 7) matchScore += 15;
+        else if (daysUntilEvent <= 14) matchScore += 10;
+        else if (daysUntilEvent <= 30) matchScore += 5;
+
+        recommendedEvents.push({
+          event,
+          matchScore,
+          matchReason: `Event on ${eventDateStr} matches your availability`
+        });
+      }
+    }
+
+    // Sort by match score (highest first)
+    recommendedEvents.sort((a, b) => b.matchScore - a.matchScore);
+
+    // Limit results
+    const limitedRecommendations = recommendedEvents.slice(0, limit);
+
+    // Enhance event data
+    const enhancedRecommendations = await Promise.all(
+      limitedRecommendations.map(async rec => ({
+        ...await this.enhanceEventData(rec.event),
+        matchScore: rec.matchScore,
+        matchReason: rec.matchReason
+      }))
+    );
+
+    return {
+      success: true,
+      data: {
+        events: enhancedRecommendations,
+        totalRecommendations: enhancedRecommendations.length,
+        availabilitySlots: availability.length
+      }
+    };
+  }
+
+  /**
    * Validate required skills
    * @param {Array} requiredSkills - Required skills array
    */

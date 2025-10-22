@@ -191,22 +191,50 @@ class MatchingAlgorithm {
     const eventStart = new Date(event.startDate);
     const eventEnd = new Date(event.endDate);
     const eventDayOfWeek = eventStart.getDay(); // 0 = Sunday, 6 = Saturday
+    const eventDateStr = eventStart.toISOString().split('T')[0]; // YYYY-MM-DD
 
-    // Check if volunteer is available on the event day
+    // Check if volunteer is available on the event day (either specific date or recurring)
     const availableOnDay = profile.availability.some(slot => {
-      if (!slot.isRecurring) return false; // For Assignment 3, only handle recurring availability
+      // Check specific date availability
+      if (!slot.isRecurring && slot.specificDate) {
+        const slotDate = new Date(slot.specificDate);
+        const slotDateStr = slotDate.toISOString().split('T')[0];
+        return slotDateStr === eventDateStr;
+      }
 
-      return slot.dayOfWeek === eventDayOfWeek;
+      // Check recurring availability
+      if (slot.isRecurring && slot.dayOfWeek) {
+        // Convert day name to number
+        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const slotDayOfWeek = dayNames.indexOf(slot.dayOfWeek);
+        return slotDayOfWeek === eventDayOfWeek;
+      }
+
+      return false;
     });
 
     if (!availableOnDay) {
       return 0; // No availability on event day
     }
 
-    // Find availability slots for the event day
-    const daySlots = profile.availability.filter(slot =>
-      slot.isRecurring && slot.dayOfWeek === eventDayOfWeek
-    );
+    // Find availability slots for the event day (both specific and recurring)
+    const daySlots = profile.availability.filter(slot => {
+      // Include specific date slots
+      if (!slot.isRecurring && slot.specificDate) {
+        const slotDate = new Date(slot.specificDate);
+        const slotDateStr = slotDate.toISOString().split('T')[0];
+        return slotDateStr === eventDateStr;
+      }
+
+      // Include recurring slots
+      if (slot.isRecurring && slot.dayOfWeek) {
+        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const slotDayOfWeek = dayNames.indexOf(slot.dayOfWeek);
+        return slotDayOfWeek === eventDayOfWeek;
+      }
+
+      return false;
+    });
 
     let bestOverlap = 0;
 

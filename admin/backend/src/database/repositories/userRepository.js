@@ -254,7 +254,9 @@ class UserRepository {
       return await prisma.availability.createMany({
         data: availabilityData.map(slot => ({
           profileId,
-          dayOfWeek: slot.dayOfWeek,
+          dayOfWeek: slot.dayOfWeek || null,
+          specificDate: slot.specificDate ? new Date(slot.specificDate) : null,
+          isRecurring: slot.isRecurring !== undefined ? slot.isRecurring : true,
           startTime: slot.startTime,
           endTime: slot.endTime
         }))

@@ -614,6 +614,40 @@ export class EventService {
       throw new Error(`Failed to update event status: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
+
+  static async getRecommendedEvents(limit: number = 10): Promise<(FrontendEvent & { matchScore?: number; matchReason?: string })[]> {
+    try {
+      const queryParams = new URLSearchParams();
+      if (limit) queryParams.append('limit', limit.toString());
+
+      const endpoint = `/events/recommended?${queryParams.toString()}`;
+
+      const response = await HttpClient.get<{
+        status: string;
+        data: {
+          events: Array<BackendEvent & { matchScore: number; matchReason: string }>;
+          totalRecommendations: number;
+          availabilitySlots: number;
+          message?: string;
+        };
+      }>(endpoint);
+
+      if (response.status === 'success') {
+        // Transform backend events to frontend format
+        const transformedEvents = response.data.events.map(event => ({
+          ...DataTransformer.transformEvent(event),
+          matchScore: event.matchScore,
+          matchReason: event.matchReason
+        }));
+
+        return transformedEvents;
+      }
+
+      throw new Error('Failed to fetch recommended events');
+    } catch (error) {
+      throw new Error(`Failed to fetch recommended events: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
 }
 
 export class ProfileService {
@@ -687,12 +721,8 @@ export class ProfileService {
 
       // Update availability if provided
       if (profileData.availability !== undefined) {
-        // Keep day names as strings (database schema expects strings)
-        backendData.availability = profileData.availability.map(slot => ({
-          dayOfWeek: slot.dayOfWeek,
-          startTime: slot.startTime,
-          endTime: slot.endTime
-        }));
+        // Pass through all availability fields (supports both recurring and specific dates)
+        backendData.availability = profileData.availability;
       }
 
       // Convert skill names to skill IDs if skills are being updated

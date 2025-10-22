@@ -8,6 +8,11 @@ export default function Events() {
   const [error, setError] = useState<string>("");
   const [joiningEvent, setJoiningEvent] = useState<string | null>(null);
 
+  // Recommended events state
+  const [recommendedEvents, setRecommendedEvents] = useState<(FrontendEvent & { matchScore?: number; matchReason?: string })[]>([]);
+  const [isLoadingRecommended, setIsLoadingRecommended] = useState(true);
+  const [currentRecommendedIndex, setCurrentRecommendedIndex] = useState(0);
+
   // Get current user to check role
   const currentUser = AuthService.getCurrentUser();
 
@@ -51,6 +56,51 @@ export default function Events() {
     loadEvents();
   }, [filters]);
 
+  // Load recommended events based on availability
+  useEffect(() => {
+    const loadRecommendedEvents = async () => {
+      console.log('🔍 Checking for recommended events...');
+      console.log('Current user role:', currentUser?.role);
+
+      // Only load for volunteers
+      if (currentUser?.role !== 'volunteer') {
+        console.log('User is not a volunteer, skipping recommendations');
+        setIsLoadingRecommended(false);
+        return;
+      }
+
+      try {
+        setIsLoadingRecommended(true);
+        console.log('📡 Fetching recommended events...');
+        const recommended = await EventService.getRecommendedEvents(6); // Get top 6
+        console.log('✅ Received recommended events:', recommended);
+        console.log('Number of recommendations:', recommended.length);
+        setRecommendedEvents(recommended);
+      } catch (err) {
+        console.error('❌ Failed to load recommended events:', err);
+        // Don't show error, just fail silently for recommendations
+      } finally {
+        setIsLoadingRecommended(false);
+        console.log('Loading recommended events finished');
+      }
+    };
+
+    loadRecommendedEvents();
+  }, [currentUser?.role]);
+
+  // Carousel navigation
+  const nextRecommendation = () => {
+    if (currentRecommendedIndex < Math.floor(recommendedEvents.length / 3) - 1) {
+      setCurrentRecommendedIndex(prev => prev + 1);
+    }
+  };
+
+  const prevRecommendation = () => {
+    if (currentRecommendedIndex > 0) {
+      setCurrentRecommendedIndex(prev => prev - 1);
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'registered': return 'bg-emerald-100 text-emerald-800';
@@ -73,6 +123,20 @@ export default function Events() {
             : event
         )
       );
+
+      // Remove from recommended events
+      setRecommendedEvents(prevRecommended =>
+        prevRecommended.filter(event => event.id !== eventId)
+      );
+
+      // Reset carousel index if we're at the end and removed the last event
+      if (recommendedEvents.length > 0) {
+        const maxIndex = Math.floor((recommendedEvents.length - 1) / 3) - 1;
+        if (currentRecommendedIndex > maxIndex) {
+          setCurrentRecommendedIndex(Math.max(0, maxIndex));
+        }
+      }
+
       alert('Successfully registered for the event! You will receive a confirmation email shortly.');
     } catch (err) {
       console.error("Error joining event:", err);
@@ -87,6 +151,12 @@ export default function Events() {
               : event
           )
         );
+
+        // Also remove from recommended events if already registered
+        setRecommendedEvents(prevRecommended =>
+          prevRecommended.filter(event => event.id !== eventId)
+        );
+
         alert('You are already registered for this event!');
       } else {
         setError("Failed to join event");
@@ -122,6 +192,95 @@ export default function Events() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
+      {/* Recommended Events Carousel - Only for volunteers */}
+      {currentUser?.role === 'volunteer' && !isLoadingRecommended && recommendedEvents.length > 0 && (
+        <div className="card p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-2xl font-semibold text-slate-900">Recommended for You</h2>
+              <p className="text-slate-600 text-sm mt-1">Based on your availability and preferences</p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={prevRecommendation}
+                disabled={currentRecommendedIndex === 0}
+                className="p-2 rounded-lg border border-slate-300 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                aria-label="Previous recommendations"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+              <button
+                onClick={nextRecommendation}
+                disabled={currentRecommendedIndex >= Math.floor(recommendedEvents.length / 3) - 1}
+                className="p-2 rounded-lg border border-slate-300 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                aria-label="Next recommendations"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* Carousel */}
+          <div className="overflow-hidden">
+            <div
+              className="flex transition-transform duration-300 ease-in-out gap-4"
+              style={{ transform: `translateX(-${currentRecommendedIndex * 100}%)` }}
+            >
+              {recommendedEvents.map((event) => (
+                <div key={event.id} className="min-w-[calc(33.333%-0.67rem)] flex-shrink-0">
+                  <div className="border border-indigo-200 rounded-lg p-4 bg-gradient-to-br from-indigo-50 to-white hover:shadow-md transition">
+                    <div className="flex items-start justify-between mb-3">
+                      <h3 className="text-lg font-semibold text-slate-900 line-clamp-2 flex-1">{event.title}</h3>
+                      {event.matchScore && (
+                        <span className="ml-2 px-2 py-1 bg-indigo-100 text-indigo-700 text-xs font-medium rounded-full whitespace-nowrap">
+                          {event.matchScore}% match
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="space-y-2 text-sm text-slate-600 mb-4">
+                      <div className="flex items-center gap-2">
+                        <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span className="truncate">{event.date}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        <span className="truncate">{event.location}</span>
+                      </div>
+                      {event.matchReason && (
+                        <div className="flex items-start gap-2 text-indigo-600">
+                          <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span className="text-xs">{event.matchReason}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={() => handleJoinEvent(event.id)}
+                      disabled={joiningEvent === event.id || event.status === 'registered'}
+                      className="w-full px-4 py-2 bg-gradient-to-r from-indigo-700 to-violet-700 text-white rounded-lg text-sm font-medium hover:from-indigo-600 hover:to-violet-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {joiningEvent === event.id ? "Joining..." : event.status === 'registered' ? "Already Joined" : "Join Event"}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">

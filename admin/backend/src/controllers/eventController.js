@@ -586,6 +586,47 @@ class EventController {
   }
 
   /**
+   * Get recommended events based on user's availability
+   * GET /api/events/recommended
+   */
+  async getRecommendedEvents(req, res, next) {
+    try {
+      const limit = parseInt(req.query.limit) || 10;
+
+      // Get user's profile with availability
+      const userRepository = require('../database/repositories/userRepository');
+      const profile = await userRepository.getProfile(req.user.id);
+
+      if (!profile || !profile.availability || profile.availability.length === 0) {
+        // Return empty array if no availability set
+        return res.status(200).json({
+          status: 'success',
+          data: {
+            events: [],
+            message: 'Set your availability to get personalized event recommendations'
+          },
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      // Get events and filter by availability
+      const result = await eventService.getRecommendedEventsByAvailability(
+        req.user.id,
+        profile.availability,
+        limit
+      );
+
+      res.status(200).json({
+        status: 'success',
+        data: result.data,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * Update volunteer review and feedback for an event
    * PUT /api/events/:eventId/volunteers/:volunteerId/review
    */
