@@ -1,0 +1,311 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider          = "postgresql"
+  url               = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+}
+
+// Enums
+enum Role {
+  VOLUNTEER
+  ADMIN
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum UrgencyLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AssignmentStatus {
+  PENDING
+  CONFIRMED
+  DECLINED
+  CANCELLED
+  COMPLETED
+}
+
+enum ParticipationStatus {
+  REGISTERED
+  CONFIRMED
+  COMPLETED
+  NO_SHOW
+  CANCELLED
+}
+
+enum AttendanceType {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+enum ProficiencyLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  EXPERT
+}
+
+enum NotificationType {
+  ASSIGNMENT
+  REMINDER
+  EVENT_UPDATE
+  MATCHING_SUGGESTION
+  ANNOUNCEMENT
+  SYSTEM
+}
+
+enum NotificationPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+// User and Authentication
+model User {
+  id            String   @id @default(uuid())
+  username      String   @unique @db.VarChar(100)
+  email         String   @unique @db.VarChar(255)
+  password      String?  @db.VarChar(255)
+  role          Role     @default(VOLUNTEER)
+  verified      Boolean  @default(false)
+  oauthProvider String?  @db.VarChar(50)
+  oauthId       String?  @db.VarChar(255)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  profile       Profile?
+  createdEvents Event[]
+  assignments   Assignment[]
+  history       VolunteerHistory[]
+  notifications Notification[]
+
+  @@map("users")
+}
+
+// User Profile
+model Profile {
+  id                    String    @id @default(uuid())
+  userId                String    @unique
+  firstName             String    @db.VarChar(100)
+  lastName              String    @db.VarChar(100)
+  phone                 String?   @db.VarChar(20)
+  address               String?   @db.VarChar(255)
+  city                  String?   @db.VarChar(100)
+  state                 String?   @db.VarChar(2)
+  zipCode               String?   @db.VarChar(10)
+  bio                   String?   @db.Text
+  avatar                String?   @db.VarChar(500)
+  maxTravelDistance     Int?      @default(25)
+  preferredDays         String[]  @db.VarChar(20)
+  preferredTimeSlots    String[]  @db.VarChar(50)
+  preferredCauses       String[]  @db.VarChar(100)
+  emailNotifications    Boolean   @default(true)
+  eventReminders        Boolean   @default(true)
+  weekendsOnly          Boolean   @default(false)
+  profileCompleteness   Int       @default(0)
+  lastActive            DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  user                  User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skills                VolunteerSkill[]
+  availability          Availability[]
+
+  @@map("profiles")
+}
+
+// Skills
+model Skill {
+  id          String   @id @default(uuid())
+  name        String   @unique @db.VarChar(100)
+  category    String   @db.VarChar(100)
+  description String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  volunteerSkills   VolunteerSkill[]
+  eventRequirements EventRequirement[]
+
+  @@map("skills")
+}
+
+// Junction table for User Skills with Proficiency
+model VolunteerSkill {
+  id           String           @id @default(uuid())
+  profileId    String
+  skillId      String
+  proficiency  ProficiencyLevel
+  yearsOfExp   Int?             @default(0)
+  certified    Boolean          @default(false)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  skill   Skill   @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, skillId])
+  @@map("volunteer_skills")
+}
+
+// Availability
+model Availability {
+  id           String    @id @default(uuid())
+  profileId    String
+  dayOfWeek    String?   @db.VarChar(20)  // Optional for specific dates
+  specificDate DateTime? @db.Date         // For date-specific availability
+  isRecurring  Boolean   @default(true)   // True for weekly recurring, false for specific dates
+  startTime    String    @db.VarChar(10)
+  endTime      String    @db.VarChar(10)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@map("availability")
+}
+
+// Events
+model Event {
+  id                String        @id @default(uuid())
+  title             String        @db.VarChar(200)
+  description       String        @db.Text
+  category          String        @db.VarChar(100)
+  urgencyLevel      UrgencyLevel  @default(MEDIUM)
+  status            EventStatus   @default(DRAFT)
+  startDate         DateTime
+  endDate           DateTime
+  address           String        @db.VarChar(255)
+  city              String        @db.VarChar(100)
+  state             String        @db.VarChar(2)
+  zipCode           String        @db.VarChar(10)
+  latitude          Float?
+  longitude         Float?
+  maxVolunteers     Int
+  currentVolunteers Int           @default(0)
+  createdBy         String
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  creator      User               @relation(fields: [createdBy], references: [id])
+  requirements EventRequirement[]
+  assignments  Assignment[]
+  history      VolunteerHistory[]
+
+  @@map("events")
+}
+
+// Event Required Skills
+model EventRequirement {
+  id         String           @id @default(uuid())
+  eventId    String
+  skillId    String
+  minLevel   ProficiencyLevel
+  isRequired Boolean          @default(true)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  skill Skill @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, skillId])
+  @@map("event_requirements")
+}
+
+// Assignments
+model Assignment {
+  id          String           @id @default(uuid())
+  eventId     String
+  volunteerId String
+  status      AssignmentStatus @default(PENDING)
+  matchScore  Float            @default(0)
+  notes       String?          @db.Text
+  assignedAt  DateTime         @default(now())
+  confirmedAt DateTime?
+  updatedAt   DateTime         @updatedAt
+
+  event     Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  volunteer User  @relation(fields: [volunteerId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, volunteerId])
+  @@map("assignments")
+}
+
+// Volunteer History
+model VolunteerHistory {
+  id                 String              @id @default(uuid())
+  volunteerId        String
+  eventId            String
+  assignmentId       String?
+  status             ParticipationStatus
+  hoursWorked        Float               @default(0)
+  performanceRating  Int?
+  feedback           String?             @db.Text
+  attendance         AttendanceType
+  skillsUtilized     String[]            @db.VarChar(100)
+  participationDate  DateTime
+  completionDate     DateTime?
+  recordedBy         String?
+  adminNotes         String?             @db.Text
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  volunteer User  @relation(fields: [volunteerId], references: [id], onDelete: Cascade)
+  event     Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([volunteerId, eventId])
+  @@map("volunteer_history")
+}
+
+// Notifications
+model Notification {
+  id             String               @id @default(uuid())
+  userId         String
+  type           NotificationType
+  priority       NotificationPriority @default(MEDIUM)
+  title          String               @db.VarChar(200)
+  message        String               @db.Text
+  eventId        String?
+  relatedId      String?
+  read           Boolean              @default(false)
+  readAt         DateTime?
+  actionUrl      String?              @db.VarChar(500)
+  actionLabel    String?              @db.VarChar(100)
+  metadata       Json?
+  expiresAt      DateTime?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+// States (for dropdown selection)
+model State {
+  id           String   @id @default(uuid())
+  code         String   @unique @db.VarChar(2)
+  name         String   @db.VarChar(100)
+  abbreviation String   @db.VarChar(2)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("states")
+}

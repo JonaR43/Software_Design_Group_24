@@ -1,6 +1,9 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router";
+import { AuthService } from "../../services/api";
 
 export default function LoginPage() {
+  const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
@@ -52,22 +55,30 @@ export default function LoginPage() {
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
 
     setIsLoading(true);
-    
-    // TODO: Replace with actual API call
+
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      console.log('Login data:', formData);
-      // Redirect to dashboard on success
-      window.location.href = '/dashboard';
+      // Call the login API
+      const response = await AuthService.login(formData.email, formData.password);
+
+      console.log('Login successful:', response);
+
+      // Redirect based on user role
+      if (response.data.user.role === 'admin') {
+        navigate('/admin/dashboard');
+      } else {
+        navigate('/volunteer/dashboard');
+      }
     } catch (error) {
-      setErrors({ general: 'Invalid credentials. Please try again.' });
+      console.error('Login error:', error);
+      setErrors({
+        general: error instanceof Error ? error.message : 'Invalid credentials. Please try again.'
+      });
     } finally {
       setIsLoading(false);
     }

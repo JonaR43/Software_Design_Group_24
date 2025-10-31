@@ -2,3 +2,7 @@
 /*.md
 .env
 /coverage
+/src/generated/prisma
+/node_modules
+/*.md
+.env

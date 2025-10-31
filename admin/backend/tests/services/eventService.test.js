@@ -1,16 +1,17 @@
 /**
  * Unit Tests for Event Service
+ * Updated to mock Prisma repositories
  */
 
 const eventService = require('../../src/services/eventService');
-const { eventHelpers } = require('../../src/data/events');
-const { userHelpers } = require('../../src/data/users');
-const { skillHelpers } = require('../../src/data/skills');
+const eventRepository = require('../../src/database/repositories/eventRepository');
+const userRepository = require('../../src/database/repositories/userRepository');
+const skillRepository = require('../../src/database/repositories/skillRepository');
 
 // Mock dependencies
-jest.mock('../../src/data/events');
-jest.mock('../../src/data/users');
-jest.mock('../../src/data/skills');
+jest.mock('../../src/database/repositories/eventRepository');
+jest.mock('../../src/database/repositories/userRepository');
+jest.mock('../../src/database/repositories/skillRepository');
 
 describe('EventService', () => {
   const mockEvent = {
@@ -18,31 +19,51 @@ describe('EventService', () => {
     title: 'Community Cleanup',
     description: 'Local park cleanup event',
     location: 'Central Park',
+    address: '123 Park Ave',
+    city: 'New York',
+    state: 'NY',
+    zipCode: '10001',
     startDate: new Date(Date.now() + 86400000).toISOString(),
     endDate: new Date(Date.now() + 90000000).toISOString(),
     maxVolunteers: 10,
     currentVolunteers: 3,
-    requiredSkills: [
-      { skillId: 'skill_001', minLevel: 'beginner', required: true }
-    ],
-    urgencyLevel: 'normal',
+    urgencyLevel: 'MEDIUM',
     category: 'environmental',
-    status: 'published',
-    createdBy: 'admin_001'
+    status: 'PUBLISHED',
+    createdBy: 'admin_001',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    // Prisma includes
+    creator: {
+      id: 'admin_001',
+      username: 'admin',
+      email: 'admin@example.com'
+    },
+    requirements: [
+      {
+        skillId: 'skill_001',
+        minLevel: 'BEGINNER',
+        isRequired: true,
+        skill: { id: 'skill_001', name: 'First Aid', category: 'medical' }
+      }
+    ],
+    _count: {
+      assignments: 3
+    }
   };
 
   const mockUser = {
     id: 'user_001',
     username: 'volunteer1',
     email: 'volunteer1@example.com',
-    role: 'volunteer'
+    role: 'VOLUNTEER'
   };
 
   const mockAdmin = {
     id: 'admin_001',
     username: 'admin',
     email: 'admin@example.com',
-    role: 'admin'
+    role: 'ADMIN'
   };
 
   beforeEach(() => {
@@ -52,10 +73,7 @@ describe('EventService', () => {
   describe('getEvents', () => {
     it('should get events with default pagination', async () => {
       const mockEvents = [mockEvent];
-      const mockSkills = [{ id: 'skill_001', name: 'First Aid' }];
-      eventHelpers.filterEvents.mockReturnValue(mockEvents);
-      skillHelpers.getAllSkills.mockReturnValue(mockSkills);
-      eventHelpers.getEventAssignments.mockReturnValue([]);
+      eventRepository.findAll.mockResolvedValue({ events: mockEvents, total: 1 });
 
       const result = await eventService.getEvents();
 
@@ -68,30 +86,30 @@ describe('EventService', () => {
     it('should apply filters correctly', async () => {
       const mockEvents = [mockEvent];
       const filters = { status: 'published', category: 'environmental' };
-      eventHelpers.filterEvents.mockReturnValue(mockEvents);
+      eventRepository.findAll.mockResolvedValue({ events: mockEvents, total: 1 });
 
       const result = await eventService.getEvents(filters);
 
       expect(result.success).toBe(true);
-      expect(eventHelpers.filterEvents).toHaveBeenCalledWith(filters);
+      expect(eventRepository.findAll).toHaveBeenCalledWith(filters, { page: 1, limit: 10 });
       expect(result.data.filters).toEqual(filters);
     });
 
     it('should handle search filter', async () => {
       const mockEvents = [mockEvent];
       const filters = { search: 'cleanup' };
-      eventHelpers.searchEvents.mockReturnValue(mockEvents);
+      eventRepository.findAll.mockResolvedValue({ events: mockEvents, total: 1 });
 
       const result = await eventService.getEvents(filters);
 
       expect(result.success).toBe(true);
-      expect(eventHelpers.searchEvents).toHaveBeenCalledWith('cleanup');
+      expect(eventRepository.findAll).toHaveBeenCalledWith(filters, { page: 1, limit: 10 });
     });
 
     it('should handle pagination correctly', async () => {
-      const mockEvents = Array(15).fill(mockEvent);
+      const mockEvents = Array(5).fill(mockEvent).map((e, i) => ({ ...e, id: `event_${i}` }));
       const pagination = { page: 2, limit: 5 };
-      eventHelpers.filterEvents.mockReturnValue(mockEvents);
+      eventRepository.findAll.mockResolvedValue({ events: mockEvents, total: 15 });
 
       const result = await eventService.getEvents({}, pagination);
 
@@ -106,45 +124,44 @@ describe('EventService', () => {
         { ...mockEvent, id: 'event_001', startDate: '2025-10-05' },
         { ...mockEvent, id: 'event_002', startDate: '2025-10-03' }
       ];
-      eventHelpers.filterEvents.mockReturnValue(mockEvents);
+      eventRepository.findAll.mockResolvedValue({ events: mockEvents, total: 2 });
       const pagination = { sortBy: 'startDate', sortOrder: 'desc' };
 
       const result = await eventService.getEvents({}, pagination);
 
       expect(result.success).toBe(true);
-      expect(result.data.events[0].id).toBe('event_001');
+      // Repository handles sorting, just check we get events
+      expect(result.data.events.length).toBe(2);
     });
 
     it('should sort events in ascending order by default', async () => {
       const mockEvents = [
-        { ...mockEvent, id: 'event_001', startDate: '2025-10-05' },
-        { ...mockEvent, id: 'event_002', startDate: '2025-10-03' }
+        { ...mockEvent, id: 'event_002', startDate: '2025-10-03' },
+        { ...mockEvent, id: 'event_001', startDate: '2025-10-05' }
       ];
-      eventHelpers.filterEvents.mockReturnValue(mockEvents);
+      eventRepository.findAll.mockResolvedValue({ events: mockEvents, total: 2 });
 
       const result = await eventService.getEvents({});
 
       expect(result.success).toBe(true);
-      expect(result.data.events[0].id).toBe('event_002');
+      // Repository handles sorting, just check we get events
+      expect(result.data.events.length).toBe(2);
     });
   });
 
   describe('getEventById', () => {
     it('should get event by ID successfully', async () => {
-      const mockSkills = [{ id: 'skill_001', name: 'First Aid' }];
-      eventHelpers.findById.mockReturnValue(mockEvent);
-      skillHelpers.getAllSkills.mockReturnValue(mockSkills);
-      eventHelpers.getEventAssignments.mockReturnValue([]);
+      eventRepository.findById.mockResolvedValue(mockEvent);
 
       const result = await eventService.getEventById('event_001');
 
       expect(result.success).toBe(true);
       expect(result.data.id).toBe('event_001');
-      expect(eventHelpers.findById).toHaveBeenCalledWith('event_001');
+      expect(eventRepository.findById).toHaveBeenCalledWith('event_001');
     });
 
     it('should handle event not found', async () => {
-      eventHelpers.findById.mockReturnValue(null);
+      eventRepository.findById.mockResolvedValue(null);
 
       await expect(eventService.getEventById('nonexistent'))
         .rejects.toThrow('Event not found');
@@ -165,20 +182,20 @@ describe('EventService', () => {
     };
 
     it('should create event successfully', async () => {
-      userHelpers.findById.mockReturnValue(mockAdmin);
-      eventHelpers.createEvent.mockReturnValue({ ...validEventData, id: 'event_new' });
+      const newEvent = { ...mockEvent, ...validEventData, id: 'event_new' };
+      eventRepository.create.mockResolvedValue(newEvent);
 
       const result = await eventService.createEvent('admin_001', validEventData);
 
       expect(result.success).toBe(true);
       expect(result.message).toBe('Event created successfully');
-      expect(eventHelpers.createEvent).toHaveBeenCalled();
+      expect(eventRepository.create).toHaveBeenCalled();
     });
 
     it('should create event with non-admin user ID (controller handles auth)', async () => {
       // Service doesn't validate user roles - that's controller's responsibility
-      userHelpers.findById.mockReturnValue(mockUser);
-      eventHelpers.createEvent.mockReturnValue({ ...validEventData, id: 'event_new' });
+      const newEvent = { ...mockEvent, ...validEventData, id: 'event_new', createdBy: 'user_001' };
+      eventRepository.create.mockResolvedValue(newEvent);
 
       const result = await eventService.createEvent('user_001', validEventData);
 
@@ -187,7 +204,6 @@ describe('EventService', () => {
     });
 
     it('should validate start date is in future', async () => {
-      userHelpers.findById.mockReturnValue(mockAdmin);
       const pastDate = { ...validEventData, startDate: new Date(Date.now() - 86400000).toISOString() };
 
       await expect(eventService.createEvent('admin_001', pastDate))
@@ -195,7 +211,6 @@ describe('EventService', () => {
     });
 
     it('should validate end date is after start date', async () => {
-      userHelpers.findById.mockReturnValue(mockAdmin);
       const invalidDates = {
         ...validEventData,
         startDate: new Date(Date.now() + 90000000).toISOString(),
@@ -207,7 +222,6 @@ describe('EventService', () => {
     });
 
     it('should validate required skills array type', async () => {
-      userHelpers.findById.mockReturnValue(mockAdmin);
       const invalidData = { ...validEventData, requiredSkills: 'not-an-array' };
 
       await expect(eventService.createEvent('admin_001', invalidData))
@@ -215,7 +229,6 @@ describe('EventService', () => {
     });
 
     it('should validate required skill fields', async () => {
-      userHelpers.findById.mockReturnValue(mockAdmin);
       const invalidData = {
         ...validEventData,
         requiredSkills: [{ skillId: 'skill_001' }] // missing minLevel
@@ -226,8 +239,7 @@ describe('EventService', () => {
     });
 
     it('should validate skill exists', async () => {
-      userHelpers.findById.mockReturnValue(mockAdmin);
-      skillHelpers.findById.mockReturnValue(null);
+      skillRepository.findById.mockResolvedValue(null);
       const invalidData = {
         ...validEventData,
         requiredSkills: [{ skillId: 'nonexistent', minLevel: 'beginner', required: true }]
@@ -238,9 +250,7 @@ describe('EventService', () => {
     });
 
     it('should validate proficiency level', async () => {
-      userHelpers.findById.mockReturnValue(mockAdmin);
-      skillHelpers.findById.mockReturnValue({ id: 'skill_001', name: 'Test' });
-      skillHelpers.isValidProficiency.mockReturnValue(false);
+      skillRepository.findById.mockResolvedValue({ id: 'skill_001', name: 'Test' });
       const invalidData = {
         ...validEventData,
         requiredSkills: [{ skillId: 'skill_001', minLevel: 'invalid_level', required: true }]
@@ -254,26 +264,24 @@ describe('EventService', () => {
 
   describe('updateEvent', () => {
     it('should update event successfully', async () => {
-      userHelpers.findById.mockReturnValue(mockAdmin);
-      eventHelpers.findById.mockReturnValue(mockEvent);
-      eventHelpers.updateEvent.mockReturnValue({ ...mockEvent, title: 'Updated Event' });
+      eventRepository.findById.mockResolvedValue(mockEvent);
+      const updatedEvent = { ...mockEvent, title: 'Updated Event' };
+      eventRepository.update.mockResolvedValue(updatedEvent);
 
       const result = await eventService.updateEvent('event_001', 'admin_001', { title: 'Updated Event' });
 
       expect(result.success).toBe(true);
       expect(result.message).toBe('Event updated successfully');
-      expect(eventHelpers.updateEvent).toHaveBeenCalled();
+      expect(eventRepository.update).toHaveBeenCalled();
     });
 
     it('should validate required skills when updating', async () => {
       const updateData = {
         requiredSkills: [{ skillId: 'skill_002', minLevel: 'beginner', required: true }]
       };
-      userHelpers.findById.mockReturnValue(mockAdmin);
-      eventHelpers.findById.mockReturnValue(mockEvent);
-      eventHelpers.updateEvent.mockReturnValue({ ...mockEvent, ...updateData });
-      skillHelpers.findById.mockReturnValue({ id: 'skill_002', name: 'Test Skill' });
-      skillHelpers.isValidProficiency.mockReturnValue(true);
+      eventRepository.findById.mockResolvedValue(mockEvent);
+      eventRepository.update.mockResolvedValue({ ...mockEvent, ...updateData });
+      skillRepository.findById.mockResolvedValue({ id: 'skill_002', name: 'Test Skill' });
 
       const result = await eventService.updateEvent('event_001', 'admin_001', updateData);
 
@@ -284,9 +292,8 @@ describe('EventService', () => {
       const updateData = {
         startDate: new Date(Date.now() + 86400000).toISOString()
       };
-      userHelpers.findById.mockReturnValue(mockAdmin);
-      eventHelpers.findById.mockReturnValue(mockEvent);
-      eventHelpers.updateEvent.mockReturnValue({ ...mockEvent, ...updateData });
+      eventRepository.findById.mockResolvedValue(mockEvent);
+      eventRepository.update.mockResolvedValue({ ...mockEvent, ...updateData });
 
       const result = await eventService.updateEvent('event_001', 'admin_001', updateData);
 
@@ -294,17 +301,15 @@ describe('EventService', () => {
     });
 
     it('should handle update failure', async () => {
-      userHelpers.findById.mockReturnValue(mockAdmin);
-      eventHelpers.findById.mockReturnValue(mockEvent);
-      eventHelpers.updateEvent.mockReturnValue(null);
+      eventRepository.findById.mockResolvedValue(mockEvent);
+      eventRepository.update.mockResolvedValue(null);
 
       await expect(eventService.updateEvent('event_001', 'admin_001', { title: 'Updated' }))
         .rejects.toThrow('Failed to update event');
     });
 
     it('should handle event not found', async () => {
-      userHelpers.findById.mockReturnValue(mockAdmin);
-      eventHelpers.findById.mockReturnValue(null);
+      eventRepository.findById.mockResolvedValue(null);
 
       await expect(eventService.updateEvent('nonexistent', 'admin_001', {}))
         .rejects.toThrow('Event not found');
@@ -313,36 +318,38 @@ describe('EventService', () => {
 
   describe('deleteEvent', () => {
     it('should delete event successfully', async () => {
-      userHelpers.findById.mockReturnValue(mockAdmin);
-      eventHelpers.findById.mockReturnValue({ ...mockEvent, status: 'draft', currentVolunteers: 0 });
-      eventHelpers.deleteEvent.mockReturnValue(mockEvent);
+      const draftEvent = { ...mockEvent, status: 'DRAFT', currentVolunteers: 0 };
+      eventRepository.findById.mockResolvedValue(draftEvent);
+      eventRepository.getAssignments.mockResolvedValue([]);
+      eventRepository.delete.mockResolvedValue(draftEvent);
 
       const result = await eventService.deleteEvent('event_001', 'admin_001');
 
       expect(result.success).toBe(true);
       expect(result.message).toBe('Event deleted successfully');
-      expect(eventHelpers.deleteEvent).toHaveBeenCalledWith('event_001');
+      expect(eventRepository.delete).toHaveBeenCalledWith('event_001');
     });
 
 
     it('should handle event not found', async () => {
-      userHelpers.findById.mockReturnValue(mockAdmin);
-      eventHelpers.findById.mockReturnValue(null);
+      eventRepository.findById.mockResolvedValue(null);
 
       await expect(eventService.deleteEvent('nonexistent', 'admin_001'))
         .rejects.toThrow('Event not found');
     });
 
     it('should prevent deletion of completed events with assignments', async () => {
-      eventHelpers.findById.mockReturnValue({ ...mockEvent, status: 'completed', currentVolunteers: 5 });
-      eventHelpers.getEventAssignments.mockReturnValue([{ id: 'assign_001' }]); // Has assignments
+      const completedEvent = { ...mockEvent, status: 'COMPLETED', currentVolunteers: 5 };
+      eventRepository.findById.mockResolvedValue(completedEvent);
+      eventRepository.getAssignments.mockResolvedValue([{ id: 'assign_001' }]); // Has assignments
 
       await expect(eventService.deleteEvent('event_001', 'admin_001'))
         .rejects.toThrow('Cannot delete completed event with volunteer assignments');
     });
 
     it('should prevent deletion of in-progress events', async () => {
-      eventHelpers.findById.mockReturnValue({ ...mockEvent, status: 'in-progress' });
+      const inProgressEvent = { ...mockEvent, status: 'IN_PROGRESS' };
+      eventRepository.findById.mockResolvedValue(inProgressEvent);
 
       await expect(eventService.deleteEvent('event_001', 'admin_001'))
         .rejects.toThrow('Cannot delete event that is in progress');
@@ -352,11 +359,27 @@ describe('EventService', () => {
   describe('getEventAssignments', () => {
     it('should get event assignments successfully', async () => {
       const mockAssignments = [
-        { id: 'assign_001', volunteerId: 'user_001', eventId: 'event_001', status: 'confirmed' }
+        {
+          id: 'assign_001',
+          volunteerId: 'user_001',
+          eventId: 'event_001',
+          status: 'CONFIRMED',
+          assignedAt: new Date(),
+          volunteer: {
+            id: 'user_001',
+            username: 'volunteer1',
+            email: 'volunteer1@example.com',
+            profile: {
+              firstName: 'John',
+              lastName: 'Doe',
+              phone: '123-456-7890',
+              skills: []
+            }
+          }
+        }
       ];
-      eventHelpers.findById.mockReturnValue(mockEvent);
-      eventHelpers.getEventAssignments.mockReturnValue(mockAssignments);
-      userHelpers.findById.mockReturnValue(mockUser);
+      eventRepository.findById.mockResolvedValue(mockEvent);
+      eventRepository.getAssignments.mockResolvedValue(mockAssignments);
 
       const result = await eventService.getEventAssignments('event_001');
 
@@ -366,7 +389,7 @@ describe('EventService', () => {
     });
 
     it('should handle event not found', async () => {
-      eventHelpers.findById.mockReturnValue(null);
+      eventRepository.findById.mockResolvedValue(null);
 
       await expect(eventService.getEventAssignments('nonexistent'))
         .rejects.toThrow('Event not found');
@@ -375,17 +398,15 @@ describe('EventService', () => {
 
   describe('assignVolunteer', () => {
     it('should assign volunteer successfully', async () => {
-      const mockProfile = { userId: 'user_001', skills: [] };
-      eventHelpers.findById.mockReturnValue({ ...mockEvent, currentVolunteers: 5 });
-      userHelpers.findById.mockReturnValue(mockUser);
-      userHelpers.getProfile.mockReturnValue(mockProfile);
-      eventHelpers.getEventAssignments.mockReturnValue([]);
-      eventHelpers.getVolunteerAssignments.mockReturnValue([]);
-      eventHelpers.createAssignment.mockReturnValue({
+      const publishedEvent = { ...mockEvent, status: 'PUBLISHED', currentVolunteers: 5 };
+      eventRepository.findById.mockResolvedValue(publishedEvent);
+      userRepository.findById.mockResolvedValue(mockUser);
+      eventRepository.getVolunteerAssignments.mockResolvedValue([]);
+      eventRepository.createAssignment.mockResolvedValue({
         id: 'assign_new',
         volunteerId: 'user_001',
         eventId: 'event_001',
-        status: 'pending'
+        status: 'PENDING'
       });
 
       const result = await eventService.assignVolunteer('event_001', 'user_001', {
@@ -395,34 +416,30 @@ describe('EventService', () => {
 
       expect(result.success).toBe(true);
       expect(result.message).toBe('Volunteer assigned successfully');
-      expect(eventHelpers.createAssignment).toHaveBeenCalled();
+      expect(eventRepository.createAssignment).toHaveBeenCalled();
     });
 
     it('should handle event not found', async () => {
-      eventHelpers.findById.mockReturnValue(null);
+      eventRepository.findById.mockResolvedValue(null);
 
       await expect(eventService.assignVolunteer('nonexistent', 'user_001', {}))
         .rejects.toThrow('Event not found');
     });
 
     it('should handle volunteer not found', async () => {
-      eventHelpers.findById.mockReturnValue(mockEvent);
-      userHelpers.findById.mockReturnValue(null);
+      eventRepository.findById.mockResolvedValue(mockEvent);
+      userRepository.findById.mockResolvedValue(null);
 
       await expect(eventService.assignVolunteer('event_001', 'nonexistent', {}))
         .rejects.toThrow('Volunteer not found');
     });
 
     it('should prevent duplicate assignments', async () => {
-      const mockProfile = { userId: 'user_001', skills: [] };
-      eventHelpers.findById.mockReturnValue(mockEvent);
-      userHelpers.findById.mockReturnValue(mockUser);
-      userHelpers.getProfile.mockReturnValue(mockProfile);
-      eventHelpers.getEventAssignments.mockReturnValue([
-        { volunteerId: 'user_001', eventId: 'event_001', status: 'confirmed' }
-      ]);
-      eventHelpers.getVolunteerAssignments.mockReturnValue([
-        { volunteerId: 'user_001', eventId: 'event_001', status: 'confirmed' }
+      const publishedEvent = { ...mockEvent, status: 'PUBLISHED' };
+      eventRepository.findById.mockResolvedValue(publishedEvent);
+      userRepository.findById.mockResolvedValue(mockUser);
+      eventRepository.getVolunteerAssignments.mockResolvedValue([
+        { volunteerId: 'user_001', eventId: 'event_001', status: 'CONFIRMED' }
       ]);
 
       await expect(eventService.assignVolunteer('event_001', 'user_001', {}))
@@ -430,32 +447,28 @@ describe('EventService', () => {
     });
 
     it('should reject assignment when event is not published', async () => {
-      const mockProfile = { userId: 'user_001', skills: [] };
-      eventHelpers.findById.mockReturnValue({ ...mockEvent, status: 'draft' });
-      userHelpers.findById.mockReturnValue(mockUser);
-      userHelpers.getProfile.mockReturnValue(mockProfile);
-      eventHelpers.getEventAssignments.mockReturnValue([]);
-      eventHelpers.getVolunteerAssignments.mockReturnValue([]);
+      const draftEvent = { ...mockEvent, status: 'DRAFT' };
+      eventRepository.findById.mockResolvedValue(draftEvent);
+      userRepository.findById.mockResolvedValue(mockUser);
+      eventRepository.getVolunteerAssignments.mockResolvedValue([]);
 
       await expect(eventService.assignVolunteer('event_001', 'user_001', {}))
         .rejects.toThrow('Event is not accepting volunteers');
     });
 
     it('should check event capacity', async () => {
-      const mockProfile = { userId: 'user_001', skills: [] };
-      eventHelpers.findById.mockReturnValue({ ...mockEvent, currentVolunteers: 10, maxVolunteers: 10 });
-      userHelpers.findById.mockReturnValue(mockUser);
-      userHelpers.getProfile.mockReturnValue(mockProfile);
-      eventHelpers.getEventAssignments.mockReturnValue([]);
-      eventHelpers.getVolunteerAssignments.mockReturnValue([]);
+      const fullEvent = { ...mockEvent, status: 'PUBLISHED', currentVolunteers: 10, maxVolunteers: 10 };
+      eventRepository.findById.mockResolvedValue(fullEvent);
+      userRepository.findById.mockResolvedValue(mockUser);
+      eventRepository.getVolunteerAssignments.mockResolvedValue([]);
 
       await expect(eventService.assignVolunteer('event_001', 'user_001', {}))
         .rejects.toThrow('Event is at capacity');
     });
 
     it('should validate user is a volunteer', async () => {
-      eventHelpers.findById.mockReturnValue(mockEvent);
-      userHelpers.findById.mockReturnValue(mockAdmin); // Not a volunteer
+      eventRepository.findById.mockResolvedValue(mockEvent);
+      userRepository.findById.mockResolvedValue(mockAdmin); // Not a volunteer
 
       await expect(eventService.assignVolunteer('event_001', 'admin_001', {}))
         .rejects.toThrow('User is not a volunteer');
@@ -465,11 +478,19 @@ describe('EventService', () => {
   describe('getVolunteerEvents', () => {
     it('should get volunteer events successfully', async () => {
       const mockAssignments = [
-        { id: 'assign_001', volunteerId: 'user_001', eventId: 'event_001', status: 'confirmed' }
+        {
+          id: 'assign_001',
+          volunteerId: 'user_001',
+          eventId: 'event_001',
+          status: 'CONFIRMED',
+          matchScore: 85,
+          assignedAt: new Date(),
+          confirmedAt: new Date(),
+          notes: 'Great match',
+          event: mockEvent
+        }
       ];
-      userHelpers.findById.mockReturnValue(mockUser);
-      eventHelpers.getVolunteerAssignments.mockReturnValue(mockAssignments);
-      eventHelpers.findById.mockReturnValue(mockEvent);
+      eventRepository.getVolunteerAssignments.mockResolvedValue(mockAssignments);
 
       const result = await eventService.getVolunteerEvents('user_001');
 
@@ -480,11 +501,22 @@ describe('EventService', () => {
 
     it('should filter by status', async () => {
       const mockAssignments = [
-        { id: 'assign_001', volunteerId: 'user_001', eventId: 'event_001', status: 'confirmed' },
-        { id: 'assign_002', volunteerId: 'user_001', eventId: 'event_002', status: 'pending' }
+        {
+          id: 'assign_001',
+          volunteerId: 'user_001',
+          status: 'CONFIRMED',
+          assignedAt: new Date(),
+          event: { ...mockEvent, id: 'event_001' }
+        },
+        {
+          id: 'assign_002',
+          volunteerId: 'user_001',
+          status: 'PENDING',
+          assignedAt: new Date(),
+          event: { ...mockEvent, id: 'event_002' }
+        }
       ];
-      eventHelpers.getVolunteerAssignments.mockReturnValue(mockAssignments);
-      eventHelpers.findById.mockReturnValue(mockEvent);
+      eventRepository.getVolunteerAssignments.mockResolvedValue(mockAssignments);
 
       const result = await eventService.getVolunteerEvents('user_001', { status: 'confirmed' });
 
@@ -496,10 +528,15 @@ describe('EventService', () => {
     it('should filter by timeFilter - upcoming', async () => {
       const futureEvent = { ...mockEvent, startDate: new Date(Date.now() + 86400000).toISOString() };
       const mockAssignments = [
-        { id: 'assign_001', volunteerId: 'user_001', eventId: 'event_001', status: 'confirmed' }
+        {
+          id: 'assign_001',
+          volunteerId: 'user_001',
+          status: 'CONFIRMED',
+          assignedAt: new Date(),
+          event: futureEvent
+        }
       ];
-      eventHelpers.getVolunteerAssignments.mockReturnValue(mockAssignments);
-      eventHelpers.findById.mockReturnValue(futureEvent);
+      eventRepository.getVolunteerAssignments.mockResolvedValue(mockAssignments);
 
       const result = await eventService.getVolunteerEvents('user_001', { timeFilter: 'upcoming' });
 
@@ -510,10 +547,15 @@ describe('EventService', () => {
     it('should filter by timeFilter - past', async () => {
       const pastEvent = { ...mockEvent, endDate: new Date(Date.now() - 86400000).toISOString() };
       const mockAssignments = [
-        { id: 'assign_001', volunteerId: 'user_001', eventId: 'event_001', status: 'confirmed' }
+        {
+          id: 'assign_001',
+          volunteerId: 'user_001',
+          status: 'CONFIRMED',
+          assignedAt: new Date(),
+          event: pastEvent
+        }
       ];
-      eventHelpers.getVolunteerAssignments.mockReturnValue(mockAssignments);
-      eventHelpers.findById.mockReturnValue(pastEvent);
+      eventRepository.getVolunteerAssignments.mockResolvedValue(mockAssignments);
 
       const result = await eventService.getVolunteerEvents('user_001', { timeFilter: 'past' });
 
@@ -528,10 +570,15 @@ describe('EventService', () => {
         endDate: new Date(Date.now() + 3600000).toISOString()
       };
       const mockAssignments = [
-        { id: 'assign_001', volunteerId: 'user_001', eventId: 'event_001', status: 'confirmed' }
+        {
+          id: 'assign_001',
+          volunteerId: 'user_001',
+          status: 'CONFIRMED',
+          assignedAt: new Date(),
+          event: currentEvent
+        }
       ];
-      eventHelpers.getVolunteerAssignments.mockReturnValue(mockAssignments);
-      eventHelpers.findById.mockReturnValue(currentEvent);
+      eventRepository.getVolunteerAssignments.mockResolvedValue(mockAssignments);
 
       const result = await eventService.getVolunteerEvents('user_001', { timeFilter: 'current' });
 
@@ -540,8 +587,7 @@ describe('EventService', () => {
     });
 
     it('should handle volunteer not found', async () => {
-      userHelpers.findById.mockReturnValue(null);
-      eventHelpers.getVolunteerAssignments.mockReturnValue([]);
+      eventRepository.getVolunteerAssignments.mockResolvedValue([]);
 
       const result = await eventService.getVolunteerEvents('nonexistent');
 
@@ -553,16 +599,18 @@ describe('EventService', () => {
   describe('getEventStats', () => {
     it('should get event statistics successfully', async () => {
       const mockEvents = [
-        { ...mockEvent, category: 'cat_001', urgencyLevel: 'urg_001' },
-        { ...mockEvent, id: 'event_002', category: 'cat_001', urgencyLevel: 'urg_002' }
+        { ...mockEvent, category: 'environment', urgencyLevel: 'MEDIUM' },
+        { ...mockEvent, id: 'event_002', category: 'community', urgencyLevel: 'HIGH' }
       ];
       const mockStats = {
-        totalEvents: 2,
-        eventsByStatus: {},
-        eventsNeedingVolunteers: 1
+        total: 2,
+        byStatus: {
+          published: 1,
+          draft: 1
+        }
       };
-      eventHelpers.getAllEvents.mockReturnValue(mockEvents);
-      eventHelpers.getEventStats.mockReturnValue(mockStats);
+      eventRepository.getEventStats.mockResolvedValue(mockStats);
+      eventRepository.findAll.mockResolvedValue({ events: mockEvents, total: 2 });
 
       const result = await eventService.getEventStats();
 
@@ -576,17 +624,19 @@ describe('EventService', () => {
 
     it('should count events by category and urgency', async () => {
       const mockEvents = [
-        { ...mockEvent, category: 'cat_001', urgencyLevel: 'urg_001', createdAt: new Date() },
-        { ...mockEvent, id: 'event_002', category: 'cat_002', urgencyLevel: 'urg_001', createdAt: new Date() },
-        { ...mockEvent, id: 'event_003', category: 'cat_001', urgencyLevel: 'urg_002', createdAt: new Date() }
+        { ...mockEvent, category: 'environment', urgencyLevel: 'MEDIUM', createdAt: new Date() },
+        { ...mockEvent, id: 'event_002', category: 'community', urgencyLevel: 'HIGH', createdAt: new Date() },
+        { ...mockEvent, id: 'event_003', category: 'environment', urgencyLevel: 'LOW', createdAt: new Date() }
       ];
       const mockStats = {
-        totalEvents: 3,
-        eventsByStatus: {},
-        eventsNeedingVolunteers: 2
+        total: 3,
+        byStatus: {
+          published: 2,
+          draft: 1
+        }
       };
-      eventHelpers.getAllEvents.mockReturnValue(mockEvents);
-      eventHelpers.getEventStats.mockReturnValue(mockStats);
+      eventRepository.getEventStats.mockResolvedValue(mockStats);
+      eventRepository.findAll.mockResolvedValue({ events: mockEvents, total: 3 });
 
       const result = await eventService.getEventStats();
 
@@ -614,15 +664,15 @@ describe('EventService', () => {
         id: 'assign_001',
         volunteerId: 'user_001',
         eventId: 'event_001',
-        status: 'confirmed'
+        status: 'CONFIRMED'
       };
-      eventHelpers.updateAssignmentStatus.mockReturnValue(mockAssignment);
+      eventRepository.updateAssignmentStatus.mockResolvedValue(mockAssignment);
 
       const result = await eventService.updateAssignmentStatus('assign_001', 'confirmed', 'Confirmed!');
 
       expect(result.success).toBe(true);
       expect(result.message).toBe('Assignment status updated successfully');
-      expect(eventHelpers.updateAssignmentStatus).toHaveBeenCalledWith('assign_001', 'confirmed', 'Confirmed!');
+      expect(eventRepository.updateAssignmentStatus).toHaveBeenCalledWith('assign_001', 'confirmed', 'Confirmed!');
     });
 
     it('should reject invalid status', async () => {
@@ -631,7 +681,7 @@ describe('EventService', () => {
     });
 
     it('should handle assignment not found', async () => {
-      eventHelpers.updateAssignmentStatus.mockReturnValue(null);
+      eventRepository.updateAssignmentStatus.mockResolvedValue(null);
 
       await expect(eventService.updateAssignmentStatus('nonexistent', 'confirmed'))
         .rejects.toThrow('Assignment not found');

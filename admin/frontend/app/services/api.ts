@@ -126,6 +126,19 @@ class HttpClient {
 
     return response.json();
   }
+
+  static async download(endpoint: string): Promise<Blob> {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'GET',
+      headers: this.getHeaders(),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return response.blob();
+  }
 }
 
 // Type definitions matching backend responses
@@ -133,16 +146,20 @@ export interface BackendEvent {
   id: string;
   title: string;
   description: string;
-  location: string;
-  latitude: number;
-  longitude: number;
+  address?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  location?: string;
+  latitude?: number;
+  longitude?: number;
   startDate: string;
   endDate: string;
   maxVolunteers: number;
   currentVolunteers: number;
-  urgencyLevel: 'low' | 'normal' | 'high' | 'urgent';
+  urgencyLevel: 'low' | 'medium' | 'high' | 'critical';
   status: 'draft' | 'published' | 'in-progress' | 'completed' | 'cancelled';
-  category: {
+  category: string | {
     id: string;
     name: string;
     description: string;
@@ -212,6 +229,9 @@ export interface FrontendProfile {
   email: string;
   phone: string;
   address: string;
+  city: string;
+  state: string;
+  zipCode: string;
   bio: string;
   skills: string[];
   emergencyContact: string;
@@ -302,12 +322,18 @@ export class DataTransformer {
   }
 
   static transformEvent(backendEvent: BackendEvent): FrontendEvent {
+    // Build location string from address components if location not provided
+    let location = backendEvent.location;
+    if (!location && backendEvent.address) {
+      location = `${backendEvent.address}, ${backendEvent.city || ''}, ${backendEvent.state || ''} ${backendEvent.zipCode || ''}`.trim();
+    }
+
     return {
       id: backendEvent.id,
       title: backendEvent.title,
       date: DataTransformer.formatDate(backendEvent.startDate),
       time: DataTransformer.formatTimeRange(backendEvent.startDate, backendEvent.endDate),
-      location: backendEvent.location,
+      location: location || 'Location TBD',
       latitude: backendEvent.latitude,
       longitude: backendEvent.longitude,
       volunteers: backendEvent.currentVolunteers,
@@ -327,19 +353,15 @@ export class DataTransformer {
       skillMap.get(skill.skillId) || skill.skillId
     ) || [];
 
-    const fullAddress = [
-      backendProfile.address,
-      backendProfile.city,
-      backendProfile.state,
-      backendProfile.zipCode
-    ].filter(Boolean).join(', ');
-
     return {
       firstName: backendProfile.firstName,
       lastName: backendProfile.lastName,
       email: '', // Will be set from user data
       phone: backendProfile.phone,
-      address: fullAddress,
+      address: backendProfile.address,
+      city: backendProfile.city,
+      state: backendProfile.state,
+      zipCode: backendProfile.zipCode,
       bio: backendProfile.bio,
       skills: skillNames,
       emergencyContact: backendProfile.emergencyContact
@@ -349,6 +371,27 @@ export class DataTransformer {
 
 // API Service classes
 export class AuthService {
+  static async register(username: string, email: string, password: string, role: string): Promise<AuthResponse> {
+    try {
+      const response = await HttpClient.post<AuthResponse>('/auth/register', {
+        username,
+        email,
+        password,
+        role: role.toLowerCase()
+      });
+
+      if (response.status === 'success') {
+        TokenManager.setToken(response.data.token);
+        localStorage.setItem('user', JSON.stringify(response.data.user));
+        localStorage.setItem('profile', JSON.stringify(response.data.profile));
+      }
+
+      return response;
+    } catch (error) {
+      throw new Error(`Registration failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
   static async login(email: string, password: string): Promise<AuthResponse> {
     try {
       const response = await HttpClient.post<AuthResponse>('/auth/login', {
@@ -445,12 +488,35 @@ export class EventService {
 
         // Check user's registration status for each event
         try {
-          const userHistory = await HistoryService.getMyHistory();
-          console.log('Full user history:', userHistory); // Debug log - see all records
+          // Fetch both history records (completed events) and active assignments (upcoming events)
+          const [userHistory, myEventsResponse] = await Promise.all([
+            HistoryService.getMyHistory(),
+            fetch('http://localhost:3001/api/events/my-events', {
+              headers: {
+                'Authorization': `Bearer ${TokenManager.getToken()}`,
+                'Content-Type': 'application/json'
+              }
+            }).catch(() => null)
+          ]);
 
+          console.log('Full user history:', userHistory); // Debug log
+
+          // Get event IDs from history
           const registeredEventIds = new Set(userHistory.map(record => record.eventId));
 
-          console.log('User registered event IDs:', Array.from(registeredEventIds)); // Debug log
+          // Get event IDs from active assignments
+          if (myEventsResponse && myEventsResponse.ok) {
+            const myEventsData = await myEventsResponse.json();
+            console.log('My events data:', myEventsData); // Debug log
+
+            if (myEventsData.data?.events) {
+              myEventsData.data.events.forEach((event: any) => {
+                registeredEventIds.add(event.id);
+              });
+            }
+          }
+
+          console.log('User registered event IDs (history + assignments):', Array.from(registeredEventIds)); // Debug log
           console.log('Available events:', events.map(e => ({ id: e.id, title: e.title, status: e.status }))); // Debug log
 
           const updatedEvents = events.map(event => {
@@ -465,7 +531,7 @@ export class EventService {
           console.log('Final events with status:', updatedEvents.map(e => ({ id: e.id, title: e.title, status: e.status }))); // Debug log
           return updatedEvents;
         } catch (historyError) {
-          console.warn('Could not fetch user history to check registration status:', historyError);
+          console.warn('Could not fetch user registration status:', historyError);
           return events;
         }
       }
@@ -473,6 +539,29 @@ export class EventService {
       throw new Error('Failed to fetch events');
     } catch (error) {
       throw new Error(`Failed to fetch events: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  static async createEvent(eventData: {
+    title: string;
+    description: string;
+    address: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    startDate: string;
+    endDate: string;
+    maxVolunteers: number;
+    urgencyLevel: string;
+    requiredSkills: Array<{ skillId: string; minLevel: string; required: boolean }>;
+    category: string;
+  }): Promise<any> {
+    try {
+      const response = await HttpClient.post('/events', eventData);
+      console.log('Create event response:', response);
+      return response;
+    } catch (error) {
+      throw new Error(`Failed to create event: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -525,6 +614,40 @@ export class EventService {
       throw new Error(`Failed to update event status: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
+
+  static async getRecommendedEvents(limit: number = 10): Promise<(FrontendEvent & { matchScore?: number; matchReason?: string })[]> {
+    try {
+      const queryParams = new URLSearchParams();
+      if (limit) queryParams.append('limit', limit.toString());
+
+      const endpoint = `/events/recommended?${queryParams.toString()}`;
+
+      const response = await HttpClient.get<{
+        status: string;
+        data: {
+          events: Array<BackendEvent & { matchScore: number; matchReason: string }>;
+          totalRecommendations: number;
+          availabilitySlots: number;
+          message?: string;
+        };
+      }>(endpoint);
+
+      if (response.status === 'success') {
+        // Transform backend events to frontend format
+        const transformedEvents = response.data.events.map(event => ({
+          ...DataTransformer.transformEvent(event),
+          matchScore: event.matchScore,
+          matchReason: event.matchReason
+        }));
+
+        return transformedEvents;
+      }
+
+      throw new Error('Failed to fetch recommended events');
+    } catch (error) {
+      throw new Error(`Failed to fetch recommended events: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
 }
 
 export class ProfileService {
@@ -532,35 +655,50 @@ export class ProfileService {
     try {
       console.log('Calling profile API at /profile'); // Debug log
       const response = await HttpClient.get<{
-        status: string;
-        data: BackendProfile;
+        status?: string;
+        success?: boolean;
+        data: {
+          profile?: BackendProfile;
+        } | BackendProfile;
       }>('/profile');
 
       console.log('Profile API full response:', response); // Debug log
-      if (response.status === 'success' && response.data) {
-        const transformedProfile = await DataTransformer.transformProfile(response.data);
+
+      // Handle both response formats
+      const isSuccess = response.status === 'success' || response.success === true;
+      if (isSuccess && response.data) {
+        // Check if data is wrapped in profile object or direct
+        const profileData = ('profile' in response.data) ? response.data.profile : response.data as BackendProfile;
+
+        if (!profileData) {
+          throw new Error('Profile not found');
+        }
+
+        console.log('Profile data being transformed:', profileData); // Debug log
+        const transformedProfile = await DataTransformer.transformProfile(profileData);
         const user = AuthService.getCurrentUser();
         if (user) {
           transformedProfile.email = user.email;
         }
+        console.log('Transformed profile:', transformedProfile); // Debug log
         return transformedProfile;
       }
 
       throw new Error('Profile not found');
     } catch (error) {
+      console.error('Profile fetch error:', error); // Debug log
       throw new Error(`Failed to fetch profile: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
-  static async updateProfile(profileData: Partial<FrontendProfile>): Promise<void> {
+  static async updateProfile(profileData: Partial<FrontendProfile> & {
+    availability?: Array<{dayOfWeek: string; startTime: string; endTime: string}>
+  }): Promise<void> {
     try {
       console.log('Updating profile with data:', profileData); // Debug log
 
       // First, get the current profile to preserve existing skills and availability
       const currentProfile = await this.getCurrentBackendProfile();
-
-      // Parse address back to components if it exists
-      const addressParts = profileData.address ? profileData.address.split(', ') : [];
 
       // Transform frontend data back to backend format - include existing required fields
       const backendData: any = {
@@ -569,18 +707,76 @@ export class ProfileService {
         availability: currentProfile.availability || [],
       };
 
-      // Update only the fields being changed
-      if (profileData.firstName !== undefined) backendData.firstName = profileData.firstName;
-      if (profileData.lastName !== undefined) backendData.lastName = profileData.lastName;
-      if (profileData.phone !== undefined) backendData.phone = profileData.phone;
-      if (profileData.bio !== undefined) backendData.bio = profileData.bio;
-      if (profileData.emergencyContact !== undefined) backendData.emergencyContact = profileData.emergencyContact;
+      // Update only the fields being changed (skip empty strings to allow optional fields)
+      if (profileData.firstName !== undefined && profileData.firstName !== '') backendData.firstName = profileData.firstName;
+      if (profileData.lastName !== undefined && profileData.lastName !== '') backendData.lastName = profileData.lastName;
+      if (profileData.phone !== undefined && profileData.phone !== '') backendData.phone = profileData.phone;
+      if (profileData.bio !== undefined) backendData.bio = profileData.bio; // Bio can be empty
+      // Note: emergencyContact is not in the database schema yet, so we skip it
+      // if (profileData.emergencyContact !== undefined) backendData.emergencyContact = profileData.emergencyContact;
+      if (profileData.address !== undefined && profileData.address !== '') backendData.address = profileData.address;
+      if (profileData.city !== undefined && profileData.city !== '') backendData.city = profileData.city;
+      if (profileData.state !== undefined && profileData.state !== '') backendData.state = profileData.state;
+      if (profileData.zipCode !== undefined && profileData.zipCode !== '') backendData.zipCode = profileData.zipCode;
 
-      if (profileData.address !== undefined) {
-        backendData.address = addressParts[0] || '';
-        backendData.city = addressParts[1] || '';
-        backendData.state = addressParts[2] || '';
-        backendData.zipCode = addressParts[3] || '';
+      // Update availability if provided
+      if (profileData.availability !== undefined) {
+        // Pass through all availability fields (supports both recurring and specific dates)
+        backendData.availability = profileData.availability;
+      }
+
+      // Convert skill names to skill IDs if skills are being updated
+      if (profileData.skills !== undefined) {
+        let allSkills = await SkillsService.getSkills();
+        let skillNameToId = new Map(allSkills.map(skill => [skill.name, skill.id]));
+
+        // Create custom skills that don't exist in the database
+        const newSkills: string[] = [];
+        for (const skillName of profileData.skills) {
+          if (!skillNameToId.has(skillName)) {
+            newSkills.push(skillName);
+          }
+        }
+
+        // Create new skills in the database
+        if (newSkills.length > 0) {
+          console.log('Creating new custom skills:', newSkills);
+          for (const skillName of newSkills) {
+            try {
+              const newSkillResponse = await HttpClient.post<{
+                status: string;
+                data: { skill: { id: string; name: string } };
+              }>('/profile/create-skill', {
+                name: skillName,
+                category: 'custom',
+                description: `Custom skill: ${skillName}`
+              });
+
+              if (newSkillResponse.status === 'success' && newSkillResponse.data.skill) {
+                // Add the newly created skill to our mapping
+                skillNameToId.set(skillName, newSkillResponse.data.skill.id);
+                console.log(`Created custom skill: ${skillName} with ID: ${newSkillResponse.data.skill.id}`);
+              }
+            } catch (error) {
+              console.error(`Failed to create custom skill "${skillName}":`, error);
+            }
+          }
+
+          // Refresh skills cache
+          SkillsService.clearCache();
+        }
+
+        backendData.skills = profileData.skills.map(skillName => {
+          const skillId = skillNameToId.get(skillName);
+          if (!skillId) {
+            console.warn(`Skill name "${skillName}" not found in database, skipping`);
+            return null;
+          }
+          return {
+            skillId: skillId,
+            proficiency: 'intermediate' // Default proficiency level
+          };
+        }).filter(skill => skill !== null); // Remove null entries
       }
 
       console.log('Sending backend data:', backendData); // Debug log
@@ -592,15 +788,21 @@ export class ProfileService {
     }
   }
 
-  private static async getCurrentBackendProfile(): Promise<any> {
+  static async getCurrentBackendProfile(): Promise<any> {
     try {
       const response = await HttpClient.get<{
-        status: string;
-        data: any;
+        status?: string;
+        success?: boolean;
+        data: {
+          profile?: any;
+        } | any;
       }>('/profile');
 
-      if (response.status === 'success' && response.data) {
-        return response.data;
+      const isSuccess = response.status === 'success' || response.success === true;
+      if (isSuccess && response.data) {
+        // Check if data is wrapped in profile object or direct
+        const profileData = ('profile' in response.data) ? response.data.profile : response.data;
+        return profileData || { skills: [], availability: [] };
       }
 
       // Return empty defaults if profile not found
@@ -682,6 +884,10 @@ export class SkillsService {
     const skills = await this.getSkills();
     const skill = skills.find(s => s.id === skillId);
     return skill ? skill.name : skillId;
+  }
+
+  static clearCache(): void {
+    this.skillsCache = null;
   }
 }
 
@@ -980,6 +1186,89 @@ export interface EventVolunteer {
   completionDate?: string;
 }
 
+export interface VolunteerMatch {
+  volunteer: {
+    id: string;
+    username: string;
+    email: string;
+    profile: {
+      firstName: string;
+      lastName: string;
+      city?: string;
+      state?: string;
+      phone?: string;
+      skills?: any[];
+      availability?: any[];
+      preferences?: any;
+    };
+  };
+  matchScore: number;
+  matchQuality: string;
+  matchReasons?: string[];
+  recommendations?: Array<{ message: string; type: string }>;
+  scoreBreakdown: {
+    skills: number;
+    location: number;
+    availability: number;
+    reliability: number;
+    preferences: number;
+  };
+}
+
+export class MatchingService {
+  static async findVolunteersForEvent(eventId: string, options?: {
+    limit?: number;
+    minScore?: number;
+    includeAssigned?: boolean;
+  }): Promise<VolunteerMatch[]> {
+    try {
+      const queryParams = new URLSearchParams();
+      if (options?.limit) queryParams.append('limit', options.limit.toString());
+      if (options?.minScore) queryParams.append('minScore', options.minScore.toString());
+      if (options?.includeAssigned) queryParams.append('includeAssigned', 'true');
+
+      const queryString = queryParams.toString();
+      const endpoint = queryString
+        ? `/matching/event/${eventId}/volunteers?${queryString}`
+        : `/matching/event/${eventId}/volunteers`;
+
+      const response = await HttpClient.post<{
+        status: string;
+        data: {
+          eventId: string;
+          matches: VolunteerMatch[];
+          totalMatches: number;
+        };
+      }>(endpoint, {});
+
+      if (response.status === 'success') {
+        return response.data.matches;
+      }
+
+      throw new Error('Failed to find volunteer matches');
+    } catch (error) {
+      throw new Error(`Failed to find volunteer matches: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  static async getAlgorithmInfo(): Promise<any> {
+    try {
+      const response = await HttpClient.get<{
+        status: string;
+        data: any;
+      }>('/matching/algorithm-info');
+
+      if (response.status === 'success') {
+        return response.data;
+      }
+
+      throw new Error('Failed to get algorithm info');
+    } catch (error) {
+      throw new Error(`Failed to get algorithm info: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+}
+
 export class EventVolunteerService {
   static async getEventVolunteers(eventId: string): Promise<EventVolunteer[]> {
     try {
@@ -1018,6 +1307,93 @@ export class EventVolunteerService {
       }
     } catch (error) {
       throw new Error(`Failed to update volunteer review: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+}
+
+// Notification types
+export interface Notification {
+  id: string;
+  userId: string;
+  type: 'assignment' | 'event-assignment' | 'event-update' | 'reminder' | 'cancellation' | 'system' | 'matching-suggestion';
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  title: string;
+  message: string;
+  read: boolean;
+  actionUrl?: string;
+  relatedEventId?: string;
+  relatedUserId?: string;
+  createdAt: string;
+  readAt?: string;
+}
+
+export class NotificationService {
+  static async getNotifications(filters?: {
+    type?: string;
+    priority?: string;
+    read?: boolean;
+    limit?: number;
+  }): Promise<Notification[]> {
+    try {
+      const queryParams = new URLSearchParams();
+
+      if (filters) {
+        Object.entries(filters).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && value !== '') {
+            queryParams.append(key, value.toString());
+          }
+        });
+      }
+
+      const queryString = queryParams.toString();
+      const endpoint = queryString ? `/notifications?${queryString}` : '/notifications';
+
+      console.log('Fetching notifications from:', endpoint);
+
+      const response = await HttpClient.get<{
+        status: string;
+        data: {
+          notifications: Notification[];
+          total: number;
+          unreadCount: number;
+        };
+      }>(endpoint);
+
+      console.log('Notifications API response:', response);
+
+      if (response.status === 'success') {
+        console.log('Notifications count:', response.data.notifications.length);
+        return response.data.notifications;
+      }
+
+      throw new Error('Failed to fetch notifications');
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+      throw new Error(`Failed to fetch notifications: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  static async markAsRead(notificationId: string): Promise<void> {
+    try {
+      await HttpClient.put(`/notifications/${notificationId}/read`, {});
+    } catch (error) {
+      throw new Error(`Failed to mark notification as read: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  static async markAllAsRead(): Promise<void> {
+    try {
+      await HttpClient.put('/notifications/all/read', {});
+    } catch (error) {
+      throw new Error(`Failed to mark all notifications as read: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  static async deleteNotification(notificationId: string): Promise<void> {
+    try {
+      await HttpClient.delete(`/notifications/${notificationId}`);
+    } catch (error) {
+      throw new Error(`Failed to delete notification: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 }

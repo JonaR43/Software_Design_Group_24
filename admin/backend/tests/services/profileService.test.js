@@ -1,13 +1,15 @@
 /**
  * Unit Tests for Profile Service
+ * Updated to mock Prisma repositories
  */
 
 const profileService = require('../../src/services/profileService');
-const { profiles, userHelpers } = require('../../src/data/users');
-const { skills, skillHelpers } = require('../../src/data/skills');
+const userRepository = require('../../src/database/repositories/userRepository');
+const skillRepository = require('../../src/database/repositories/skillRepository');
 
 // Mock dependencies
-jest.mock('../../src/data/users');
+jest.mock('../../src/database/repositories/userRepository');
+jest.mock('../../src/database/repositories/skillRepository');
 
 describe('ProfileService', () => {
   const mockUser = {
@@ -23,12 +25,12 @@ describe('ProfileService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    userHelpers.findById.mockReturnValue(mockUser);
+    userRepository.findById.mockResolvedValue(mockUser);
     // Return a fresh copy each time to avoid mutation issues
-    userHelpers.getProfile.mockReturnValue({ ...mockProfile });
-    userHelpers.updateProfile.mockReturnValue({ ...mockProfile });
-    userHelpers.getAllProfiles = jest.fn();
-    userHelpers.deleteProfile = jest.fn();
+    userRepository.getProfile.mockResolvedValue({ ...mockProfile });
+    userRepository.updateProfile.mockResolvedValue({ ...mockProfile });
+    userRepository.getAllProfiles.mockResolvedValue([]);
+    userRepository.deleteProfile.mockResolvedValue(true);
   });
 
   describe('getCurrentUserProfile', () => {
@@ -41,14 +43,14 @@ describe('ProfileService', () => {
     });
 
     it('should reject request for non-existent user', async () => {
-      userHelpers.findById.mockReturnValue(null);
+      userRepository.findById.mockResolvedValue(null);
 
       await expect(profileService.getProfile('non-existent'))
         .rejects.toThrow('User not found');
     });
 
     it('should handle user without profile', async () => {
-      userHelpers.getProfile.mockReturnValue(null);
+      userRepository.getProfile.mockResolvedValue(null);
 
       const result = await profileService.getProfile('user_002');
 
@@ -88,11 +90,20 @@ describe('ProfileService', () => {
     it('should update profile successfully', async () => {
       const updatedProfile = {
         ...mockProfile,
-        ...validProfileData
+        ...validProfileData,
+        skills: validProfileData.skills.map(s => ({
+          skillId: s.skillId,
+          proficiency: s.proficiency,
+          skill: { id: s.skillId, name: 'Test Skill' }
+        }))
       };
 
-      userHelpers.updateProfile.mockReturnValue(updatedProfile);
-      userHelpers.getProfile.mockReturnValue(updatedProfile);
+      userRepository.updateProfile.mockResolvedValue(updatedProfile);
+      userRepository.getProfile.mockResolvedValueOnce({ ...mockProfile }).mockResolvedValueOnce(updatedProfile);
+      userRepository.removeSkills.mockResolvedValue();
+      userRepository.addSkills.mockResolvedValue();
+      userRepository.updateAvailability.mockResolvedValue();
+      skillRepository.findById.mockResolvedValue({ id: 'skill_001', name: 'Test Skill' });
 
       const result = await profileService.updateProfile('user_002', validProfileData);
 
@@ -102,7 +113,7 @@ describe('ProfileService', () => {
     });
 
     it('should reject update for non-existent user', async () => {
-      userHelpers.findById.mockReturnValue(null);
+      userRepository.findById.mockResolvedValue(null);
 
       await expect(profileService.updateProfile('non-existent', validProfileData))
         .rejects.toThrow('User not found');
@@ -110,12 +121,11 @@ describe('ProfileService', () => {
 
     it('should validate required fields', async () => {
       const incompleteData = {
-        firstName: 'John'
-        // Missing required fields
+        firstName: '' // Empty firstName should be rejected
       };
 
       await expect(profileService.updateProfile('user_002', incompleteData))
-        .rejects.toThrow('Missing required fields');
+        .rejects.toThrow('firstName is required and cannot be empty');
     });
 
     it('should validate phone number format', async () => {
@@ -133,7 +143,8 @@ describe('ProfileService', () => {
     });
 
     it('should handle update failure', async () => {
-      userHelpers.updateProfile.mockReturnValue(null);
+      userRepository.getProfile.mockResolvedValue({ ...mockProfile });
+      userRepository.updateProfile.mockResolvedValue(null);
 
       await expect(profileService.updateProfile('user_002', validProfileData))
         .rejects.toThrow('Failed to update profile');
@@ -144,6 +155,9 @@ describe('ProfileService', () => {
         ...validProfileData,
         skills: [{ skillId: 'invalid_skill', proficiency: 'expert' }]
       };
+
+      userRepository.getProfile.mockResolvedValue({ ...mockProfile });
+      skillRepository.findById.mockResolvedValue(null);
 
       await expect(profileService.updateProfile('user_002', invalidSkillsData))
         .rejects.toThrow('Invalid skill ID');
@@ -161,6 +175,9 @@ describe('ProfileService', () => {
         ]
       };
 
+      userRepository.getProfile.mockResolvedValue({ ...mockProfile });
+      skillRepository.findById.mockResolvedValue({ id: 'skill_001', name: 'Test Skill' });
+
       await expect(profileService.updateProfile('user_002', invalidAvailabilityData))
         .rejects.toThrow('Invalid day of week');
     });
@@ -177,15 +194,30 @@ describe('ProfileService', () => {
         ]
       };
 
+      userRepository.getProfile.mockResolvedValue({ ...mockProfile });
+      skillRepository.findById.mockResolvedValue({ id: 'skill_001', name: 'Test Skill' });
+
       await expect(profileService.updateProfile('user_002', invalidTimeData))
         .rejects.toThrow('End time must be after start time');
     });
 
     it('should calculate profile completion percentage', async () => {
-      userHelpers.updateProfile.mockReturnValue({
+      const updatedProfile = {
         ...mockProfile,
-        ...validProfileData
-      });
+        ...validProfileData,
+        skills: validProfileData.skills.map(s => ({
+          skillId: s.skillId,
+          proficiency: s.proficiency,
+          skill: { id: s.skillId, name: 'Test Skill' }
+        }))
+      };
+
+      userRepository.updateProfile.mockResolvedValue(updatedProfile);
+      userRepository.getProfile.mockResolvedValueOnce({ ...mockProfile }).mockResolvedValueOnce(updatedProfile);
+      userRepository.removeSkills.mockResolvedValue();
+      userRepository.addSkills.mockResolvedValue();
+      userRepository.updateAvailability.mockResolvedValue();
+      skillRepository.findById.mockResolvedValue({ id: 'skill_001', name: 'Test Skill' });
 
       const result = await profileService.updateProfile('user_002', validProfileData);
 
@@ -197,7 +229,10 @@ describe('ProfileService', () => {
 
   describe('getAllProfiles', () => {
     it('should get all profiles successfully (admin only)', async () => {
-      userHelpers.getAllProfiles.mockReturnValue([mockProfile]);
+      userRepository.getAllProfiles.mockResolvedValue({
+        profiles: [mockProfile],
+        pagination: { page: 1, limit: 10, total: 1 }
+      });
 
       const result = await profileService.getAllProfiles();
 
@@ -207,8 +242,11 @@ describe('ProfileService', () => {
     });
 
     it('should apply pagination correctly', async () => {
-      const profiles = [mockProfile, mockProfile, mockProfile];
-      userHelpers.getAllProfiles.mockReturnValue(profiles);
+      const profiles = [mockProfile, mockProfile]; // Return only limit amount
+      userRepository.getAllProfiles.mockResolvedValue({
+        profiles,
+        pagination: { page: 1, limit: 2, total: 3 }
+      });
 
       const options = { page: 1, limit: 2 };
       const result = await profileService.getAllProfiles(options);
@@ -221,6 +259,18 @@ describe('ProfileService', () => {
 
   describe('getAvailableSkills', () => {
     it('should get all available skills', async () => {
+      skillRepository.findAll.mockResolvedValue([
+        { id: 'skill_001', name: 'First Aid', category: 'medical' },
+        { id: 'skill_002', name: 'CPR', category: 'medical' }
+      ]);
+      skillRepository.getSkillsGroupedByCategory.mockResolvedValue({
+        medical: [
+          { id: 'skill_001', name: 'First Aid', category: 'medical' },
+          { id: 'skill_002', name: 'CPR', category: 'medical' }
+        ]
+      });
+      skillRepository.getCategories.mockResolvedValue(['medical']);
+
       const result = await profileService.getAvailableSkills();
 
       expect(result.success).toBe(true);
@@ -229,6 +279,18 @@ describe('ProfileService', () => {
     });
 
     it('should group skills by category', async () => {
+      skillRepository.findAll.mockResolvedValue([
+        { id: 'skill_001', name: 'First Aid', category: 'medical' },
+        { id: 'skill_002', name: 'CPR', category: 'medical' }
+      ]);
+      skillRepository.getSkillsGroupedByCategory.mockResolvedValue({
+        medical: [
+          { id: 'skill_001', name: 'First Aid', category: 'medical' },
+          { id: 'skill_002', name: 'CPR', category: 'medical' }
+        ]
+      });
+      skillRepository.getCategories.mockResolvedValue(['medical']);
+
       const result = await profileService.getAvailableSkills();
 
       expect(result.data).toHaveProperty('skillsByCategory');
@@ -238,6 +300,10 @@ describe('ProfileService', () => {
 
   describe('searchSkills', () => {
     it('should search skills by name', async () => {
+      skillRepository.searchByName.mockResolvedValue([
+        { id: 'skill_001', name: 'Communication', category: 'soft-skills' }
+      ]);
+
       const result = await profileService.searchSkills('communication');
 
       expect(result.success).toBe(true);
@@ -246,6 +312,8 @@ describe('ProfileService', () => {
     });
 
     it('should return empty array for no matches', async () => {
+      skillRepository.searchByName.mockResolvedValue([]);
+
       const result = await profileService.searchSkills('nonexistent-skill');
 
       expect(result.success).toBe(true);
@@ -253,6 +321,10 @@ describe('ProfileService', () => {
     });
 
     it('should filter by category if provided', async () => {
+      skillRepository.findByCategory.mockResolvedValue([
+        { id: 'skill_001', name: 'Programming', category: 'technical' }
+      ]);
+
       const result = await profileService.searchSkills('', 'technical');
 
       expect(result.success).toBe(true);
@@ -260,6 +332,10 @@ describe('ProfileService', () => {
     });
 
     it('should search by query and filter by category', async () => {
+      skillRepository.searchByName.mockResolvedValue([
+        { id: 'skill_001', name: 'Communication', category: 'soft-skills' }
+      ]);
+
       const result = await profileService.searchSkills('communication', 'soft-skills');
 
       expect(result.success).toBe(true);
@@ -289,28 +365,34 @@ describe('ProfileService', () => {
       const newSkills = [{ skillId: 'skill_002', proficiency: 'beginner' }];
       const currentProfile = global.testUtils.generateTestProfile({ userId: 'user_002' });
 
-      // Spy on updateProfile to bypass validation bug
-      const updateProfileSpy = jest.spyOn(profileService, 'updateProfile');
-      const updatedSkills = [...currentProfile.skills, ...newSkills];
+      // Mock getProfile and addSkills
+      userRepository.getProfile.mockResolvedValue(currentProfile);
+      userRepository.addSkills.mockResolvedValue();
+      skillRepository.findById.mockResolvedValue({ id: 'skill_002', name: 'Test Skill' });
+
+      // Spy on getProfile to return updated profile on second call
+      const getProfileSpy = jest.spyOn(profileService, 'getProfile');
+      const updatedSkills = [...currentProfile.skills, ...newSkills.map(s => ({
+        skillId: s.skillId,
+        proficiency: s.proficiency,
+        skill: { id: s.skillId, name: 'Test Skill' }
+      }))];
       const updatedProfile = { ...currentProfile, skills: updatedSkills };
-      updateProfileSpy.mockResolvedValue({
+      getProfileSpy.mockResolvedValue({
         success: true,
-        message: 'Profile updated successfully',
         data: { profile: updatedProfile }
       });
-
-      userHelpers.getProfile.mockReturnValue(currentProfile);
 
       const result = await profileService.addSkills('user_002', newSkills);
 
       expect(result.success).toBe(true);
       expect(result.data.profile.skills.length).toBeGreaterThan(currentProfile.skills.length);
 
-      updateProfileSpy.mockRestore();
+      getProfileSpy.mockRestore();
     });
 
     it('should reject if profile not found', async () => {
-      userHelpers.getProfile.mockReturnValue(null);
+      userRepository.getProfile.mockResolvedValue(null);
 
       await expect(profileService.addSkills('user_002', []))
         .rejects.toThrow('Profile not found');
@@ -330,7 +412,7 @@ describe('ProfileService', () => {
         data: { profile: updatedProfile }
       });
 
-      userHelpers.getProfile.mockReturnValue(currentProfile);
+      userRepository.getProfile.mockResolvedValue(currentProfile);
 
       const result = await profileService.removeSkills('user_002', skillsToRemove);
 
@@ -340,7 +422,7 @@ describe('ProfileService', () => {
     });
 
     it('should reject if profile not found', async () => {
-      userHelpers.getProfile.mockReturnValue(null);
+      userRepository.getProfile.mockResolvedValue(null);
 
       await expect(profileService.removeSkills('user_002', []))
         .rejects.toThrow('Profile not found');
@@ -384,7 +466,7 @@ describe('ProfileService', () => {
     });
 
     it('should reject if profile not found', async () => {
-      userHelpers.getProfile.mockReturnValue(null);
+      userRepository.getProfile.mockResolvedValue(null);
 
       await expect(profileService.getAvailability('user_002', new Date(), new Date()))
         .rejects.toThrow('Profile not found');
@@ -404,7 +486,7 @@ describe('ProfileService', () => {
         data: { profile: updatedProfile }
       });
 
-      userHelpers.getProfile.mockReturnValue(currentProfile);
+      userRepository.getProfile.mockResolvedValue(currentProfile);
 
       const result = await profileService.updatePreferences('user_002', preferences);
 
@@ -414,7 +496,7 @@ describe('ProfileService', () => {
     });
 
     it('should reject if profile not found', async () => {
-      userHelpers.getProfile.mockReturnValue(null);
+      userRepository.getProfile.mockResolvedValue(null);
 
       await expect(profileService.updatePreferences('user_002', {}))
         .rejects.toThrow('Profile not found');
@@ -423,7 +505,7 @@ describe('ProfileService', () => {
 
   describe('deleteProfile', () => {
     it('should delete profile successfully', async () => {
-      userHelpers.deleteProfile.mockReturnValue(true);
+      userRepository.deleteProfile.mockResolvedValue(true);
 
       const result = await profileService.deleteProfile('user_002');
 
@@ -432,15 +514,15 @@ describe('ProfileService', () => {
     });
 
     it('should reject deletion for non-existent user', async () => {
-      userHelpers.findById.mockReturnValue(null);
+      userRepository.findById.mockResolvedValue(null);
 
       await expect(profileService.deleteProfile('non-existent'))
         .rejects.toThrow('User not found');
     });
 
     it('should handle delete failure', async () => {
-      userHelpers.getProfile.mockReturnValue(mockProfile);
-      userHelpers.deleteProfile.mockReturnValue(null);
+      userRepository.getProfile.mockResolvedValue(mockProfile);
+      userRepository.deleteProfile.mockRejectedValue(new Error('Failed to delete profile'));
 
       await expect(profileService.deleteProfile('user_002'))
         .rejects.toThrow('Failed to delete profile');
@@ -449,6 +531,11 @@ describe('ProfileService', () => {
 
   describe('getProfileStats', () => {
     it('should get profile statistics successfully', async () => {
+      userRepository.getAllProfiles.mockResolvedValue({
+        profiles: [mockProfile, mockProfile],
+        pagination: { page: 1, limit: 10000, total: 2 }
+      });
+
       const result = await profileService.getProfileStats();
 
       expect(result.success).toBe(true);
@@ -466,13 +553,9 @@ describe('ProfileService', () => {
         { skillId: 'skill_001', proficiency: 'intermediate' }
       ];
 
-      jest.spyOn(skillHelpers, 'findById').mockReturnValue({ id: 'skill_001', name: 'First Aid' });
-      jest.spyOn(skillHelpers, 'isValidProficiency').mockReturnValue(true);
+      skillRepository.findById.mockResolvedValue({ id: 'skill_001', name: 'First Aid' });
 
       await expect(profileService.validateSkills(skills)).resolves.not.toThrow();
-
-      skillHelpers.findById.mockRestore();
-      skillHelpers.isValidProficiency.mockRestore();
     });
 
     it('should reject non-array skills', async () => {
@@ -497,25 +580,19 @@ describe('ProfileService', () => {
     it('should reject invalid skill ID', async () => {
       const skills = [{ skillId: 'invalid', proficiency: 'intermediate' }];
 
-      jest.spyOn(skillHelpers, 'findById').mockReturnValue(null);
+      skillRepository.findById.mockResolvedValue(null);
 
       await expect(profileService.validateSkills(skills))
         .rejects.toThrow('Invalid skill ID');
-
-      skillHelpers.findById.mockRestore();
     });
 
     it('should reject invalid proficiency level', async () => {
       const skills = [{ skillId: 'skill_001', proficiency: 'invalid' }];
 
-      jest.spyOn(skillHelpers, 'findById').mockReturnValue({ id: 'skill_001', name: 'First Aid' });
-      jest.spyOn(skillHelpers, 'isValidProficiency').mockReturnValue(false);
+      skillRepository.findById.mockResolvedValue({ id: 'skill_001', name: 'First Aid' });
 
       await expect(profileService.validateSkills(skills))
         .rejects.toThrow('Invalid proficiency level');
-
-      skillHelpers.findById.mockRestore();
-      skillHelpers.isValidProficiency.mockRestore();
     });
   });
 

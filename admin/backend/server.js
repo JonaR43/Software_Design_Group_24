@@ -15,6 +15,7 @@ const matchingRoutes = require('./src/routes/matching');
 const notificationRoutes = require('./src/routes/notifications');
 const historyRoutes = require('./src/routes/history');
 const adminRoutes = require('./src/routes/admin');
+const reportingRoutes = require('./src/routes/reporting');
 
 // Import middleware
 const errorHandler = require('./src/middleware/errorHandler');
@@ -47,6 +48,7 @@ app.use('/api/matching', matchingRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/history', historyRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/admin/reporting', reportingRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

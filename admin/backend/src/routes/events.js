@@ -31,6 +31,17 @@ router.get('/my-events',
   eventController.getMyEvents
 );
 
+/**
+ * @route   GET /api/events/recommended
+ * @desc    Get recommended events based on user's availability
+ * @access  Private (Volunteers only)
+ */
+router.get('/recommended',
+  authenticate,
+  authorize('volunteer'),
+  eventController.getRecommendedEvents
+);
+
 // Admin-only routes first (before generic routes)
 
 /**
@@ -64,10 +75,14 @@ router.get('/',
   eventController.getEvents
 );
 
+// NOTE: Specific routes like /:id/something must come BEFORE /:id
+// to avoid the :id route catching them
+
 /**
  * @route   GET /api/events/:id
  * @desc    Get event by ID
  * @access  Public
+ * NOTE: This route must be AFTER all specific string routes like /recommended, /stats, etc.
  */
 router.get('/:id', eventController.getEventById);
 
@@ -91,6 +106,17 @@ router.delete('/:id/leave',
   authenticate,
   authorize('volunteer'),
   eventController.leaveEvent
+);
+
+/**
+ * @route   PUT /api/events/:id/update-notes
+ * @desc    Update volunteer's own assignment notes
+ * @access  Private (Volunteers only)
+ */
+router.put('/:id/update-notes',
+  authenticate,
+  authorize('volunteer'),
+  eventController.updateVolunteerNotes
 );
 
 /**
