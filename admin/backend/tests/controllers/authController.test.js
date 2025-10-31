@@ -511,12 +511,10 @@ describe('AuthController', () => {
     });
 
     it('should call next for errors in checkEmailAvailability', async () => {
-      const { userHelpers } = require('../../src/data/users');
-      const originalFindByEmail = userHelpers.findByEmail;
+      const userRepository = require('../../src/database/repositories/userRepository');
+      const originalFindByEmail = userRepository.findByEmail;
 
-      userHelpers.findByEmail = jest.fn(() => {
-        throw new Error('Database error');
-      });
+      userRepository.findByEmail = jest.fn().mockRejectedValue(new Error('Database error'));
 
       const response = await request(app)
         .post('/auth/check-email')
@@ -524,16 +522,14 @@ describe('AuthController', () => {
 
       expect(response.status).toBe(500);
 
-      userHelpers.findByEmail = originalFindByEmail;
+      userRepository.findByEmail = originalFindByEmail;
     });
 
     it('should call next for errors in checkUsernameAvailability', async () => {
-      const { userHelpers } = require('../../src/data/users');
-      const originalFindByUsername = userHelpers.findByUsername;
+      const userRepository = require('../../src/database/repositories/userRepository');
+      const originalFindByUsername = userRepository.findByUsername;
 
-      userHelpers.findByUsername = jest.fn(() => {
-        throw new Error('Database error');
-      });
+      userRepository.findByUsername = jest.fn().mockRejectedValue(new Error('Database error'));
 
       const response = await request(app)
         .post('/auth/check-username')
@@ -541,7 +537,7 @@ describe('AuthController', () => {
 
       expect(response.status).toBe(500);
 
-      userHelpers.findByUsername = originalFindByUsername;
+      userRepository.findByUsername = originalFindByUsername;
     });
 
     it('should call next for errors in logout', async () => {

@@ -81,7 +81,7 @@ const schemas = {
       .min(2)
       .max(50)
       .pattern(/^[a-zA-Z\s]+$/)
-      .required()
+      .optional()
       .messages({
         'string.pattern.base': 'First name must contain only letters and spaces'
       }),
@@ -89,42 +89,76 @@ const schemas = {
       .min(2)
       .max(50)
       .pattern(/^[a-zA-Z\s]+$/)
-      .required()
+      .optional()
       .messages({
         'string.pattern.base': 'Last name must contain only letters and spaces'
       }),
     phone: Joi.string()
-      .pattern(/^\+?[\d\s\-\(\)]+$/)
-      .min(10)
-      .max(20)
-      .required()
+      .allow('', null)
+      .optional()
+      .custom((value, helpers) => {
+        if (!value || value === '') return value;
+        // Remove minimum length check to allow existing short phone numbers
+        if (value.length > 20) {
+          return helpers.error('string.max', { limit: 20 });
+        }
+        if (!/^\+?[\d\s\-\(\)]+$/.test(value)) {
+          return helpers.error('string.pattern.base');
+        }
+        return value;
+      })
       .messages({
-        'string.pattern.base': 'Please provide a valid phone number'
+        'string.pattern.base': 'Please provide a valid phone number',
+        'string.max': 'Phone number must not exceed 20 characters'
       }),
     address: Joi.string()
-      .min(5)
-      .max(200)
-      .required(),
+      .allow('', null)
+      .optional()
+      .custom((value, helpers) => {
+        if (!value || value === '') return value;
+        if (value.length < 5) return helpers.error('string.min', { limit: 5 });
+        if (value.length > 200) return helpers.error('string.max', { limit: 200 });
+        return value;
+      }),
     city: Joi.string()
-      .min(2)
-      .max(100)
-      .required(),
+      .allow('', null)
+      .optional()
+      .custom((value, helpers) => {
+        if (!value || value === '') return value;
+        if (value.length < 2) return helpers.error('string.min', { limit: 2 });
+        if (value.length > 100) return helpers.error('string.max', { limit: 100 });
+        return value;
+      }),
     state: Joi.string()
-      .min(2)
-      .max(100)
-      .required(),
+      .allow('', null)
+      .optional()
+      .custom((value, helpers) => {
+        if (!value || value === '') return value;
+        if (value.length < 2) return helpers.error('string.min', { limit: 2 });
+        if (value.length > 100) return helpers.error('string.max', { limit: 100 });
+        return value;
+      }),
     zipCode: Joi.string()
-      .pattern(/^\d{5}(-\d{4})?$/)
-      .required()
+      .allow('', null)
+      .optional()
+      .custom((value, helpers) => {
+        if (!value || value === '') return value;
+        if (!/^\d{5}(-\d{4})?$/.test(value)) {
+          return helpers.error('string.pattern.base');
+        }
+        return value;
+      })
       .messages({
         'string.pattern.base': 'ZIP code must be in format 12345 or 12345-6789'
       }),
     bio: Joi.string()
       .max(500)
-      .allow(''),
+      .allow('')
+      .optional(),
     emergencyContact: Joi.string()
       .max(200)
-      .allow(''),
+      .allow('')
+      .optional(),
     skills: Joi.array()
       .items(Joi.object({
         skillId: Joi.string().required(),

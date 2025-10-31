@@ -271,7 +271,7 @@ describe('Validation Middleware', () => {
       ],
       availability: [
         {
-          dayOfWeek: 1,
+          dayOfWeek: 'Monday',
           startTime: '09:00',
           endTime: '17:00',
           isRecurring: true
@@ -337,7 +337,7 @@ describe('Validation Middleware', () => {
       expect(mockRes.status).toHaveBeenCalledWith(400);
     });
 
-    it('should require at least one skill', () => {
+    it('should allow empty skills array', () => {
       mockReq.body = {
         ...validProfile,
         skills: []
@@ -345,7 +345,7 @@ describe('Validation Middleware', () => {
 
       validateUpdateProfile(mockReq, mockRes, mockNext);
 
-      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockNext).toHaveBeenCalled();
     });
 
     it('should limit skills to 10', () => {
@@ -364,12 +364,15 @@ describe('Validation Middleware', () => {
     const validEvent = {
       title: 'Community Cleanup',
       description: 'Help clean up the local park on Saturday morning',
-      location: '123 Park Ave, City, State',
+      address: '123 Park Ave',
+      city: 'Houston',
+      state: 'TX',
+      zipCode: '77001',
       startDate: new Date(Date.now() + 86400000).toISOString(),
       endDate: new Date(Date.now() + 90000000).toISOString(),
       maxVolunteers: 20,
       category: 'environmental',
-      urgencyLevel: 'normal'
+      urgencyLevel: 'medium'
     };
 
     it('should validate complete event data', () => {

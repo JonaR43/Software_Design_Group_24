@@ -368,6 +368,44 @@ class UserRepository {
       unverifiedUsers: totalUsers - verifiedUsers
     };
   }
+
+  /**
+   * Find users by role
+   */
+  async findByRole(role) {
+    return await prisma.user.findMany({
+      where: { role: role.toUpperCase() },
+      include: {
+        profile: true
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+  }
+
+  /**
+   * Update user password
+   */
+  async updatePassword(userId, hashedPassword) {
+    return await prisma.user.update({
+      where: { id: userId },
+      data: { password: hashedPassword }
+    });
+  }
+
+  /**
+   * Verify user email
+   */
+  async verifyEmail(userId) {
+    return await prisma.user.update({
+      where: { id: userId },
+      data: {
+        verified: true,
+        verificationToken: null
+      }
+    });
+  }
 }
 
 module.exports = new UserRepository();

@@ -57,7 +57,7 @@ describe('AuthService', () => {
       expect(result.data.user).toMatchObject({
         username: validUserData.username,
         email: validUserData.email,
-        role: 'VOLUNTEER',
+        role: 'volunteer',
         verified: true
       });
       expect(bcrypt.hash).toHaveBeenCalledWith(validUserData.password, 12);

@@ -707,17 +707,17 @@ export class ProfileService {
         availability: currentProfile.availability || [],
       };
 
-      // Update only the fields being changed
-      if (profileData.firstName !== undefined) backendData.firstName = profileData.firstName;
-      if (profileData.lastName !== undefined) backendData.lastName = profileData.lastName;
-      if (profileData.phone !== undefined) backendData.phone = profileData.phone;
-      if (profileData.bio !== undefined) backendData.bio = profileData.bio;
+      // Update only the fields being changed (skip empty strings to allow optional fields)
+      if (profileData.firstName !== undefined && profileData.firstName !== '') backendData.firstName = profileData.firstName;
+      if (profileData.lastName !== undefined && profileData.lastName !== '') backendData.lastName = profileData.lastName;
+      if (profileData.phone !== undefined && profileData.phone !== '') backendData.phone = profileData.phone;
+      if (profileData.bio !== undefined) backendData.bio = profileData.bio; // Bio can be empty
       // Note: emergencyContact is not in the database schema yet, so we skip it
       // if (profileData.emergencyContact !== undefined) backendData.emergencyContact = profileData.emergencyContact;
-      if (profileData.address !== undefined) backendData.address = profileData.address;
-      if (profileData.city !== undefined) backendData.city = profileData.city;
-      if (profileData.state !== undefined) backendData.state = profileData.state;
-      if (profileData.zipCode !== undefined) backendData.zipCode = profileData.zipCode;
+      if (profileData.address !== undefined && profileData.address !== '') backendData.address = profileData.address;
+      if (profileData.city !== undefined && profileData.city !== '') backendData.city = profileData.city;
+      if (profileData.state !== undefined && profileData.state !== '') backendData.state = profileData.state;
+      if (profileData.zipCode !== undefined && profileData.zipCode !== '') backendData.zipCode = profileData.zipCode;
 
       // Update availability if provided
       if (profileData.availability !== undefined) {

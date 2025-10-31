@@ -24,6 +24,10 @@ class HistoryRepository {
       where.eventId = filters.eventId;
     }
 
+    if (filters.hoursWorked !== undefined) {
+      where.hoursWorked = filters.hoursWorked;
+    }
+
     return await prisma.volunteerHistory.findMany({
       where,
       include: {
@@ -165,7 +169,7 @@ class HistoryRepository {
         hoursWorked: historyData.hoursWorked,
         performanceRating: historyData.performanceRating || null,
         feedback: historyData.feedback || null,
-        attendance: historyData.attendance.toUpperCase(),
+        attendance: historyData.attendance ? historyData.attendance.toUpperCase() : 'PRESENT',
         skillsUtilized: historyData.skillsUtilized || [],
         participationDate: new Date(historyData.participationDate),
         completionDate: historyData.completionDate ? new Date(historyData.completionDate) : null,
@@ -346,6 +350,113 @@ class HistoryRepository {
     });
 
     return record !== null;
+  }
+
+  /**
+   * Count history records with optional filters
+   */
+  async count(filters = {}) {
+    const where = {};
+
+    if (filters.volunteerId) {
+      where.volunteerId = filters.volunteerId;
+    }
+
+    if (filters.eventId) {
+      where.eventId = filters.eventId;
+    }
+
+    if (filters.status) {
+      where.status = filters.status.toUpperCase();
+    }
+
+    return await prisma.volunteerHistory.count({ where });
+  }
+
+  /**
+   * Get total hours worked for a volunteer
+   */
+  async getTotalHours(volunteerId) {
+    const records = await prisma.volunteerHistory.findMany({
+      where: { volunteerId, status: 'COMPLETED' },
+      select: { hoursWorked: true }
+    });
+
+    return records.reduce((total, record) => {
+      return total + (record.hoursWorked || 0);
+    }, 0);
+  }
+
+  /**
+   * Get average performance rating for a volunteer
+   */
+  async getAverageRating(volunteerId) {
+    const records = await prisma.volunteerHistory.findMany({
+      where: {
+        volunteerId,
+        performanceRating: { not: null }
+      },
+      select: { performanceRating: true }
+    });
+
+    if (records.length === 0) return 0;
+
+    const sum = records.reduce((total, record) => {
+      return total + (record.performanceRating || 0);
+    }, 0);
+
+    return sum / records.length;
+  }
+
+  /**
+   * Find history records by date range
+   */
+  async findByDateRange(startDate, endDate, volunteerId = null) {
+    const where = {
+      participationDate: {
+        gte: new Date(startDate),
+        lte: new Date(endDate)
+      }
+    };
+
+    if (volunteerId) {
+      where.volunteerId = volunteerId;
+    }
+
+    return await prisma.volunteerHistory.findMany({
+      where,
+      include: {
+        volunteer: {
+          select: {
+            id: true,
+            username: true,
+            email: true
+          }
+        },
+        event: {
+          select: {
+            id: true,
+            title: true,
+            category: true
+          }
+        }
+      },
+      orderBy: {
+        participationDate: 'desc'
+      }
+    });
+  }
+
+  /**
+   * Get count of completed events for a volunteer
+   */
+  async getCompletedEventsCount(volunteerId) {
+    return await prisma.volunteerHistory.count({
+      where: {
+        volunteerId,
+        status: 'COMPLETED'
+      }
+    });
   }
 }
 

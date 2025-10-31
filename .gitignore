@@ -4,3 +4,5 @@
 /admin/node_modules
 admin/backend/.env
 admin/frontend/.env
+*.md
+README.md

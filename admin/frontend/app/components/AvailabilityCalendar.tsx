@@ -121,14 +121,18 @@ export default function AvailabilityCalendar({
     onAvailabilityChange(updated);
   };
 
-  // Get events for a specific day
-  const getEventsForDay = (dayName: string) => {
-    const dayIndex = DAYS_OF_WEEK.indexOf(dayName);
+  // Get events for a specific day in the current week only
+  const getEventsForDay = (dayName: string, dateForDay: Date | undefined) => {
+    if (!dateForDay) return [];
+
+    // Format the date as YYYY-MM-DD for accurate comparison
+    const dateStr = dateForDay.toISOString().split('T')[0];
+
     return registeredEvents.filter(event => {
-      const eventDayIndex = event.date.getDay();
-      // Convert Sunday (0) to index 6, Monday (1) to index 0, etc.
-      const adjustedEventDay = eventDayIndex === 0 ? 6 : eventDayIndex - 1;
-      return adjustedEventDay === dayIndex;
+      // Format event date as YYYY-MM-DD
+      const eventDateStr = event.date.toISOString().split('T')[0];
+      // Only show events that match the exact date (year-month-day), not just day-of-week
+      return eventDateStr === dateStr;
     });
   };
 
@@ -144,11 +148,11 @@ export default function AvailabilityCalendar({
       {/* Days of week grid */}
       <div className="grid grid-cols-7 gap-1">
         {DAYS_OF_WEEK.map((day, index) => {
+          const dateForDay = currentWeekDates[index];
           const daySlots = selectedSlots.filter(s => s.dayOfWeek === day);
-          const dayEvents = getEventsForDay(day);
+          const dayEvents = getEventsForDay(day, dateForDay);
           const hasAvailability = daySlots.length > 0;
           const hasEvents = dayEvents.length > 0;
-          const dateForDay = currentWeekDates[index];
           const isToday = dateForDay && new Date().toDateString() === dateForDay.toDateString();
 
           return (
@@ -205,16 +209,14 @@ export default function AvailabilityCalendar({
 
           <div className="space-y-2 max-h-48 overflow-y-auto">
             {selectedSlots
-              .filter(slot => slot.dayOfWeek === selectedDay)
-              .map((slot, index) => {
-                const actualIndex = selectedSlots.findIndex(
-                  (s, i) => s.dayOfWeek === selectedDay && selectedSlots.slice(0, i + 1).filter(x => x.dayOfWeek === selectedDay).length === selectedSlots.slice(0, index + 1).filter(x => x.dayOfWeek === selectedDay).length
-                );
+              .map((slot, globalIndex) => ({ slot, globalIndex }))
+              .filter(({ slot }) => slot.dayOfWeek === selectedDay)
+              .map(({ slot, globalIndex }, localIndex) => {
                 return (
-                  <div key={index} className="flex items-center gap-2 bg-slate-50 p-2 rounded-lg">
+                  <div key={globalIndex} className="flex items-center gap-2 bg-slate-50 p-2 rounded-lg">
                     <select
                       value={slot.startTime}
-                      onChange={(e) => handleUpdateTimeSlot(actualIndex, 'startTime', e.target.value)}
+                      onChange={(e) => handleUpdateTimeSlot(globalIndex, 'startTime', e.target.value)}
                       className="text-sm px-2 py-1 border border-slate-300 rounded"
                     >
                       {TIME_SLOTS.map(time => (
@@ -224,7 +226,7 @@ export default function AvailabilityCalendar({
                     <span className="text-slate-600">to</span>
                     <select
                       value={slot.endTime}
-                      onChange={(e) => handleUpdateTimeSlot(actualIndex, 'endTime', e.target.value)}
+                      onChange={(e) => handleUpdateTimeSlot(globalIndex, 'endTime', e.target.value)}
                       className="text-sm px-2 py-1 border border-slate-300 rounded"
                     >
                       {TIME_SLOTS.map(time => (
@@ -232,7 +234,7 @@ export default function AvailabilityCalendar({
                       ))}
                     </select>
                     <button
-                      onClick={() => handleRemoveTimeSlot(actualIndex)}
+                      onClick={() => handleRemoveTimeSlot(globalIndex)}
                       className="ml-auto text-red-600 hover:text-red-800 transition"
                       title="Remove time slot"
                     >

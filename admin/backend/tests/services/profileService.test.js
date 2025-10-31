@@ -121,12 +121,11 @@ describe('ProfileService', () => {
 
     it('should validate required fields', async () => {
       const incompleteData = {
-        firstName: 'John'
-        // Missing required fields
+        firstName: '' // Empty firstName should be rejected
       };
 
       await expect(profileService.updateProfile('user_002', incompleteData))
-        .rejects.toThrow('Missing required fields');
+        .rejects.toThrow('firstName is required and cannot be empty');
     });
 
     it('should validate phone number format', async () => {

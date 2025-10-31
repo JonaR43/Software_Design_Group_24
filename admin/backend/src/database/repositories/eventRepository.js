@@ -100,7 +100,7 @@ class EventRepository {
       prisma.event.count({ where })
     ]);
 
-    return { events, total };
+    return { events, total, page, limit };
   }
 
   /**
@@ -192,7 +192,7 @@ class EventRepository {
    * Get event assignments
    */
   async getAssignments(eventId) {
-    return await prisma.assignment.findMany({
+    return await prisma.eventAssignment.findMany({
       where: { eventId },
       include: {
         volunteer: {
@@ -211,9 +211,6 @@ class EventRepository {
             endDate: true
           }
         }
-      },
-      orderBy: {
-        assignedAt: 'desc'
       }
     });
   }
@@ -222,7 +219,7 @@ class EventRepository {
    * Get volunteer assignments
    */
   async getVolunteerAssignments(volunteerId) {
-    return await prisma.assignment.findMany({
+    return await prisma.eventAssignment.findMany({
       where: { volunteerId },
       include: {
         event: {
@@ -241,9 +238,6 @@ class EventRepository {
             }
           }
         }
-      },
-      orderBy: {
-        assignedAt: 'desc'
       }
     });
   }
@@ -404,6 +398,140 @@ class EventRepository {
         cancelled
       }
     };
+  }
+
+  /**
+   * Assign volunteer to event (alias for createAssignment)
+   */
+  async assignVolunteer(eventId, volunteerId, notes = null) {
+    return await prisma.eventAssignment.create({
+      data: {
+        eventId,
+        volunteerId,
+        status: 'CONFIRMED'
+      },
+      include: {
+        event: true,
+        volunteer: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            profile: true
+          }
+        }
+      }
+    });
+  }
+
+  /**
+   * Unassign volunteer from event (alias for deleteAssignment)
+   */
+  async unassignVolunteer(eventId, volunteerId) {
+    return await prisma.eventAssignment.delete({
+      where: {
+        eventId_volunteerId: {
+          eventId,
+          volunteerId
+        }
+      }
+    });
+  }
+
+  /**
+   * Find events by volunteer (alias for getVolunteerAssignments)
+   */
+  async findByVolunteer(volunteerId) {
+    const assignments = await this.getVolunteerAssignments(volunteerId);
+    return assignments.map(a => a.event);
+  }
+
+  /**
+   * Count events with optional filters
+   */
+  async count(filters = {}) {
+    const where = {};
+
+    if (filters.status) {
+      where.status = filters.status.toUpperCase();
+    }
+
+    if (filters.category) {
+      where.category = filters.category;
+    }
+
+    if (filters.urgency) {
+      where.urgency = filters.urgency.toUpperCase();
+    }
+
+    return await prisma.event.count({ where });
+  }
+
+  /**
+   * Find events by date range
+   */
+  async findByDateRange(startDate, endDate) {
+    return await prisma.event.findMany({
+      where: {
+        startDate: {
+          gte: new Date(startDate),
+          lte: new Date(endDate)
+        }
+      },
+      include: {
+        creator: {
+          select: {
+            id: true,
+            username: true,
+            email: true
+          }
+        },
+        requirements: {
+          include: {
+            skill: true
+          }
+        },
+        assignments: {
+          include: {
+            volunteer: {
+              select: {
+                id: true,
+                username: true,
+                email: true
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+
+  /**
+   * Check if volunteer is assigned to event
+   */
+  async isVolunteerAssigned(eventId, volunteerId) {
+    const assignment = await prisma.eventAssignment.findUnique({
+      where: {
+        eventId_volunteerId: {
+          eventId,
+          volunteerId
+        }
+      }
+    });
+
+    return assignment !== null;
+  }
+
+  /**
+   * Get volunteer count for event
+   */
+  async getVolunteerCount(eventId) {
+    return await prisma.eventAssignment.count({
+      where: {
+        eventId,
+        status: 'CONFIRMED'
+      }
+    });
   }
 }
 

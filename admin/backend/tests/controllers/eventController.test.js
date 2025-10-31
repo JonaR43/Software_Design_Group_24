@@ -779,23 +779,34 @@ describe('EventController', () => {
 
   describe('PUT /events/:eventId/volunteers/:volunteerId/review', () => {
     beforeEach(() => {
-      // Mock the data modules
-      jest.mock('../../src/data/history');
-      jest.mock('../../src/data/events');
+      // Setup route for this test suite
       app.put('/events/:eventId/volunteers/:volunteerId/review', mockAuth, eventController.updateVolunteerReview);
     });
 
     it('should update volunteer review successfully', async () => {
-      // Mock volunteer history to simulate existing record
-      const { volunteerHistory } = require('../../src/data/history');
-      volunteerHistory.length = 0; // Clear array
-      volunteerHistory.push({
+      // Mock historyRepository
+      const historyRepository = require('../../src/database/repositories/historyRepository');
+      const originalGetEventHistory = historyRepository.getEventHistory;
+      const originalUpdate = historyRepository.update;
+
+      historyRepository.getEventHistory = jest.fn().mockResolvedValue([{
         id: 'history_001',
         eventId: 'event_001',
         volunteerId: 'volunteer_001',
         status: 'confirmed',
         hoursWorked: 0,
         performanceRating: null
+      }]);
+
+      historyRepository.update = jest.fn().mockResolvedValue({
+        id: 'history_001',
+        eventId: 'event_001',
+        volunteerId: 'volunteer_001',
+        status: 'completed',
+        hoursWorked: 4,
+        performanceRating: 5,
+        feedback: 'Great work!',
+        adminNotes: 'Excellent volunteer'
       });
 
       const response = await request(app)
@@ -811,18 +822,37 @@ describe('EventController', () => {
       expect(response.status).toBe(200);
       expect(response.body.status).toBe('success');
       expect(response.body.message).toBe('Volunteer review updated successfully');
+
+      // Cleanup
+      historyRepository.getEventHistory = originalGetEventHistory;
+      historyRepository.update = originalUpdate;
     });
 
     it('should create new history record if not exists', async () => {
-      const { volunteerHistory } = require('../../src/data/history');
-      const { eventHelpers } = require('../../src/data/events');
+      // Mock historyRepository and eventService
+      const historyRepository = require('../../src/database/repositories/historyRepository');
+      const originalGetEventHistory = historyRepository.getEventHistory;
+      const originalCreate = historyRepository.create;
 
-      volunteerHistory.length = 0; // Clear array
+      historyRepository.getEventHistory = jest.fn().mockResolvedValue([]);
+      historyRepository.create = jest.fn().mockResolvedValue({
+        id: 'history_002',
+        eventId: 'event_001',
+        volunteerId: 'volunteer_002',
+        status: 'completed',
+        hoursWorked: 3,
+        performanceRating: 4
+      });
 
-      // Mock event helpers to return an assignment
-      eventHelpers.getEventAssignments = jest.fn().mockReturnValue([
-        { id: 'assign_001', volunteerId: 'volunteer_002', assignedAt: new Date() }
-      ]);
+      // Mock eventService.getEventAssignments
+      eventService.getEventAssignments.mockResolvedValue({
+        success: true,
+        data: {
+          assignments: [
+            { id: 'assign_001', volunteerId: 'volunteer_002', assignedAt: new Date() }
+          ]
+        }
+      });
 
       const response = await request(app)
         .put('/events/event_001/volunteers/volunteer_002/review')
@@ -834,14 +864,26 @@ describe('EventController', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.status).toBe('success');
+
+      // Cleanup
+      historyRepository.getEventHistory = originalGetEventHistory;
+      historyRepository.create = originalCreate;
     });
 
     it('should handle volunteer not assigned to event', async () => {
-      const { volunteerHistory } = require('../../src/data/history');
-      const { eventHelpers } = require('../../src/data/events');
+      // Mock historyRepository and eventService
+      const historyRepository = require('../../src/database/repositories/historyRepository');
+      const originalGetEventHistory = historyRepository.getEventHistory;
 
-      volunteerHistory.length = 0; // Clear array
-      eventHelpers.getEventAssignments = jest.fn().mockReturnValue([]);
+      historyRepository.getEventHistory = jest.fn().mockResolvedValue([]);
+
+      // Mock eventService.getEventAssignments to return empty assignments
+      eventService.getEventAssignments.mockResolvedValue({
+        success: true,
+        data: {
+          assignments: []
+        }
+      });
 
       const response = await request(app)
         .put('/events/event_001/volunteers/volunteer_999/review')
@@ -852,6 +894,9 @@ describe('EventController', () => {
 
       expect(response.status).toBe(404);
       expect(response.body.message).toBe('Volunteer is not assigned to this event');
+
+      // Cleanup
+      historyRepository.getEventHistory = originalGetEventHistory;
     });
   });
 

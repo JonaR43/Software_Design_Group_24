@@ -274,6 +274,93 @@ class NotificationRepository {
       }, {})
     };
   }
+
+  /**
+   * Find notifications by user (alias for getUserNotifications without pagination)
+   */
+  async findByUser(userId, filters = {}) {
+    const where = { userId };
+
+    if (filters.read !== undefined) {
+      where.read = filters.read;
+    }
+
+    return await prisma.notification.findMany({
+      where,
+      orderBy: { createdAt: 'desc' }
+    });
+  }
+
+  /**
+   * Find unread notifications by user
+   */
+  async findUnreadByUser(userId) {
+    return await prisma.notification.findMany({
+      where: {
+        userId,
+        read: false
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+  }
+
+  /**
+   * Count notifications with optional filters
+   */
+  async count(filters = {}) {
+    const where = {};
+
+    if (filters.userId) {
+      where.userId = filters.userId;
+    }
+
+    if (filters.read !== undefined) {
+      where.read = filters.read;
+    }
+
+    if (filters.type) {
+      where.type = filters.type.toUpperCase().replace('-', '_');
+    }
+
+    return await prisma.notification.count({ where });
+  }
+
+  /**
+   * Find notifications by event
+   */
+  async findByEvent(eventId) {
+    return await prisma.notification.findMany({
+      where: { eventId },
+      orderBy: { createdAt: 'desc' }
+    });
+  }
+
+  /**
+   * Find notifications by type
+   */
+  async findByType(type) {
+    return await prisma.notification.findMany({
+      where: { type: type.toUpperCase().replace('-', '_') },
+      orderBy: { createdAt: 'desc' }
+    });
+  }
+
+  /**
+   * Delete all notifications for user (alias for deleteAllForUser)
+   */
+  async deleteAllByUser(userId) {
+    return await this.deleteAllForUser(userId);
+  }
+
+  /**
+   * Update notification
+   */
+  async update(notificationId, updateData) {
+    return await prisma.notification.update({
+      where: { id: notificationId },
+      data: updateData
+    });
+  }
 }
 
 module.exports = new NotificationRepository();
