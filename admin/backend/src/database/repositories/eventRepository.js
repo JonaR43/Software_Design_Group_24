@@ -192,7 +192,7 @@ class EventRepository {
    * Get event assignments
    */
   async getAssignments(eventId) {
-    return await prisma.eventAssignment.findMany({
+    return await prisma.assignment.findMany({
       where: { eventId },
       include: {
         volunteer: {
@@ -219,7 +219,7 @@ class EventRepository {
    * Get volunteer assignments
    */
   async getVolunteerAssignments(volunteerId) {
-    return await prisma.eventAssignment.findMany({
+    return await prisma.assignment.findMany({
       where: { volunteerId },
       include: {
         event: {
@@ -404,7 +404,7 @@ class EventRepository {
    * Assign volunteer to event (alias for createAssignment)
    */
   async assignVolunteer(eventId, volunteerId, notes = null) {
-    return await prisma.eventAssignment.create({
+    return await prisma.assignment.create({
       data: {
         eventId,
         volunteerId,
@@ -428,7 +428,7 @@ class EventRepository {
    * Unassign volunteer from event (alias for deleteAssignment)
    */
   async unassignVolunteer(eventId, volunteerId) {
-    return await prisma.eventAssignment.delete({
+    return await prisma.assignment.delete({
       where: {
         eventId_volunteerId: {
           eventId,
@@ -510,7 +510,7 @@ class EventRepository {
    * Check if volunteer is assigned to event
    */
   async isVolunteerAssigned(eventId, volunteerId) {
-    const assignment = await prisma.eventAssignment.findUnique({
+    const assignment = await prisma.assignment.findUnique({
       where: {
         eventId_volunteerId: {
           eventId,
@@ -526,7 +526,7 @@ class EventRepository {
    * Get volunteer count for event
    */
   async getVolunteerCount(eventId) {
-    return await prisma.eventAssignment.count({
+    return await prisma.assignment.count({
       where: {
         eventId,
         status: 'CONFIRMED'
