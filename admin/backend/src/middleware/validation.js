@@ -305,8 +305,7 @@ const schemas = {
       .uppercase(),
     zipCode: Joi.string()
       .pattern(/^\d{5}(-\d{4})?$/),
-    startDate: Joi.date()
-      .min('now'),
+    startDate: Joi.date(),
     endDate: Joi.date()
       .min(Joi.ref('startDate')),
     maxVolunteers: Joi.number()
@@ -314,7 +313,7 @@ const schemas = {
       .min(1)
       .max(1000),
     urgencyLevel: Joi.string()
-      .valid('low', 'medium', 'high', 'critical'),
+      .valid('low', 'medium', 'high', 'critical', 'LOW', 'MEDIUM', 'HIGH', 'URGENT'),
     requiredSkills: Joi.array()
       .items(Joi.object({
         skillId: Joi.string().required(),

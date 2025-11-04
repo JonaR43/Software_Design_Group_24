@@ -350,7 +350,13 @@ export default function NotificationCenter() {
             {/* Footer */}
             {notifications.length > 0 && (
               <div className="p-3 border-t border-slate-200 bg-slate-50">
-                <button className="w-full text-center text-sm text-indigo-600 hover:text-indigo-800 font-medium">
+                <button
+                  onClick={() => {
+                    setIsOpen(false);
+                    navigate('/dashboard/notifications');
+                  }}
+                  className="w-full text-center text-sm text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
+                >
                   View all notifications
                 </button>
               </div>

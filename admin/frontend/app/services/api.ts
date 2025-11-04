@@ -584,13 +584,26 @@ export class EventService {
 
   static async updateEvent(eventId: string, eventData: Partial<FrontendEvent>): Promise<void> {
     try {
-      const response = await HttpClient.put(`/events/${eventId}`, {
-        title: eventData.title,
-        description: eventData.description,
-        location: eventData.location,
-        status: eventData.status,
-        // Add other fields as needed
-      });
+      const payload: any = {};
+
+      // Only send fields that are provided
+      if (eventData.title !== undefined) payload.title = eventData.title;
+      if (eventData.description !== undefined) payload.description = eventData.description;
+      // Note: location is not sent because the Event model uses address, city, state, zipCode instead
+      if (eventData.status !== undefined) payload.status = eventData.status;
+      if (eventData.date !== undefined) {
+        // Backend expects startDate and endDate
+        payload.startDate = eventData.date;
+        // For single-day events, set endDate to end of day to satisfy backend validation
+        const endDate = new Date(eventData.date);
+        endDate.setHours(23, 59, 59, 999);
+        payload.endDate = endDate.toISOString();
+      }
+      if (eventData.maxVolunteers !== undefined) payload.maxVolunteers = eventData.maxVolunteers;
+      if (eventData.urgencyLevel !== undefined) payload.urgencyLevel = eventData.urgencyLevel;
+      if (eventData.requiredSkills !== undefined) payload.requiredSkills = eventData.requiredSkills;
+
+      const response = await HttpClient.put(`/events/${eventId}`, payload);
       console.log('Update event response:', response);
     } catch (error) {
       throw new Error(`Failed to update event: ${error instanceof Error ? error.message : 'Unknown error'}`);

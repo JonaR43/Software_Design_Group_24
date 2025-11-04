@@ -149,7 +149,7 @@ class EventService {
     if (updateData.startDate || updateData.endDate) {
       const startDate = updateData.startDate || existingEvent.startDate;
       const endDate = updateData.endDate || existingEvent.endDate;
-      this.validateEventDates(startDate, endDate);
+      this.validateEventDates(startDate, endDate, true); // Pass true for isUpdate
     }
 
     // Update event
@@ -717,8 +717,9 @@ class EventService {
    * Validate event dates
    * @param {Date} startDate - Event start date
    * @param {Date} endDate - Event end date
+   * @param {boolean} isUpdate - Whether this is an update operation (skips future date check)
    */
-  validateEventDates(startDate, endDate) {
+  validateEventDates(startDate, endDate, isUpdate = false) {
     const start = new Date(startDate);
     const end = new Date(endDate);
     const now = new Date();
@@ -727,7 +728,8 @@ class EventService {
       throw new Error('End date must be after start date');
     }
 
-    if (start < now) {
+    // Only check if start date is in the future for new events, not updates
+    if (!isUpdate && start < now) {
       throw new Error('Start date must be in the future');
     }
 

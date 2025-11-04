@@ -19,6 +19,7 @@ export default [
     route("home", "routes/client/dashboard/home.tsx"),
     route("events", "routes/client/dashboard/events.tsx"),
     route("schedule", "routes/client/dashboard/schedule.tsx"),
+    route("notifications", "routes/client/dashboard/notifications.tsx"), // Notifications page
     // route("profile1", "routes/client/dashboard/profile1.tsx"), // DEPRECATED - Removed in favor of profile.tsx
     route("profile", "routes/client/dashboard/profile.tsx"), // Main profile page connected to backend
     route("availability", "routes/client/dashboard/availability.tsx"), // Availability calendar page
