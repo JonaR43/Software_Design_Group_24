@@ -244,6 +244,42 @@ class EventController {
   }
 
   /**
+   * Unassign volunteer from event
+   * DELETE /api/events/:id/unassign/:volunteerId
+   */
+  async unassignVolunteer(req, res, next) {
+    try {
+      const { id: eventId, volunteerId } = req.params;
+
+      if (!volunteerId) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Volunteer ID is required',
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      const result = await eventService.unassignVolunteer(eventId, volunteerId);
+
+      res.status(200).json({
+        status: 'success',
+        message: result.message,
+        data: result.data,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      if (error.message.includes('not found') || error.message.includes('not assigned')) {
+        return res.status(404).json({
+          status: 'error',
+          message: error.message,
+          timestamp: new Date().toISOString()
+        });
+      }
+      next(error);
+    }
+  }
+
+  /**
    * Update assignment status
    * PUT /api/events/assignments/:assignmentId
    */

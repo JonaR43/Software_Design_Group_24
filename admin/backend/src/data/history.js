@@ -242,7 +242,7 @@ const historyHelpers = {
    */
   calculateVolunteerStats: (volunteerId) => {
     const history = historyHelpers.getVolunteerHistory(volunteerId);
-    const completedEvents = history.filter(record => record.status === 'completed');
+    const completedEvents = history.filter(record => record.status === 'COMPLETED');
 
     const totalHours = completedEvents.reduce((sum, record) => sum + record.hoursWorked, 0);
     const averageRating = completedEvents.length > 0
@@ -262,7 +262,7 @@ const historyHelpers = {
       averageRating: Math.round(averageRating * 100) / 100,
       attendanceRate: Math.round(attendanceRate * 100) / 100,
       reliabilityScore: reliabilityScore,
-      noShowCount: history.filter(record => record.status === 'no_show').length,
+      noShowCount: history.filter(record => record.status === 'NO_SHOW').length,
       cancelledCount: history.filter(record => record.status === 'cancelled').length
     };
   },
@@ -333,7 +333,7 @@ function calculateReliabilityScore(history) {
 
   const attendanceRate = (history.filter(record => record.attendance === 'present').length / history.length) * 100;
   const completionRate = (history.filter(record => record.status === 'completed').length / history.length) * 100;
-  const noShowPenalty = history.filter(record => record.status === 'no_show').length * 10;
+  const noShowPenalty = history.filter(record => record.status === 'NO_SHOW').length * 10;
 
   // Base score from attendance and completion
   let score = (attendanceRate * 0.4) + (completionRate * 0.6);

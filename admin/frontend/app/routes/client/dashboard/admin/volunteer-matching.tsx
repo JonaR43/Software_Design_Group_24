@@ -80,13 +80,23 @@ export default function VolunteerMatchingPage() {
 
   const handleVolunteerAssignment = async (volunteerId: string) => {
     try {
+      // Find the match to get the match score
+      const match = matches.find(m => m.volunteer.id === volunteerId);
+
       // Assign volunteer to the event via API
-      await EventService.updateEvent(selectedEvent, {}); // This should be EventService.assignVolunteer but using placeholder
+      await EventService.assignVolunteer(selectedEvent, volunteerId, {
+        matchScore: match?.matchScore,
+        notes: `Auto-assigned via matching algorithm with score: ${match?.matchScore || 0}`
+      });
+
+      // Update local state
       setAssignments(prev => [...prev, volunteerId]);
       setMatches(prev => prev.filter(match => match.volunteer.id !== volunteerId));
+
+      alert('Volunteer successfully assigned to event!');
     } catch (error) {
       console.error('Failed to assign volunteer:', error);
-      alert('Failed to assign volunteer. Please try again.');
+      alert(`Failed to assign volunteer: ${error instanceof Error ? error.message : 'Please try again.'}`);
     }
   };
 
@@ -215,7 +225,7 @@ export default function VolunteerMatchingPage() {
                   {(match.matchReasons || match.recommendations?.map(r => r.message) || []).map((reason, index) => (
                     <div key={index} className="flex items-start">
                       <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full mt-2 mr-2 flex-shrink-0"></div>
-                      <p className="text-sm text-slate-600">{typeof reason === 'string' ? reason : reason.message}</p>
+                      <p className="text-sm text-slate-600">{typeof reason === 'string' ? reason : (reason as any).message || String(reason)}</p>
                     </div>
                   ))}
                   {(!match.matchReasons || match.matchReasons.length === 0) && (!match.recommendations || match.recommendations.length === 0) && (

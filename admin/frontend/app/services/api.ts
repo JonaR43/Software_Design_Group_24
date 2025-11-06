@@ -661,6 +661,63 @@ export class EventService {
       throw new Error(`Failed to fetch recommended events: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
+
+  /**
+   * Assign a volunteer to an event (admin only)
+   */
+  static async assignVolunteer(
+    eventId: string,
+    volunteerId: string,
+    options?: {
+      matchScore?: number;
+      notes?: string;
+    }
+  ): Promise<any> {
+    try {
+      const response = await HttpClient.post<{
+        status: string;
+        message: string;
+        data: any;
+      }>(`/events/${eventId}/assign`, {
+        eventId,  // Include eventId in body for validation
+        volunteerId,
+        matchScore: options?.matchScore,
+        notes: options?.notes || ''
+      });
+
+      if (response.status === 'success') {
+        return response.data;
+      }
+
+      throw new Error('Failed to assign volunteer');
+    } catch (error) {
+      throw new Error(`Failed to assign volunteer: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Remove a volunteer from an event (admin only)
+   */
+  static async unassignVolunteer(
+    eventId: string,
+    volunteerId: string
+  ): Promise<any> {
+    try {
+      const response = await HttpClient.delete<{
+        status: string;
+        message: string;
+        data: any;
+      }>(`/events/${eventId}/unassign/${volunteerId}`);
+
+      if (response.status === 'success') {
+        return response.data;
+      }
+
+      throw new Error('Failed to remove volunteer');
+    } catch (error) {
+      throw new Error(`Failed to remove volunteer: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
 }
 
 export class ProfileService {
@@ -1407,6 +1464,306 @@ export class NotificationService {
       await HttpClient.delete(`/notifications/${notificationId}`);
     } catch (error) {
       throw new Error(`Failed to delete notification: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+}
+
+// Attendance types
+export interface AttendanceStatus {
+  assigned: boolean;
+  canCheckIn: boolean;
+  canCheckOut: boolean;
+  checkedIn: boolean;
+  checkedOut: boolean;
+  checkInTime?: string;
+  checkOutTime?: string;
+  hoursWorked: number;
+  attendance: 'PENDING' | 'PRESENT' | 'LATE' | 'ABSENT';
+  status: 'REGISTERED' | 'CONFIRMED' | 'COMPLETED' | 'NO_SHOW';
+}
+
+export interface AttendanceRosterVolunteer {
+  volunteerId: string;
+  volunteerName: string;
+  email: string;
+  phone?: string;
+  assignmentStatus: string;
+  attendance: 'PENDING' | 'PRESENT' | 'LATE' | 'ABSENT';
+  participationStatus: 'REGISTERED' | 'CONFIRMED' | 'COMPLETED' | 'NO_SHOW';
+  checkedIn: boolean;
+  checkedOut: boolean;
+  checkInTime?: string;
+  checkOutTime?: string;
+  hoursWorked: number;
+  performanceRating?: number;
+  feedback?: string;
+  adminNotes?: string;
+  historyId?: string;
+}
+
+export interface AttendanceRoster {
+  event: {
+    id: string;
+    title: string;
+    startDate: string;
+    endDate: string;
+    status: string;
+  };
+  roster: AttendanceRosterVolunteer[];
+  summary: {
+    total: number;
+    present: number;
+    late: number;
+    absent: number;
+    noShow: number;
+    checkedIn: number;
+    checkedOut: number;
+  };
+}
+
+export interface BulkAttendanceUpdate {
+  volunteerId: string;
+  data?: {
+    attendance?: 'PENDING' | 'PRESENT' | 'LATE' | 'ABSENT';
+    status?: 'REGISTERED' | 'CONFIRMED' | 'COMPLETED' | 'NO_SHOW';
+    hoursWorked?: number;
+    performanceRating?: number;
+    feedback?: string;
+    adminNotes?: string;
+  };
+}
+
+export class AttendanceService {
+  /**
+   * Volunteer checks in to an event
+   */
+  static async checkIn(eventId: string, options?: { latitude?: number; longitude?: number }): Promise<{
+    historyRecord: any;
+    checkInTime: string;
+    message: string;
+  }> {
+    try {
+      const response = await HttpClient.post<{
+        success: boolean;
+        message: string;
+        data: {
+          historyRecord: any;
+          checkInTime: string;
+          message: string;
+        };
+      }>(`/attendance/events/${eventId}/check-in`, options || {});
+
+      if (response.success) {
+        return response.data;
+      }
+
+      throw new Error('Failed to check in');
+    } catch (error) {
+      throw new Error(`Failed to check in: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Volunteer checks out from an event
+   */
+  static async checkOut(eventId: string, feedback?: string): Promise<{
+    historyRecord: any;
+    checkOutTime: string;
+    hoursWorked: number;
+    message: string;
+  }> {
+    try {
+      const response = await HttpClient.post<{
+        success: boolean;
+        message: string;
+        data: {
+          historyRecord: any;
+          checkOutTime: string;
+          hoursWorked: number;
+          message: string;
+        };
+      }>(`/attendance/events/${eventId}/check-out`, { feedback });
+
+      if (response.success) {
+        return response.data;
+      }
+
+      throw new Error('Failed to check out');
+    } catch (error) {
+      throw new Error(`Failed to check out: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Get attendance status for current user at an event
+   */
+  static async getMyAttendanceStatus(eventId: string): Promise<AttendanceStatus> {
+    try {
+      const response = await HttpClient.get<{
+        success: boolean;
+        data: AttendanceStatus;
+      }>(`/attendance/events/${eventId}/my-status`);
+
+      if (response.success) {
+        return response.data;
+      }
+
+      throw new Error('Failed to get attendance status');
+    } catch (error) {
+      throw new Error(`Failed to get attendance status: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Get event roster with all volunteers (admin only)
+   */
+  static async getEventRoster(eventId: string): Promise<AttendanceRoster> {
+    try {
+      const response = await HttpClient.get<{
+        success: boolean;
+        message: string;
+        data: AttendanceRoster;
+      }>(`/attendance/events/${eventId}/roster`);
+
+      if (response.success) {
+        return response.data;
+      }
+
+      throw new Error('Failed to get event roster');
+    } catch (error) {
+      throw new Error(`Failed to get event roster: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Update volunteer attendance (admin only)
+   */
+  static async updateAttendance(
+    eventId: string,
+    volunteerId: string,
+    updateData: {
+      attendance?: 'PENDING' | 'PRESENT' | 'LATE' | 'ABSENT';
+      status?: 'REGISTERED' | 'CONFIRMED' | 'COMPLETED' | 'NO_SHOW';
+      hoursWorked?: number;
+      performanceRating?: number;
+      feedback?: string;
+      adminNotes?: string;
+      skillsUtilized?: string[];
+    }
+  ): Promise<any> {
+    try {
+      const response = await HttpClient.put<{
+        success: boolean;
+        message: string;
+        data: any;
+      }>(`/attendance/events/${eventId}/volunteers/${volunteerId}`, updateData);
+
+      if (response.success) {
+        return response.data;
+      }
+
+      throw new Error('Failed to update attendance');
+    } catch (error) {
+      throw new Error(`Failed to update attendance: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Bulk update attendance for multiple volunteers (admin only)
+   */
+  static async bulkUpdateAttendance(
+    eventId: string,
+    updates: BulkAttendanceUpdate[]
+  ): Promise<{
+    updated: number;
+    failed: number;
+    results: Array<{ volunteerId: string; success: boolean; data?: any; error?: string }>;
+  }> {
+    try {
+      const response = await HttpClient.post<{
+        success: boolean;
+        message: string;
+        data: {
+          updated: number;
+          failed: number;
+          results: Array<{ volunteerId: string; success: boolean; data?: any; error?: string }>;
+        };
+      }>(`/attendance/events/${eventId}/bulk-update`, { updates });
+
+      if (response.success) {
+        return response.data;
+      }
+
+      throw new Error('Failed to bulk update attendance');
+    } catch (error) {
+      throw new Error(`Failed to bulk update attendance: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Finalize event attendance (admin only)
+   */
+  static async finalizeEventAttendance(eventId: string): Promise<{
+    eventId: string;
+    status: string;
+    updates: Array<{ volunteerId: string; action: string; record: any }>;
+    summary: {
+      totalVolunteers: number;
+      autoCheckedOut: number;
+      markedNoShow: number;
+    };
+  }> {
+    try {
+      const response = await HttpClient.post<{
+        success: boolean;
+        message: string;
+        data: {
+          eventId: string;
+          status: string;
+          updates: Array<{ volunteerId: string; action: string; record: any }>;
+          summary: {
+            totalVolunteers: number;
+            autoCheckedOut: number;
+            markedNoShow: number;
+          };
+        };
+      }>(`/attendance/events/${eventId}/finalize`, {});
+
+      if (response.success) {
+        return response.data;
+      }
+
+      throw new Error('Failed to finalize event attendance');
+    } catch (error) {
+      throw new Error(`Failed to finalize event attendance: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Mark volunteer as no-show (admin only)
+   */
+  static async markNoShow(
+    eventId: string,
+    volunteerId: string,
+    options?: {
+      sendNotification?: boolean;
+      adminNotes?: string;
+    }
+  ): Promise<any> {
+    try {
+      const response = await HttpClient.post<{
+        success: boolean;
+        message: string;
+        data: any;
+      }>(`/attendance/events/${eventId}/volunteers/${volunteerId}/no-show`, options || {});
+
+      if (response.success) {
+        return response.data;
+      }
+
+      throw new Error('Failed to mark as no-show');
+    } catch (error) {
+      throw new Error(`Failed to mark as no-show: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 }

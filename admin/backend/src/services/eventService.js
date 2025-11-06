@@ -222,6 +222,7 @@ class EventService {
         volunteerId: assignment.volunteerId,
         eventId: assignment.eventId,
         status: assignment.status.toLowerCase(),
+        matchScore: assignment.matchScore || 0,
         assignedAt: assignment.assignedAt,
         hoursWorked: 0, // Will be populated from history if available
         performanceRating: null,
@@ -357,6 +358,86 @@ class EventService {
       success: true,
       message: 'Volunteer assigned successfully',
       data: assignment
+    };
+  }
+
+  /**
+   * Unassign volunteer from event
+   * @param {string} eventId - Event ID
+   * @param {string} volunteerId - Volunteer ID
+   * @returns {Object} Unassignment result
+   */
+  async unassignVolunteer(eventId, volunteerId) {
+    const event = await eventRepository.findById(eventId);
+    if (!event) {
+      throw new Error('Event not found');
+    }
+
+    const volunteer = await userRepository.findById(volunteerId);
+    if (!volunteer) {
+      throw new Error('Volunteer not found');
+    }
+
+    // Find the assignment
+    const prisma = require('../database/prisma');
+    const assignment = await prisma.assignment.findFirst({
+      where: {
+        eventId,
+        volunteerId,
+        status: {
+          not: 'CANCELLED'
+        }
+      }
+    });
+
+    if (!assignment) {
+      throw new Error('Volunteer is not assigned to this event');
+    }
+
+    // Update assignment status to CANCELLED
+    await prisma.assignment.update({
+      where: { id: assignment.id },
+      data: {
+        status: 'CANCELLED',
+        updatedAt: new Date()
+      }
+    });
+
+    // Decrement the event's currentVolunteers count
+    if (event.currentVolunteers > 0) {
+      await eventRepository.update(eventId, {
+        currentVolunteers: event.currentVolunteers - 1
+      });
+    }
+
+    // Delete or mark history record as cancelled if exists
+    const historyRecord = await prisma.volunteerHistory.findUnique({
+      where: {
+        volunteerId_eventId: {
+          volunteerId,
+          eventId
+        }
+      }
+    });
+
+    if (historyRecord) {
+      await prisma.volunteerHistory.update({
+        where: { id: historyRecord.id },
+        data: {
+          status: 'CANCELLED'
+        }
+      });
+    }
+
+    return {
+      success: true,
+      message: `Volunteer ${volunteer.username} removed from event`,
+      data: {
+        eventId,
+        volunteerId,
+        eventTitle: event.title,
+        volunteerName: volunteer.username
+      }
     };
   }
 

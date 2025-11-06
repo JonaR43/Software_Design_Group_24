@@ -13,6 +13,7 @@ interface Volunteer {
   feedback?: string;
   adminNotes?: string;
   participationDate: string;
+  matchScore?: number;
 }
 
 export default function EventVolunteersPage() {
@@ -63,7 +64,8 @@ export default function EventVolunteersPage() {
         performanceRating: assignment.performanceRating,
         feedback: assignment.feedback,
         adminNotes: assignment.adminNotes,
-        participationDate: assignment.assignedAt || assignment.createdAt
+        participationDate: assignment.assignedAt || assignment.createdAt,
+        matchScore: assignment.matchScore || 0
       }));
 
       setVolunteers(transformedVolunteers);
@@ -148,6 +150,30 @@ export default function EventVolunteersPage() {
     }
   };
 
+  const handleRemoveVolunteer = async (volunteer: Volunteer) => {
+    if (!eventId) return;
+
+    const confirmed = window.confirm(`Are you sure you want to remove ${volunteer.volunteerName} from this event?`);
+    if (!confirmed) return;
+
+    try {
+      setIsSaving(true);
+      setError("");
+
+      await EventService.unassignVolunteer(eventId, volunteer.volunteerId);
+
+      // Reload data
+      await loadData();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to remove volunteer';
+      setError(errorMessage);
+      console.error("Error removing volunteer:", err);
+      alert('Error: ' + errorMessage);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'completed':
@@ -214,6 +240,7 @@ export default function EventVolunteersPage() {
             <thead className="bg-slate-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 uppercase tracking-wider">Volunteer</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 uppercase tracking-wider">Match Score</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 uppercase tracking-wider">Status</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 uppercase tracking-wider">Hours</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 uppercase tracking-wider">Rating</th>
@@ -224,7 +251,7 @@ export default function EventVolunteersPage() {
             <tbody className="divide-y divide-slate-200">
               {volunteers.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-slate-500">
+                  <td colSpan={7} className="px-6 py-8 text-center text-slate-500">
                     No volunteers assigned to this event yet
                   </td>
                 </tr>
@@ -234,6 +261,25 @@ export default function EventVolunteersPage() {
                     <td className="px-6 py-4">
                       <div className="text-sm font-medium text-slate-900">{volunteer.volunteerName}</div>
                       <div className="text-xs text-slate-500">{volunteer.volunteerEmail}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 bg-gray-200 rounded-full h-2 max-w-[100px]">
+                          <div
+                            className={`h-2 rounded-full ${
+                              (volunteer.matchScore || 0) >= 80 ? 'bg-green-500' :
+                              (volunteer.matchScore || 0) >= 60 ? 'bg-yellow-500' : 'bg-red-500'
+                            }`}
+                            style={{ width: `${volunteer.matchScore || 0}%` }}
+                          ></div>
+                        </div>
+                        <span className={`text-sm font-semibold ${
+                          (volunteer.matchScore || 0) >= 80 ? 'text-green-600' :
+                          (volunteer.matchScore || 0) >= 60 ? 'text-yellow-600' : 'text-red-600'
+                        }`}>
+                          {volunteer.matchScore || 0}%
+                        </span>
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(volunteer.status)}`}>
@@ -261,12 +307,21 @@ export default function EventVolunteersPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <button
-                        onClick={() => openReviewModal(volunteer)}
-                        className="text-indigo-600 hover:text-indigo-900 font-medium"
-                      >
-                        Review
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => openReviewModal(volunteer)}
+                          className="text-indigo-600 hover:text-indigo-900 font-medium"
+                        >
+                          Review
+                        </button>
+                        <button
+                          onClick={() => handleRemoveVolunteer(volunteer)}
+                          disabled={isSaving}
+                          className="text-red-600 hover:text-red-900 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Remove
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))

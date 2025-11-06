@@ -49,6 +49,7 @@ enum ParticipationStatus {
 }
 
 enum AttendanceType {
+  PENDING
   PRESENT
   ABSENT
   LATE
@@ -111,6 +112,8 @@ model Profile {
   city                  String?   @db.VarChar(100)
   state                 String?   @db.VarChar(2)
   zipCode               String?   @db.VarChar(10)
+  latitude              Float?
+  longitude             Float?
   bio                   String?   @db.Text
   avatar                String?   @db.VarChar(500)
   maxTravelDistance     Int?      @default(25)

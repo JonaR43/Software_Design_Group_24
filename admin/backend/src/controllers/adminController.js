@@ -309,14 +309,14 @@ class AdminController {
 
       // Basic stats
       const totalEvents = volunteerParticipation.length;
-      const completedEvents = volunteerParticipation.filter(h => h.status === 'completed').length;
-      const noShows = volunteerParticipation.filter(h => h.status === 'no_show').length;
-      const cancelled = volunteerParticipation.filter(h => h.status === 'cancelled').length;
-      const upcomingEvents = volunteerParticipation.filter(h => h.status === 'confirmed').length;
+      const completedEvents = volunteerParticipation.filter(h => h.status === 'COMPLETED').length;
+      const noShows = volunteerParticipation.filter(h => h.status === 'NO_SHOW').length;
+      const cancelled = volunteerParticipation.filter(h => h.status === 'CANCELLED').length;
+      const upcomingEvents = volunteerParticipation.filter(h => h.status === 'CONFIRMED').length;
 
       // Hours and attendance
       const totalHours = volunteerParticipation
-        .filter(h => h.status === 'completed')
+        .filter(h => h.status === 'COMPLETED')
         .reduce((sum, h) => sum + (h.hoursWorked || 0), 0);
 
       const attendanceRate = totalEvents > 0
@@ -359,13 +359,13 @@ class AdminController {
         });
 
         const monthHours = monthEvents
-          .filter(h => h.status === 'completed')
+          .filter(h => h.status === 'COMPLETED')
           .reduce((sum, h) => sum + (h.hoursWorked || 0), 0);
 
         monthlyActivity.push({
           month: monthName,
           events: monthEvents.length,
-          completed: monthEvents.filter(h => h.status === 'completed').length,
+          completed: monthEvents.filter(h => h.status === 'COMPLETED').length,
           hours: parseFloat(monthHours.toFixed(1))
         });
       }
@@ -380,7 +380,7 @@ class AdminController {
             eventsByCategory[category] = { category, events: 0, hours: 0 };
           }
           eventsByCategory[category].events += 1;
-          if (h.status === 'completed') {
+          if (h.status === 'COMPLETED') {
             eventsByCategory[category].hours += h.hoursWorked || 0;
           }
         }
@@ -527,11 +527,11 @@ class AdminController {
 
       // Volunteer history metrics
       const volunteerHistory = await historyRepository.findAll();
-      const completedParticipations = volunteerHistory.filter(h => h.status === 'completed').length;
-      const noShows = volunteerHistory.filter(h => h.status === 'no_show').length;
-      const cancelledParticipations = volunteerHistory.filter(h => h.status === 'cancelled').length;
+      const completedParticipations = volunteerHistory.filter(h => h.status === 'COMPLETED').length;
+      const noShows = volunteerHistory.filter(h => h.status === 'NO_SHOW').length;
+      const cancelledParticipations = volunteerHistory.filter(h => h.status === 'CANCELLED').length;
       const totalHoursVolunteered = volunteerHistory
-        .filter(h => h.status === 'completed')
+        .filter(h => h.status === 'COMPLETED')
         .reduce((sum, h) => sum + (h.hoursWorked || 0), 0);
       const averageHoursPerEvent = completedParticipations > 0
         ? (totalHoursVolunteered / completedParticipations).toFixed(1)
@@ -545,7 +545,7 @@ class AdminController {
 
       // Top volunteers by hours
       const volunteerHours = {};
-      for (const h of volunteerHistory.filter(h => h.status === 'completed')) {
+      for (const h of volunteerHistory.filter(h => h.status === 'COMPLETED')) {
         if (!volunteerHours[h.volunteerId]) {
           const user = users.find(u => u.id === h.volunteerId);
           const profile = user ? await userRepository.getProfile(user.id) : null;
@@ -601,7 +601,7 @@ class AdminController {
         const hours = volunteerHistory
           .filter(h => {
             const date = new Date(h.participationDate);
-            return h.status === 'completed' && date >= monthStart && date <= monthEnd;
+            return h.status === 'COMPLETED' && date >= monthStart && date <= monthEnd;
           })
           .reduce((sum, h) => sum + (h.hoursWorked || 0), 0);
 

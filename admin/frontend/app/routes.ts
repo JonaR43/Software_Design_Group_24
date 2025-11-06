@@ -24,6 +24,7 @@ export default [
     route("profile", "routes/client/dashboard/profile.tsx"), // Main profile page connected to backend
     route("availability", "routes/client/dashboard/availability.tsx"), // Availability calendar page
     route("history", "routes/client/dashboard/volunteer-history.tsx"), // Volunteer history page
+    route("attendance", "routes/client/dashboard/attendance.tsx"), // Attendance check-in/check-out page
 
     // Admin-only routes
     route("admin", "routes/client/dashboard/admin/admin-layout.tsx", [
@@ -36,6 +37,8 @@ export default [
       route("users", "routes/client/dashboard/admin/user-management.tsx"),
       route("volunteer-metrics/:userId", "routes/client/dashboard/admin/volunteer-metrics.$userId.tsx"),
       route("reporting", "routes/client/dashboard/admin/reporting.tsx"),
+      route("attendance", "routes/client/dashboard/admin/attendance.tsx"), // Admin attendance overview
+      route("attendance-roster/:eventId", "routes/client/dashboard/admin/attendance-roster.$eventId.tsx"), // Event roster management
     ]),
   ]),
 ] satisfies RouteConfig;

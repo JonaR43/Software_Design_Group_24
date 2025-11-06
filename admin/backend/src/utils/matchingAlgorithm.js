@@ -6,21 +6,25 @@ const { skillHelpers } = require('../data/skills');
  */
 class MatchingAlgorithm {
   constructor() {
-    // Matching weights as specified in assignment requirements
+    // Matching weights - prioritizing location to avoid distant volunteers
     this.weights = {
-      location: 0.25,      // 25% - Distance proximity
-      skills: 0.35,        // 35% - Skill alignment
+      location: 0.35,      // 35% - Distance proximity (increased to penalize distant volunteers)
+      skills: 0.30,        // 30% - Skill alignment
       availability: 0.25,  // 25% - Schedule compatibility
       preferences: 0.10,   // 10% - Personal preferences
       reliability: 0.05    // 5% - Volunteer history/reliability
     };
 
-    // Proficiency value mapping
+    // Proficiency value mapping (support both lowercase and uppercase)
     this.proficiencyValues = {
       beginner: 1,
       intermediate: 2,
       advanced: 3,
-      expert: 4
+      expert: 4,
+      BEGINNER: 1,
+      INTERMEDIATE: 2,
+      ADVANCED: 3,
+      EXPERT: 4
     };
   }
 
@@ -119,7 +123,7 @@ class MatchingAlgorithm {
    */
   calculateSkillsScore(profile, event) {
     // If no skills required, return perfect score
-    if (!event.requiredSkills || event.requiredSkills.length === 0) {
+    if (!event.requirements || event.requirements.length === 0) {
       return 100;
     }
 
@@ -131,11 +135,11 @@ class MatchingAlgorithm {
     let totalScore = 0;
     let maxPossibleScore = 0;
     let requiredSkillsMatched = 0;
-    let requiredSkillsTotal = event.requiredSkills.filter(rs => rs.required).length;
+    let requiredSkillsTotal = event.requirements.filter(rs => rs.isRequired).length;
 
-    for (const requiredSkill of event.requiredSkills) {
+    for (const requiredSkill of event.requirements) {
       const requiredValue = this.proficiencyValues[requiredSkill.minLevel] || 1;
-      const skillWeight = requiredSkill.required ? 2 : 1; // Weight required skills more heavily
+      const skillWeight = requiredSkill.isRequired ? 2 : 1; // Weight required skills more heavily
 
       maxPossibleScore += requiredValue * skillWeight;
 
@@ -151,12 +155,12 @@ class MatchingAlgorithm {
         totalScore += skillScore;
 
         // Track required skills coverage
-        if (requiredSkill.required) {
+        if (requiredSkill.isRequired) {
           requiredSkillsMatched++;
         }
       } else {
         // Penalty for missing skills
-        if (requiredSkill.required) {
+        if (requiredSkill.isRequired) {
           totalScore += 0; // No score for missing required skills
         } else {
           totalScore += requiredValue * skillWeight * 0.3; // Partial credit for missing optional skills
@@ -535,15 +539,15 @@ class MatchingAlgorithm {
    * @returns {Array} Array of missing skill names
    */
   findMissingSkills(profile, event) {
-    if (!event.requiredSkills || !event.requiredSkills.length) {
+    if (!event.requirements || !event.requirements.length) {
       return [];
     }
 
     const volunteerSkillIds = profile.skills ? profile.skills.map(s => s.skillId) : [];
     const missingSkills = [];
 
-    for (const requiredSkill of event.requiredSkills) {
-      if (requiredSkill.required && !volunteerSkillIds.includes(requiredSkill.skillId)) {
+    for (const requiredSkill of event.requirements) {
+      if (requiredSkill.isRequired && !volunteerSkillIds.includes(requiredSkill.skillId)) {
         const skill = skillHelpers.findById(requiredSkill.skillId);
         if (skill) {
           missingSkills.push(skill.name);

@@ -3,6 +3,15 @@
 /admin/frontend/build/
 /admin/node_modules
 admin/backend/.env
+admin/backend/.env.production
 admin/frontend/.env
+admin/frontend/.env.production
 *.md
 README.md
+
+# Docker
+docker-compose.override.yml
+
+# System files
+.DS_Store
+*.log

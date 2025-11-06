@@ -179,6 +179,17 @@ router.post('/:id/assign',
 );
 
 /**
+ * @route   DELETE /api/events/:id/unassign/:volunteerId
+ * @desc    Remove volunteer from event
+ * @access  Private (Admin only)
+ */
+router.delete('/:id/unassign/:volunteerId',
+  authenticate,
+  authorize('admin'),
+  eventController.unassignVolunteer
+);
+
+/**
  * @route   PUT /api/events/assignments/:assignmentId
  * @desc    Update assignment status
  * @access  Private (Admin only)
