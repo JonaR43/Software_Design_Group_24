@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ProfileService } from '~/services/api';
+import { ProfileService, API_BASE_URL } from '~/services/api';
 
 interface TimeSlot {
   id?: string;
@@ -64,7 +64,7 @@ export default function Availability() {
         console.log('Loaded date slots into UI:', loadedDateSlots);
 
         // Load registered events
-        const response = await fetch('http://localhost:3001/api/events/my-events', {
+        const response = await fetch(`${API_BASE_URL}/events/my-events`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
             'Content-Type': 'application/json'

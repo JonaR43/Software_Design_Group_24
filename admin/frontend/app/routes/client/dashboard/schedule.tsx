@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
-import { HistoryService, type VolunteerHistoryRecord } from "~/services/api";
+import { HistoryService, type VolunteerHistoryRecord, API_BASE_URL } from "~/services/api";
 
 interface MyEvent {
   id: string;
@@ -41,7 +41,7 @@ export default function Schedule() {
         setError("");
 
         // Get upcoming events from assignments (my-events endpoint)
-        const response = await fetch('http://localhost:3001/api/events/my-events?timeFilter=upcoming', {
+        const response = await fetch(`${API_BASE_URL}/events/my-events?timeFilter=upcoming`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
             'Content-Type': 'application/json'
@@ -84,7 +84,7 @@ export default function Schedule() {
     if (!editingEvent) return;
 
     try {
-      const response = await fetch(`http://localhost:3001/api/events/${editingEvent.id}/update-notes`, {
+      const response = await fetch(`${API_BASE_URL}/events/${editingEvent.id}/update-notes`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
@@ -123,7 +123,7 @@ export default function Schedule() {
   const handleDeleteEvent = (eventId: string) => {
     if (confirm('Are you sure you want to remove this event from your schedule?')) {
       // Call API to leave event
-      fetch(`http://localhost:3001/api/events/${eventId}/leave`, {
+      fetch(`${API_BASE_URL}/events/${eventId}/leave`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`,

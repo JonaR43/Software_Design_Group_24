@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router";
-import { AuthService } from "../../services/api";
+import { AuthService, API_SERVER_URL } from "../../services/api";
 
 export default function RegisterPage() {
   const navigate = useNavigate();
@@ -370,7 +370,7 @@ export default function RegisterPage() {
                 <div className="grid grid-cols-3 gap-3">
                   <button
                     type="button"
-                    onClick={() => window.location.href = 'http://localhost:3001/api/auth/google'}
+                    onClick={() => window.location.href = `${API_SERVER_URL}/api/auth/google`}
                     className="flex items-center justify-center gap-2 px-4 py-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm hover:shadow"
                     title="Sign up with Google"
                   >
@@ -384,7 +384,7 @@ export default function RegisterPage() {
 
                   <button
                     type="button"
-                    onClick={() => window.location.href = 'http://localhost:3001/api/auth/github'}
+                    onClick={() => window.location.href = `${API_SERVER_URL}/api/auth/github`}
                     className="flex items-center justify-center gap-2 px-4 py-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm hover:shadow"
                     title="Sign up with GitHub"
                   >
@@ -395,7 +395,7 @@ export default function RegisterPage() {
 
                   <button
                     type="button"
-                    onClick={() => window.location.href = 'http://localhost:3001/api/auth/microsoft'}
+                    onClick={() => window.location.href = `${API_SERVER_URL}/api/auth/microsoft`}
                     className="flex items-center justify-center gap-2 px-4 py-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm hover:shadow"
                     title="Sign up with Microsoft"
                   >

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { HistoryService, SkillsService, type VolunteerHistoryRecord } from '~/services/api';
+import { HistoryService, SkillsService, type VolunteerHistoryRecord, API_BASE_URL } from '~/services/api';
 
 export default function VolunteerHistoryPage() {
   const [filter, setFilter] = useState<'ALL' | 'COMPLETED' | 'UPCOMING' | 'CANCELLED' | 'NO_SHOW'>('ALL');
@@ -19,7 +19,7 @@ export default function VolunteerHistoryPage() {
 
         // Fetch both upcoming/cancelled events (from assignments) and completed events (from history)
         const [myEventsResponse, historyData] = await Promise.all([
-          fetch('http://localhost:3001/api/events/my-events?includeCancelled=true', {
+          fetch(`${API_BASE_URL}/events/my-events?includeCancelled=true`, {
             headers: {
               'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
               'Content-Type': 'application/json'

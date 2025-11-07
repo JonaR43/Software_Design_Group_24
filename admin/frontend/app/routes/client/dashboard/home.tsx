@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { DashboardService, type DashboardStats, HistoryService } from "~/services/api";
+import { DashboardService, type DashboardStats, HistoryService, API_BASE_URL } from "~/services/api";
 import { useAuth } from "~/contexts/AuthContext";
 
 export default function Home() {
@@ -16,7 +16,7 @@ export default function Home() {
         if (user?.role === 'volunteer') {
           // For volunteers, get both their assignments (upcoming) and history (completed)
           const [myEventsResponse, historyRecords] = await Promise.all([
-            fetch('http://localhost:3001/api/events/my-events', {
+            fetch(`${API_BASE_URL}/events/my-events`, {
               headers: {
                 'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
                 'Content-Type': 'application/json'

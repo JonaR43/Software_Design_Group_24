@@ -3,7 +3,9 @@
  * Handles all backend communication and data transformation
  */
 
-const API_BASE_URL = 'http://localhost:3001/api';
+// Use environment variable with fallback to localhost for development
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_SERVER_URL = API_BASE_URL.replace('/api', '');
 
 // Auth token management
 class TokenManager {
@@ -491,7 +493,7 @@ export class EventService {
           // Fetch both history records (completed events) and active assignments (upcoming events)
           const [userHistory, myEventsResponse] = await Promise.all([
             HistoryService.getMyHistory(),
-            fetch('http://localhost:3001/api/events/my-events', {
+            fetch(`${API_BASE_URL}/events/my-events`, {
               headers: {
                 'Authorization': `Bearer ${TokenManager.getToken()}`,
                 'Content-Type': 'application/json'
@@ -1768,4 +1770,4 @@ export class AttendanceService {
   }
 }
 
-export { TokenManager, HttpClient };
+export { TokenManager, HttpClient, API_BASE_URL, API_SERVER_URL };

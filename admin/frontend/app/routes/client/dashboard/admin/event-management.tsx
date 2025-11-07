@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { EventService } from "~/services/api";
+import { EventService, API_BASE_URL } from "~/services/api";
 
 interface Event {
   id: string;
@@ -25,7 +25,7 @@ export default function EventManagementPage() {
       setIsLoading(true);
 
       // Use direct API call to get full backend event data with actual status
-      const response = await fetch('http://localhost:3001/api/events', {
+      const response = await fetch(`${API_BASE_URL}/events`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
           'Content-Type': 'application/json'
