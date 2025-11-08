@@ -52,6 +52,8 @@ CREATE TABLE "profiles" (
     "city" VARCHAR(100),
     "state" VARCHAR(2),
     "zipCode" VARCHAR(10),
+    "latitude" DOUBLE PRECISION,
+    "longitude" DOUBLE PRECISION,
     "bio" TEXT,
     "avatar" VARCHAR(500),
     "maxTravelDistance" INTEGER DEFAULT 25,
