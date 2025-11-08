@@ -6,7 +6,7 @@ services:
     dockerfilePath: ./admin/backend/Dockerfile
     dockerContext: ./admin/backend
     plan: free
-    region: oregon
+    region: virginia
     envVars:
       - key: DATABASE_URL
         sync: false
@@ -29,7 +29,7 @@ services:
     dockerfilePath: ./admin/frontend/Dockerfile
     dockerContext: ./admin/frontend
     plan: free
-    region: oregon
+    region: virginia
     envVars:
       - key: VITE_API_URL
         sync: false
