@@ -20,7 +20,7 @@ prisma.user.count()
 
 if [ "$NODE_COUNT" = "0" ]; then
   echo "📦 Database is empty, running seed..."
-  node prisma/seed-clean.js
+  node prisma/seed-large.js
 else
   echo "✅ Database already contains data, skipping seed"
 fi
