@@ -1,0 +1,52 @@
+services:
+  # PostgreSQL Database
+  - type: pserv
+    name: shiftpilot-db
+    env: docker
+    plan: free
+    region: oregon
+
+  # Backend API
+  - type: web
+    name: shiftpilot-backend
+    env: docker
+    dockerfilePath: ./admin/backend/Dockerfile
+    dockerContext: ./admin/backend
+    plan: free
+    region: oregon
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: shiftpilot-db
+          property: connectionString
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 24h
+      - key: FRONTEND_URL
+        fromService:
+          type: web
+          name: shiftpilot-frontend
+          property: host
+    healthCheckPath: /api/health
+
+  # Frontend
+  - type: web
+    name: shiftpilot-frontend
+    env: docker
+    dockerfilePath: ./admin/frontend/Dockerfile
+    dockerContext: ./admin/frontend
+    plan: free
+    region: oregon
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: shiftpilot-backend
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: VITE_GOOGLE_MAPS_API_KEY
+        sync: false

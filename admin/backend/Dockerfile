@@ -44,9 +44,13 @@ COPY --from=build-env /app/node_modules/.prisma ./node_modules/.prisma
 # Expose port
 EXPOSE 3001
 
+# Copy start script
+COPY start-production.sh ./
+RUN chmod +x start-production.sh
+
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
   CMD node -e "require('http').get('http://localhost:3001/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
-# Start the application
-CMD ["npm", "start"]
+# Start the application with migrations
+CMD ["./start-production.sh"]

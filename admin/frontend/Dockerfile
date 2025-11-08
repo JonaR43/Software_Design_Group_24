@@ -9,6 +9,14 @@ WORKDIR /app
 RUN npm ci --omit=dev
 
 FROM node:20-alpine AS build-env
+# Accept build arguments for environment variables
+ARG VITE_API_URL
+ARG VITE_GOOGLE_MAPS_API_KEY
+
+# Set environment variables for the build
+ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_GOOGLE_MAPS_API_KEY=$VITE_GOOGLE_MAPS_API_KEY
+
 COPY . /app/
 COPY --from=development-dependencies-env /app/node_modules /app/node_modules
 WORKDIR /app
