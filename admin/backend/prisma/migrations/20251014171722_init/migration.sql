@@ -101,7 +101,9 @@ CREATE TABLE "volunteer_skills" (
 CREATE TABLE "availability" (
     "id" TEXT NOT NULL,
     "profileId" TEXT NOT NULL,
-    "dayOfWeek" VARCHAR(20) NOT NULL,
+    "dayOfWeek" VARCHAR(20),
+    "specificDate" DATE,
+    "isRecurring" BOOLEAN NOT NULL DEFAULT true,
     "startTime" VARCHAR(10) NOT NULL,
     "endTime" VARCHAR(10) NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
