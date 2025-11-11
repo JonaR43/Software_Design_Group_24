@@ -1,15 +1,19 @@
 /**
  * Email Service Module
- * Provides email notification functionality using Nodemailer
- * Supports Gmail, Outlook, and custom SMTP configurations
+ * Provides email notification functionality using Nodemailer and Mailgun
+ * Supports Gmail, Outlook, Mailgun, and custom SMTP configurations
  * Professional templates matching JACS ShiftPilot brand design
  */
 
 const nodemailer = require('nodemailer');
+const formData = require('form-data');
+const Mailgun = require('mailgun.js');
 
 class EmailService {
   constructor() {
     this.transporter = null;
+    this.mailgunClient = null;
+    this.emailProvider = null;
     this.initialized = false;
 
     // JACS ShiftPilot Brand Colors (matching frontend)
@@ -295,12 +299,25 @@ class EmailService {
    */
   async initialize() {
     try {
-      const emailProvider = process.env.EMAIL_PROVIDER || 'gmail';
+      this.emailProvider = process.env.EMAIL_PROVIDER || 'gmail';
 
       // Configuration based on provider
       let transportConfig = {};
 
-      if (emailProvider === 'gmail') {
+      if (this.emailProvider === 'mailgun') {
+        // Mailgun configuration (HTTP API - works on all platforms)
+        const mailgun = new Mailgun(formData);
+        this.mailgunClient = mailgun.client({
+          username: 'api',
+          key: process.env.MAILGUN_API_KEY,
+          url: process.env.MAILGUN_API_URL || 'https://api.mailgun.net' // Use EU endpoint if needed
+        });
+        this.mailgunDomain = process.env.MAILGUN_DOMAIN;
+
+        console.log('✅ Mailgun email service initialized successfully');
+        this.initialized = true;
+        return true;
+      } else if (this.emailProvider === 'gmail') {
         // Gmail configuration
         transportConfig = {
           service: 'gmail',
@@ -371,23 +388,43 @@ class EmailService {
       await this.initialize();
     }
 
-    if (!this.transporter) {
-      throw new Error('Email service not initialized');
-    }
-
-    const mailOptions = {
-      from: `"${process.env.APP_NAME || 'JACS ShiftPilot'}" <${process.env.EMAIL_USER}>`,
-      to,
-      subject,
-      text,
-      html: html || text
-    };
-
     try {
+      // Handle Mailgun separately
+      if (this.emailProvider === 'mailgun') {
+        if (!this.mailgunClient || !this.mailgunDomain) {
+          throw new Error('Mailgun email service not initialized');
+        }
+
+        const messageData = {
+          from: `${process.env.APP_NAME || 'JACS ShiftPilot'} <noreply@${this.mailgunDomain}>`,
+          to: Array.isArray(to) ? to : [to],
+          subject,
+          text,
+          html: html || text
+        };
+
+        const result = await this.mailgunClient.messages.create(this.mailgunDomain, messageData);
+        console.log(`✅ Email sent successfully via Mailgun to ${to} (ID: ${result.id})`);
+        return result;
+      }
+
+      // Handle Nodemailer (Gmail, Outlook, SMTP, Ethereal)
+      if (!this.transporter) {
+        throw new Error('Email service not initialized');
+      }
+
+      const mailOptions = {
+        from: `"${process.env.APP_NAME || 'JACS ShiftPilot'}" <${process.env.EMAIL_USER}>`,
+        to,
+        subject,
+        text,
+        html: html || text
+      };
+
       const info = await this.transporter.sendMail(mailOptions);
 
       // For Ethereal, log preview URL
-      if (process.env.EMAIL_PROVIDER === 'ethereal') {
+      if (this.emailProvider === 'ethereal') {
         console.log('📧 Preview URL: %s', nodemailer.getTestMessageUrl(info));
       }
 
