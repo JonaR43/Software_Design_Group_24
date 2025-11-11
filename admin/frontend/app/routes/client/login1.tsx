@@ -31,14 +31,27 @@ export default function LoginPage() {
       if (result.success) {
         console.log("✅ Login successful");
 
-        // Check user role and redirect accordingly
+        // Get user and profile data
         const currentUser = AuthService.getCurrentUser();
+        const currentProfile = AuthService.getCurrentProfile();
+
+        console.log("Profile data:", currentProfile);
+        console.log("Profile completeness:", currentProfile?.profileCompleteness);
+
+        // Check if user needs to complete onboarding
+        const profileCompleteness = currentProfile?.profileCompleteness || 0;
+        const isNewUser = profileCompleteness === 0;
+
+        // Check user role and redirect accordingly
         if (currentUser && currentUser.role === 'admin') {
           console.log("🔑 Admin user detected, redirecting to admin dashboard");
-          navigate("/dashboard/admin");
+          navigate("/dashboard/admin/metrics");
+        } else if (isNewUser) {
+          console.log("🆕 New user detected, redirecting to onboarding");
+          navigate("/dashboard/onboarding");
         } else {
           console.log("👤 Regular user detected, redirecting to regular dashboard");
-          navigate("/dashboard");
+          navigate("/dashboard/home");
         }
       } else {
         console.log("❌ Login failed:", result.error);

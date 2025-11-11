@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
-import { HistoryService, type VolunteerHistoryRecord, API_BASE_URL } from "~/services/api";
+import { HistoryService, type VolunteerHistoryRecord, API_BASE_URL, AttendanceService } from "~/services/api";
 
 interface MyEvent {
   id: string;
@@ -32,6 +32,10 @@ export default function Schedule() {
   // Edit modal state
   const [editingEvent, setEditingEvent] = useState<MyEvent | null>(null);
   const [editNotes, setEditNotes] = useState("");
+
+  // Check-in/check-out state
+  const [attendanceStatus, setAttendanceStatus] = useState<Record<string, any>>({});
+  const [checkInProcessing, setCheckInProcessing] = useState<Set<string>>(new Set());
 
   // Load schedule data from backend
   useEffect(() => {
@@ -71,6 +75,25 @@ export default function Schedule() {
 
     loadSchedule();
   }, []);
+
+  // Load attendance status for upcoming events
+  useEffect(() => {
+    const loadAttendanceStatus = async () => {
+      for (const event of upcomingEvents) {
+        try {
+          const status = await AttendanceService.getMyAttendanceStatus(event.id);
+          setAttendanceStatus(prev => ({ ...prev, [event.id]: status }));
+        } catch (err) {
+          // Ignore errors for events user hasn't registered for
+          console.log(`No attendance status for event ${event.id}`);
+        }
+      }
+    };
+
+    if (upcomingEvents.length > 0) {
+      loadAttendanceStatus();
+    }
+  }, [upcomingEvents]);
 
   const handleEditEvent = (eventId: string) => {
     const event = upcomingEvents.find(e => e.id === eventId);
@@ -157,6 +180,75 @@ export default function Schedule() {
 
   const handleAddAvailability = () => {
     navigate('/dashboard/availability');
+  };
+
+  const handleCheckIn = async (eventId: string) => {
+    setCheckInProcessing(prev => new Set(prev).add(eventId));
+    try {
+      // Try to get GPS coordinates
+      let latitude, longitude;
+      if (navigator.geolocation) {
+        try {
+          const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
+          });
+          latitude = position.coords.latitude;
+          longitude = position.coords.longitude;
+        } catch (geoError) {
+          console.log('Could not get GPS coordinates:', geoError);
+        }
+      }
+
+      const result = await AttendanceService.checkIn(eventId, { latitude, longitude });
+
+      // Reload attendance status
+      const status = await AttendanceService.getMyAttendanceStatus(eventId);
+      setAttendanceStatus(prev => ({ ...prev, [eventId]: status }));
+
+      alert(`Successfully checked in at ${new Date(result.checkInTime).toLocaleTimeString()}!`);
+    } catch (err) {
+      alert(`Failed to check in: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setCheckInProcessing(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(eventId);
+        return newSet;
+      });
+    }
+  };
+
+  const handleCheckOut = async (eventId: string) => {
+    const feedback = prompt('Optional: Add feedback about your volunteer experience:');
+
+    setCheckInProcessing(prev => new Set(prev).add(eventId));
+    try {
+      const result = await AttendanceService.checkOut(eventId, feedback || undefined);
+
+      // Reload attendance status
+      const status = await AttendanceService.getMyAttendanceStatus(eventId);
+      setAttendanceStatus(prev => ({ ...prev, [eventId]: status }));
+
+      alert(
+        `Successfully checked out!\n\n` +
+        `Check-out time: ${new Date(result.checkOutTime).toLocaleTimeString()}\n` +
+        `Hours worked: ${result.hoursWorked}`
+      );
+
+      // Reload schedule to refresh completed events
+      const allHistory = await HistoryService.getMyHistory();
+      const completed = allHistory.filter(record =>
+        record.participationStatus === 'COMPLETED'
+      );
+      setCompletedEvents(completed);
+    } catch (err) {
+      alert(`Failed to check out: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setCheckInProcessing(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(eventId);
+        return newSet;
+      });
+    }
   };
 
   // Loading state
@@ -266,46 +358,101 @@ export default function Schedule() {
 
               return (
                 <div key={event.id} className="card p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="h-12 w-12 bg-gradient-to-r from-indigo-100 to-violet-100 rounded-lg flex items-center justify-center">
-                        <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-slate-900">{event.title}</h3>
-                        <div className="flex items-center gap-4 text-sm text-slate-600 mt-1">
-                          <span>{new Date(event.startDate).toLocaleDateString()}</span>
-                          <span>{new Date(event.startDate).toLocaleTimeString('en-US', {
-                            hour: 'numeric',
-                            minute: '2-digit',
-                            hour12: true
-                          })}</span>
-                          <span>{location}</span>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="h-12 w-12 bg-gradient-to-r from-indigo-100 to-violet-100 rounded-lg flex items-center justify-center">
+                          <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-slate-900">{event.title}</h3>
+                          <div className="flex items-center gap-4 text-sm text-slate-600 mt-1">
+                            <span>{new Date(event.startDate).toLocaleDateString()}</span>
+                            <span>{new Date(event.startDate).toLocaleTimeString('en-US', {
+                              hour: 'numeric',
+                              minute: '2-digit',
+                              hour12: true
+                            })}</span>
+                            <span>{location}</span>
+                          </div>
                         </div>
                       </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleEditEvent(event.id)}
+                          className="text-slate-600 hover:text-slate-800 p-2"
+                          title="Edit event"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => handleDeleteEvent(event.id)}
+                          className="text-red-600 hover:text-red-800 p-2"
+                          title="Remove from schedule"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleEditEvent(event.id)}
-                        className="text-slate-600 hover:text-slate-800 p-2"
-                        title="Edit event"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                      </button>
-                      <button
-                        onClick={() => handleDeleteEvent(event.id)}
-                        className="text-red-600 hover:text-red-800 p-2"
-                        title="Remove from schedule"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    </div>
+
+                    {/* Check-in/Check-out Section */}
+                    {(() => {
+                      const status = attendanceStatus[event.id];
+                      const isProcessing = checkInProcessing.has(event.id);
+                      const eventStart = new Date(event.startDate);
+                      const eventEnd = new Date(event.endDate);
+                      const now = new Date();
+                      const canCheckIn = now >= new Date(eventStart.getTime() - 30 * 60 * 1000) && now <= eventEnd;
+
+                      if (status?.hasCheckedIn && !status?.hasCheckedOut) {
+                        return (
+                          <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
+                            <div className="flex items-center gap-2 text-sm text-green-700">
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              <span className="font-medium">Checked In at {new Date(status.checkInTime).toLocaleTimeString()}</span>
+                            </div>
+                            <button
+                              onClick={() => handleCheckOut(event.id)}
+                              disabled={isProcessing}
+                              className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {isProcessing ? 'Processing...' : 'Check Out'}
+                            </button>
+                          </div>
+                        );
+                      } else if (status?.hasCheckedOut) {
+                        return (
+                          <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span className="font-medium">Completed - {status.hoursWorked || 0} hours worked</span>
+                          </div>
+                        );
+                      } else if (canCheckIn) {
+                        return (
+                          <div className="flex items-center justify-between p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
+                            <span className="text-sm text-indigo-700 font-medium">Ready to check in</span>
+                            <button
+                              onClick={() => handleCheckIn(event.id)}
+                              disabled={isProcessing}
+                              className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {isProcessing ? 'Processing...' : 'Check In'}
+                            </button>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
                 </div>
               );

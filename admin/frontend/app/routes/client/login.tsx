@@ -68,11 +68,28 @@ export default function LoginPage() {
 
       console.log('Login successful:', response);
 
-      // Redirect based on user role
+      // Check if user needs to complete onboarding
+      const profileCompleteness = response.data.profile?.profileCompleteness || 0;
+      const isNewUser = profileCompleteness === 0;
+
+      console.log('=== FRONTEND LOGIN DEBUG ===');
+      console.log('Full response:', JSON.stringify(response, null, 2));
+      console.log('Profile completeness:', profileCompleteness);
+      console.log('Is new user:', isNewUser);
+      console.log('User role:', response.data.user.role);
+
+      // Redirect based on user role and profile status
       if (response.data.user.role === 'admin') {
-        navigate('/admin/dashboard');
+        console.log('Redirecting admin to /dashboard/admin/metrics');
+        navigate('/dashboard/admin/metrics');
+      } else if (isNewUser) {
+        // New users go to onboarding
+        console.log('Redirecting new user to /dashboard/onboarding');
+        navigate('/dashboard/onboarding');
       } else {
-        navigate('/volunteer/dashboard');
+        // Existing users go to dashboard home
+        console.log('Redirecting existing user to /dashboard/home');
+        navigate('/dashboard/home');
       }
     } catch (error) {
       console.error('Login error:', error);

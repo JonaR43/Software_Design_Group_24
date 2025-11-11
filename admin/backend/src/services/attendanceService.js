@@ -1,5 +1,6 @@
 const prisma = require('../database/prisma');
 const NotificationService = require('./notificationService');
+const emailService = require('./emailService');
 
 /**
  * Attendance Service
@@ -87,6 +88,29 @@ class AttendanceService {
       }
     });
 
+    // Send email confirmation
+    try {
+      const volunteer = historyRecord.volunteer;
+      const volunteerName = volunteer.profile
+        ? `${volunteer.profile.firstName} ${volunteer.profile.lastName}`
+        : volunteer.username;
+
+      const eventDetails = {
+        title: historyRecord.event.title,
+        location: historyRecord.event.location || `${historyRecord.event.address}, ${historyRecord.event.city}, ${historyRecord.event.state}`
+      };
+
+      await emailService.sendCheckInConfirmationEmail(
+        volunteer.email,
+        volunteerName,
+        eventDetails,
+        now
+      );
+    } catch (emailError) {
+      console.error('Failed to send check-in confirmation email:', emailError);
+      // Don't fail check-in if email fails
+    }
+
     return {
       historyRecord,
       checkInTime: now,
@@ -142,6 +166,31 @@ class AttendanceService {
         }
       }
     });
+
+    // Send email confirmation
+    try {
+      const volunteer = updatedRecord.volunteer;
+      const volunteerName = volunteer.profile
+        ? `${volunteer.profile.firstName} ${volunteer.profile.lastName}`
+        : volunteer.username;
+
+      const eventDetails = {
+        title: updatedRecord.event.title,
+        location: updatedRecord.event.location || `${updatedRecord.event.address}, ${updatedRecord.event.city}, ${updatedRecord.event.state}`
+      };
+
+      await emailService.sendCheckOutConfirmationEmail(
+        volunteer.email,
+        volunteerName,
+        eventDetails,
+        checkInTime,
+        checkOutTime,
+        hoursWorked
+      );
+    } catch (emailError) {
+      console.error('Failed to send check-out confirmation email:', emailError);
+      // Don't fail check-out if email fails
+    }
 
     return {
       historyRecord: updatedRecord,
@@ -522,17 +571,44 @@ class AttendanceService {
       }
     });
 
-    // Send notification if requested
+    // Send notification and email if requested
     if (options.sendNotification) {
       try {
+        // Send in-app notification
         await NotificationService.createNotification({
-          recipientId: volunteerId,
+          userId: volunteerId,
           type: 'SYSTEM',
           priority: 'HIGH',
           title: 'Marked as No-Show',
           message: `You were marked as a no-show for the event "${assignment.event.title}". Please contact us if this was an error.`,
           eventId
         });
+
+        // Send email notification
+        const volunteer = assignment.volunteer;
+        const volunteerName = volunteer.profile
+          ? `${volunteer.profile.firstName} ${volunteer.profile.lastName}`
+          : volunteer.username;
+
+        const eventDetails = {
+          title: assignment.event.title,
+          date: new Date(assignment.event.startDate).toLocaleDateString('en-US', {
+            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+          }),
+          time: `${new Date(assignment.event.startDate).toLocaleTimeString('en-US', {
+            hour: 'numeric', minute: '2-digit', hour12: true
+          })} - ${new Date(assignment.event.endDate).toLocaleTimeString('en-US', {
+            hour: 'numeric', minute: '2-digit', hour12: true
+          })}`,
+          location: assignment.event.location || `${assignment.event.address}, ${assignment.event.city}, ${assignment.event.state}`
+        };
+
+        await emailService.sendNoShowNotificationEmail(
+          volunteer.email,
+          volunteerName,
+          eventDetails,
+          options.adminNotes
+        );
       } catch (error) {
         console.error('Failed to send no-show notification:', error);
       }

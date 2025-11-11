@@ -25,6 +25,7 @@ export default [
     route("availability", "routes/client/dashboard/availability.tsx"), // Availability calendar page
     route("history", "routes/client/dashboard/volunteer-history.tsx"), // Volunteer history page
     route("attendance", "routes/client/dashboard/attendance.tsx"), // Attendance check-in/check-out page
+    route("onboarding", "routes/client/dashboard/onboarding.tsx"), // Onboarding wizard for new users
 
     // Admin-only routes
     route("admin", "routes/client/dashboard/admin/admin-layout.tsx", [

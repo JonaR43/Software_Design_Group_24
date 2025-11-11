@@ -411,7 +411,7 @@ class EmailService {
   async sendWelcomeEmail(userEmail, userName) {
     const subject = `Welcome to ${process.env.APP_NAME || 'JACS ShiftPilot'}! 🎉`;
 
-    const text = `Hi ${userName},\n\nWelcome to JACS ShiftPilot! We're excited to have you join our volunteer community.\n\nYou can now:\n- Browse volunteer opportunities\n- Register for events\n- Track your volunteer hours\n- Connect with other volunteers\n\nLog in to your dashboard to get started: ${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard\n\nBest regards,\nThe JACS ShiftPilot Team`;
+    const text = `Hi ${userName},\n\nWelcome to JACS ShiftPilot! We're excited to have you join our volunteer community.\n\nLet's get started by completing your profile in just 4 easy steps. This will help us match you with the best volunteer opportunities!\n\nComplete your setup here: ${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard/onboarding\n\nYou'll be able to:\n- Get personalized event recommendations based on your skills\n- Set your availability and preferred schedule\n- Connect with similar volunteers\n- Choose your notification preferences\n\nBest regards,\nThe JACS ShiftPilot Team`;
 
     const content = `
       <div class="content-section">
@@ -419,23 +419,25 @@ class EmailService {
         <p class="text">
           We're thrilled to have you join our volunteer community at JACS ShiftPilot. Your commitment to making a difference is what makes our community special.
         </p>
+        <p class="text">
+          Let's get started by completing your profile in just 4 easy steps. This will help us match you with the best volunteer opportunities!
+        </p>
       </div>
 
       <div class="info-card">
-        <h3 class="info-card-title">Get Started with ShiftPilot</h3>
-        <p class="text" style="margin-bottom: 12px;">Here's what you can do now:</p>
+        <h3 class="info-card-title">Quick Setup - Just 4 Steps!</h3>
+        <p class="text" style="margin-bottom: 12px;">Complete your profile to unlock:</p>
         <ul class="list">
-          <li class="list-item"><strong>Browse Events:</strong> Discover volunteer opportunities that match your interests</li>
-          <li class="list-item"><strong>Register for Activities:</strong> Sign up for events with just one click</li>
-          <li class="list-item"><strong>Track Your Impact:</strong> Monitor your volunteer hours and contributions</li>
-          <li class="list-item"><strong>Build Your Profile:</strong> Customize your volunteer profile and preferences</li>
-          <li class="list-item"><strong>Connect:</strong> Meet and collaborate with other volunteers</li>
+          <li class="list-item"><strong>Personalized Matches:</strong> Get event recommendations based on your skills and interests</li>
+          <li class="list-item"><strong>Smart Scheduling:</strong> Set your availability and preferred days/times</li>
+          <li class="list-item"><strong>Better Connections:</strong> Share your skills and connect with similar volunteers</li>
+          <li class="list-item"><strong>Custom Notifications:</strong> Choose how and when you want to hear from us</li>
         </ul>
       </div>
 
       <div class="button-container">
-        <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard" class="button">
-          Go to Your Dashboard
+        <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard/onboarding" class="button">
+          Complete Your Setup
         </a>
       </div>
 
@@ -634,6 +636,195 @@ class EmailService {
         <p class="text" style="margin-top: 24px;">
           Stay safe,<br>
           The JACS ShiftPilot Security Team
+        </p>
+      </div>
+    `;
+
+    const html = this.getEmailTemplate(content);
+    return this.sendEmail({ to: userEmail, subject, text, html });
+  }
+
+  /**
+   * Send check-in confirmation email
+   */
+  async sendCheckInConfirmationEmail(userEmail, userName, eventDetails, checkInTime) {
+    const subject = `✅ Check-In Confirmed: ${eventDetails.title}`;
+
+    const text = `Hi ${userName},\n\nYou've successfully checked in for: ${eventDetails.title}\n\nCheck-in time: ${new Date(checkInTime).toLocaleTimeString()}\n\nThank you for volunteering!\n\nBest regards,\nThe JACS ShiftPilot Team`;
+
+    const content = `
+      <div class="content-section">
+        <h2 class="greeting">Check-In Confirmed! ✅</h2>
+        <p class="text">
+          Hi ${userName},
+        </p>
+        <p class="text">
+          You've successfully checked in for your volunteer shift. Thank you for your commitment to making a difference!
+        </p>
+      </div>
+
+      <div class="info-card">
+        <h3 class="info-card-title">${eventDetails.title}</h3>
+        <div class="info-row">
+          <span class="info-label">🕐 Check-In Time:</span>
+          <span class="info-value">${new Date(checkInTime).toLocaleTimeString('en-US', {
+            hour: 'numeric', minute: '2-digit', hour12: true,
+            weekday: 'short', month: 'short', day: 'numeric'
+          })}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">📍 Location:</span>
+          <span class="info-value">${eventDetails.location}</span>
+        </div>
+      </div>
+
+      <div class="content-section">
+        <p class="text">
+          <strong>Remember to check out</strong> when you complete your volunteer shift so we can accurately track your volunteer hours.
+        </p>
+        <p class="text" style="margin-top: 24px;">
+          Happy volunteering!<br>
+          The JACS ShiftPilot Team
+        </p>
+      </div>
+    `;
+
+    const html = this.getEmailTemplate(content);
+    return this.sendEmail({ to: userEmail, subject, text, html });
+  }
+
+  /**
+   * Send check-out confirmation email
+   */
+  async sendCheckOutConfirmationEmail(userEmail, userName, eventDetails, checkInTime, checkOutTime, hoursWorked) {
+    const subject = `🎉 Thank You for Volunteering: ${eventDetails.title}`;
+
+    const text = `Hi ${userName},\n\nThank you for volunteering at: ${eventDetails.title}\n\nCheck-in: ${new Date(checkInTime).toLocaleTimeString()}\nCheck-out: ${new Date(checkOutTime).toLocaleTimeString()}\nHours worked: ${hoursWorked}\n\nYour contribution makes a real difference!\n\nBest regards,\nThe JACS ShiftPilot Team`;
+
+    const content = `
+      <div class="content-section">
+        <h2 class="greeting">Thank You for Volunteering! 🎉</h2>
+        <p class="text">
+          Hi ${userName},
+        </p>
+        <p class="text">
+          Thank you for completing your volunteer shift at <strong>${eventDetails.title}</strong>. Your dedication and hard work are truly appreciated!
+        </p>
+      </div>
+
+      <div class="info-card">
+        <h3 class="info-card-title">Volunteer Summary</h3>
+        <div class="info-row">
+          <span class="info-label">📅 Event:</span>
+          <span class="info-value">${eventDetails.title}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">🕐 Check-In:</span>
+          <span class="info-value">${new Date(checkInTime).toLocaleTimeString('en-US', {
+            hour: 'numeric', minute: '2-digit', hour12: true
+          })}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">🕐 Check-Out:</span>
+          <span class="info-value">${new Date(checkOutTime).toLocaleTimeString('en-US', {
+            hour: 'numeric', minute: '2-digit', hour12: true
+          })}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">⏱️ Hours Worked:</span>
+          <span class="info-value"><strong style="font-size: 18px; color: #4f46e5;">${hoursWorked} hours</strong></span>
+        </div>
+      </div>
+
+      <div class="content-section">
+        <p class="text">
+          Your volunteer hours have been recorded in your profile. You can view your complete volunteer history and impact statistics in your dashboard.
+        </p>
+      </div>
+
+      <div class="button-container">
+        <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard/volunteer-history" class="button">
+          View My Volunteer History
+        </a>
+      </div>
+
+      <div class="content-section">
+        <p class="text" style="margin-top: 24px;">
+          <strong>Your impact matters!</strong> Thank you for being part of our volunteer community.<br>
+          The JACS ShiftPilot Team
+        </p>
+      </div>
+    `;
+
+    const html = this.getEmailTemplate(content);
+    return this.sendEmail({ to: userEmail, subject, text, html });
+  }
+
+  /**
+   * Send no-show notification email
+   */
+  async sendNoShowNotificationEmail(userEmail, userName, eventDetails, adminNotes) {
+    const subject = `⚠️ Missed Volunteer Shift: ${eventDetails.title}`;
+
+    const text = `Hi ${userName},\n\nWe noticed you didn't attend your scheduled volunteer shift:\n\nEvent: ${eventDetails.title}\nDate: ${eventDetails.date}\nTime: ${eventDetails.time}\n\n${adminNotes ? `Note: ${adminNotes}\n\n` : ''}If you had an emergency or couldn't make it, please let us know. We understand that things come up!\n\nTo maintain a reliable volunteer community, please remember to cancel your registrations through your dashboard if you can't attend.\n\nBest regards,\nThe JACS ShiftPilot Team`;
+
+    const content = `
+      <div class="content-section">
+        <h2 class="greeting">Missed Volunteer Shift</h2>
+        <p class="text">
+          Hi ${userName},
+        </p>
+        <p class="text">
+          We noticed you didn't attend your scheduled volunteer shift. We hope everything is okay!
+        </p>
+      </div>
+
+      <div class="alert-card">
+        <h3 class="info-card-title">${eventDetails.title}</h3>
+        <div class="info-row">
+          <span class="info-label">📅 Date:</span>
+          <span class="info-value">${eventDetails.date}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">🕐 Time:</span>
+          <span class="info-value">${eventDetails.time}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">📍 Location:</span>
+          <span class="info-value">${eventDetails.location}</span>
+        </div>
+        ${adminNotes ? `
+        <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #f59e0b;">
+          <p class="text"><strong>Note from organizer:</strong></p>
+          <p class="text">${adminNotes}</p>
+        </div>
+        ` : ''}
+      </div>
+
+      <div class="content-section">
+        <p class="text">
+          <strong>We understand!</strong> Life happens, and emergencies come up. If you couldn't make it due to unforeseen circumstances, we completely understand.
+        </p>
+        <p class="text">
+          However, to help us maintain a reliable volunteer community, please remember to:
+        </p>
+        <ul class="list">
+          <li class="list-item">Cancel your registration through your dashboard if you can't attend</li>
+          <li class="list-item">Let us know as early as possible so we can find a replacement</li>
+          <li class="list-item">Update your availability if your schedule changes</li>
+        </ul>
+      </div>
+
+      <div class="button-container">
+        <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard/schedule" class="button">
+          View My Schedule
+        </a>
+      </div>
+
+      <div class="content-section">
+        <p class="text" style="margin-top: 24px;">
+          If you'd like to discuss this or have any concerns, please don't hesitate to reach out.<br>
+          The JACS ShiftPilot Team
         </p>
       </div>
     `;

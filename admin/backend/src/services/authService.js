@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const userRepository = require('../database/repositories/userRepository');
+const emailService = require('./emailService');
 
 /**
  * Authentication Service
@@ -59,6 +60,17 @@ class AuthService {
       profileCompleteness: 0
     });
 
+    // Send welcome email (async, don't wait for it)
+    try {
+      await emailService.sendWelcomeEmail(
+        newUser.email,
+        username // Use username as display name initially
+      );
+    } catch (emailError) {
+      console.error('Failed to send welcome email:', emailError);
+      // Don't fail registration if email fails
+    }
+
     // Generate JWT token
     const token = this.generateToken(newUser.id);
 
@@ -107,6 +119,10 @@ class AuthService {
 
     // Get user profile
     const profile = await userRepository.getProfile(user.id);
+
+    console.log('=== LOGIN DEBUG ===');
+    console.log('Profile data:', JSON.stringify(profile, null, 2));
+    console.log('Profile completeness:', profile?.profileCompleteness);
 
     // Generate JWT token
     const token = this.generateToken(user.id);

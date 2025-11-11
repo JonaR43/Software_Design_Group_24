@@ -223,6 +223,7 @@ export interface BackendProfile {
     preferredTimeSlots: string[];
   };
   emergencyContact: string;
+  profileCompleteness?: number;
 }
 
 export interface FrontendProfile {

@@ -1,6 +1,7 @@
 const notificationRepository = require('../database/repositories/notificationRepository');
 const userRepository = require('../database/repositories/userRepository');
 const eventRepository = require('../database/repositories/eventRepository');
+const emailService = require('./emailService');
 
 /**
  * Notification Service
@@ -359,6 +360,10 @@ class NotificationService {
    * @returns {Object} Creation result
    */
   async sendAssignmentNotification(userId, eventData, assignmentData) {
+    // Get user details for email
+    const user = await userRepository.findById(userId);
+    const userName = user?.profile ? `${user.profile.firstName} ${user.profile.lastName}` : user?.username || 'Volunteer';
+
     const notification = await notificationRepository.create({
       userId,
       type: 'assignment',
@@ -375,6 +380,28 @@ class NotificationService {
         eventTitle: eventData.title
       }
     });
+
+    // Send email notification
+    try {
+      const eventDetails = {
+        title: eventData.title,
+        description: eventData.description || '',
+        date: new Date(eventData.startDate).toLocaleDateString('en-US', {
+          weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+        }),
+        time: `${new Date(eventData.startDate).toLocaleTimeString('en-US', {
+          hour: 'numeric', minute: '2-digit', hour12: true
+        })} - ${new Date(eventData.endDate).toLocaleTimeString('en-US', {
+          hour: 'numeric', minute: '2-digit', hour12: true
+        })}`,
+        location: eventData.location || `${eventData.address}, ${eventData.city}, ${eventData.state}`
+      };
+
+      await emailService.sendEventRegistrationEmail(user.email, userName, eventDetails);
+    } catch (emailError) {
+      console.error('Failed to send assignment email:', emailError);
+      // Don't fail the notification if email fails
+    }
 
     // Normalize enum values
     const normalizedNotification = {

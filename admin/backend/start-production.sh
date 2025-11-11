@@ -3,10 +3,10 @@ set -e
 
 echo "🚀 Starting JACS ShiftPilot Backend..."
 
-# Run database migrations
-echo "📊 Running database migrations..."
-npx prisma migrate deploy
-
+# Sync database schema (dev mode - auto applies schema changes)
+echo "📊 Syncing database schema..."
+npx prisma db push --skip-generate --accept-data-loss
+we
 # Check if database is empty and seed if needed
 echo "🌱 Checking if database needs seeding..."
 NODE_COUNT=$(node -e "
