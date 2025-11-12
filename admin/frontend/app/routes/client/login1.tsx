@@ -119,14 +119,26 @@ export default function LoginPage() {
       <main className="flex-1 relative overflow-hidden">
         <div className="bg-ornament" />
         <div className="max-w-6xl mx-auto px-4 py-10 lg:py-16 grid lg:grid-cols-2 gap-10 relative">
-          <section className="hidden lg:flex flex-col justify-center">
-            <h1 className="text-3xl font-semibold mb-3 text-slate-900">Welcome back, volunteer!</h1>
-            <p className="text-slate-700 max-w-lg">Log in to claim shifts, track hours, and coordinate events. Your service makes a real impact.</p>
-            <ul className="mt-6 space-y-2 text-sm text-slate-700">
-              <li className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-indigo-600" />Smart shift matching</li>
-              <li className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-sky-600" />Hours & impact tracking</li>
-              <li className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-fuchsia-600" />Coordinator messaging</li>
-            </ul>
+          <section className="hidden lg:flex flex-col justify-center space-y-6">
+            {/* Hero Image */}
+            <div className="rounded-2xl overflow-hidden shadow-2xl">
+              <img
+                src="/images/volunteers-community.jpg"
+                alt="Volunteers working together"
+                className="w-full h-64 object-cover"
+              />
+            </div>
+
+            {/* Text Content */}
+            <div>
+              <h1 className="text-3xl font-semibold mb-3 text-slate-900">Welcome back, volunteer!</h1>
+              <p className="text-slate-700 max-w-lg">Log in to claim shifts, track hours, and coordinate events. Your service makes a real impact.</p>
+              <ul className="mt-6 space-y-2 text-sm text-slate-700">
+                <li className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-indigo-600" />Smart shift matching</li>
+                <li className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-sky-600" />Hours & impact tracking</li>
+                <li className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-fuchsia-600" />Coordinator messaging</li>
+              </ul>
+            </div>
           </section>
 
           <section className="w-full flex justify-center">
