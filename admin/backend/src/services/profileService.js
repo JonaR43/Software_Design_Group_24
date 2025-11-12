@@ -137,6 +137,20 @@ class ProfileService {
       await userRepository.updateAvailability(existingProfile.id, availability);
     }
 
+    // Calculate and update profileCompleteness
+    // Get the fresh profile with all updated data
+    const freshProfile = await userRepository.getProfile(userId);
+    if (freshProfile) {
+      const newProfileCompleteness = this.calculateProfileCompletion(freshProfile);
+      console.log('Calculated profileCompleteness:', newProfileCompleteness);
+
+      // Update the profileCompleteness field in the database
+      await userRepository.updateProfile(userId, {
+        profileCompleteness: newProfileCompleteness
+      });
+      console.log('Updated profileCompleteness in database to:', newProfileCompleteness);
+    }
+
     // Get updated profile with details
     const result = await this.getProfile(userId);
     return {

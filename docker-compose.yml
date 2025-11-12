@@ -46,9 +46,6 @@ services:
         condition: service_healthy
     networks:
       - shiftpilot-network
-    volumes:
-      - ./admin/backend:/app
-      - /app/node_modules
 
   # Frontend Application
   frontend:
