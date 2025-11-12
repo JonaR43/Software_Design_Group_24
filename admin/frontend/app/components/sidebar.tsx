@@ -3,7 +3,11 @@ import { useState } from "react";
 import NotificationCenter from "./NotificationCenter";
 import { useAuth } from "~/contexts/AuthContext";
 
-export default function Sidebar() {
+interface SidebarProps {
+  onNavigate?: () => void;
+}
+
+export default function Sidebar({ onNavigate }: SidebarProps = {}) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [unreadNotifications] = useState(3); // Mock notification count
@@ -57,12 +61,13 @@ export default function Sidebar() {
       <nav className="flex-1 flex flex-col p-4 space-y-2">
         {/* Core Navigation */}
         <div className="space-y-1">
-          <NavLink 
-            to="home" 
-            className={({ isActive }) => 
+          <NavLink
+            to="home"
+            onClick={onNavigate}
+            className={({ isActive }) =>
               `flex items-center gap-3 p-3 rounded-lg transition-colors ${
-                isActive 
-                  ? "bg-indigo-100 text-indigo-700 font-semibold" 
+                isActive
+                  ? "bg-indigo-100 text-indigo-700 font-semibold"
                   : "text-slate-700 hover:bg-indigo-50 hover:text-indigo-600"
               }`
             }
@@ -73,12 +78,13 @@ export default function Sidebar() {
             Home
           </NavLink>
           
-          <NavLink 
-            to="events" 
-            className={({ isActive }) => 
+          <NavLink
+            to="events"
+            onClick={onNavigate}
+            className={({ isActive }) =>
               `flex items-center gap-3 p-3 rounded-lg transition-colors ${
-                isActive 
-                  ? "bg-indigo-100 text-indigo-700 font-semibold" 
+                isActive
+                  ? "bg-indigo-100 text-indigo-700 font-semibold"
                   : "text-slate-700 hover:bg-indigo-50 hover:text-indigo-600"
               }`
             }
@@ -88,13 +94,14 @@ export default function Sidebar() {
             </svg>
             Events
           </NavLink>
-          
-          <NavLink 
-            to="schedule" 
-            className={({ isActive }) => 
+
+          <NavLink
+            to="schedule"
+            onClick={onNavigate}
+            className={({ isActive }) =>
               `flex items-center gap-3 p-3 rounded-lg transition-colors ${
-                isActive 
-                  ? "bg-indigo-100 text-indigo-700 font-semibold" 
+                isActive
+                  ? "bg-indigo-100 text-indigo-700 font-semibold"
                   : "text-slate-700 hover:bg-indigo-50 hover:text-indigo-600"
               }`
             }
@@ -104,13 +111,14 @@ export default function Sidebar() {
             </svg>
             Schedule
           </NavLink>
-          
-          <NavLink 
-            to="history" 
-            className={({ isActive }) => 
+
+          <NavLink
+            to="history"
+            onClick={onNavigate}
+            className={({ isActive }) =>
               `flex items-center gap-3 p-3 rounded-lg transition-colors ${
-                isActive 
-                  ? "bg-indigo-100 text-indigo-700 font-semibold" 
+                isActive
+                  ? "bg-indigo-100 text-indigo-700 font-semibold"
                   : "text-slate-700 hover:bg-indigo-50 hover:text-indigo-600"
               }`
             }
@@ -120,9 +128,10 @@ export default function Sidebar() {
             </svg>
             History
           </NavLink>
-          
+
           <NavLink
             to="profile"
+            onClick={onNavigate}
             className={({ isActive }) =>
               `flex items-center gap-3 p-3 rounded-lg transition-colors ${
                 isActive
@@ -139,6 +148,7 @@ export default function Sidebar() {
 
           <NavLink
             to="availability"
+            onClick={onNavigate}
             className={({ isActive }) =>
               `flex items-center gap-3 p-3 rounded-lg transition-colors ${
                 isActive
@@ -155,6 +165,7 @@ export default function Sidebar() {
 
           <NavLink
             to="attendance"
+            onClick={onNavigate}
             className={({ isActive }) =>
               `flex items-center gap-3 p-3 rounded-lg transition-colors ${
                 isActive
@@ -179,12 +190,13 @@ export default function Sidebar() {
               </div>
             </div>
             <div className="space-y-1">
-              <NavLink 
-                to="admin/events" 
-                className={({ isActive }) => 
+              <NavLink
+                to="admin/events"
+                onClick={onNavigate}
+                className={({ isActive }) =>
                   `flex items-center gap-3 p-3 rounded-lg transition-colors ${
-                    isActive 
-                      ? "bg-indigo-100 text-indigo-700 font-semibold" 
+                    isActive
+                      ? "bg-indigo-100 text-indigo-700 font-semibold"
                       : "text-slate-700 hover:bg-indigo-50 hover:text-indigo-600"
                   }`
                 }
@@ -195,13 +207,14 @@ export default function Sidebar() {
                 </svg>
                 Event Management
               </NavLink>
-              
-              <NavLink 
-                to="admin/create-event" 
-                className={({ isActive }) => 
+
+              <NavLink
+                to="admin/create-event"
+                onClick={onNavigate}
+                className={({ isActive }) =>
                   `flex items-center gap-3 p-3 rounded-lg transition-colors ${
-                    isActive 
-                      ? "bg-indigo-100 text-indigo-700 font-semibold" 
+                    isActive
+                      ? "bg-indigo-100 text-indigo-700 font-semibold"
                       : "text-slate-700 hover:bg-indigo-50 hover:text-indigo-600"
                   }`
                 }
@@ -211,9 +224,10 @@ export default function Sidebar() {
                 </svg>
                 Create Event
               </NavLink>
-              
+
               <NavLink
                 to="admin/matching"
+                onClick={onNavigate}
                 className={({ isActive }) =>
                   `flex items-center gap-3 p-3 rounded-lg transition-colors ${
                     isActive
@@ -230,6 +244,7 @@ export default function Sidebar() {
 
               <NavLink
                 to="admin/attendance"
+                onClick={onNavigate}
                 className={({ isActive }) =>
                   `flex items-center gap-3 p-3 rounded-lg transition-colors ${
                     isActive

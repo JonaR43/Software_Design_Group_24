@@ -187,10 +187,10 @@ export default function Onboarding() {
         </div>
 
         {/* Step Indicators */}
-        <div className="flex justify-between mb-8">
+        <div className="flex justify-between mb-8 gap-2">
           {[1, 2, 3, 4].map((step) => (
             <div key={step} className="flex flex-col items-center flex-1">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all ${
+              <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-semibold transition-all text-sm sm:text-base ${
                 step === currentStep
                   ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white scale-110'
                   : step < currentStep
@@ -199,20 +199,28 @@ export default function Onboarding() {
               }`}>
                 {step < currentStep ? '✓' : step}
               </div>
-              <span className={`text-xs mt-2 font-medium ${
+              <span className={`text-xs mt-2 font-medium text-center ${
                 step === currentStep ? 'text-indigo-600' : step < currentStep ? 'text-green-600' : 'text-slate-400'
               }`}>
-                {step === 1 && 'Basic Info'}
-                {step === 2 && 'Skills'}
-                {step === 3 && 'Availability'}
-                {step === 4 && 'Preferences'}
+                <span className="hidden sm:inline">
+                  {step === 1 && 'Basic Info'}
+                  {step === 2 && 'Skills'}
+                  {step === 3 && 'Availability'}
+                  {step === 4 && 'Preferences'}
+                </span>
+                <span className="sm:hidden">
+                  {step === 1 && 'Info'}
+                  {step === 2 && 'Skills'}
+                  {step === 3 && 'Available'}
+                  {step === 4 && 'Prefs'}
+                </span>
               </span>
             </div>
           ))}
         </div>
 
         {/* Card */}
-        <div className="card p-8">
+        <div className="card p-6 sm:p-8">
           {/* Step 1: Basic Info */}
           {currentStep === 1 && (
             <div className="space-y-6">
@@ -221,7 +229,7 @@ export default function Onboarding() {
                 <p className="text-slate-600">This helps us match you with local volunteer opportunities</p>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">
                     First Name <span className="text-red-500">*</span>
@@ -272,8 +280,8 @@ export default function Onboarding() {
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
-                <div className="col-span-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="sm:col-span-2">
                   <label className="block text-sm font-medium text-slate-700 mb-2">
                     City <span className="text-red-500">*</span>
                   </label>
