@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { ProfileService, SkillsService, DashboardService, EventService, type FrontendProfile } from "~/services/api";
 import AvailabilityCalendar from "~/components/AvailabilityCalendar";
+import ProfilePictureUpload from "~/components/ProfilePictureUpload";
 
 export default function Profile() {
   const [isEditing, setIsEditing] = useState(false);
@@ -17,6 +18,7 @@ export default function Profile() {
   });
   const [availability, setAvailability] = useState<Array<{id?: string; dayOfWeek: string; startTime: string; endTime: string}>>([]);
   const [registeredEvents, setRegisteredEvents] = useState<Array<{title: string; date: Date; startTime: string; endTime: string}>>([]);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   // Load profile and skills from backend
   useEffect(() => {
@@ -41,10 +43,11 @@ export default function Profile() {
         }));
         setRegisteredEvents(userEvents);
 
-        // Fetch availability from backend profile
+        // Fetch availability and avatar from backend profile
         const backendProfile = await ProfileService.getCurrentBackendProfile();
         const availability = backendProfile?.availability || [];
         setAvailability(availability);
+        setAvatarUrl(backendProfile?.avatar || null);
 
         // Ensure all fields have default values to prevent display issues
         const normalizedProfile: FrontendProfile = {
@@ -222,10 +225,13 @@ export default function Profile() {
           {/* Profile Picture & Basic Info */}
           <div className="card p-6">
             <div className="flex flex-col items-center text-center">
-              <div className="h-24 w-24 bg-gradient-to-r from-indigo-400 to-violet-400 rounded-full flex items-center justify-center text-white text-2xl font-semibold mb-4">
-                {(profile.firstName?.[0] || '').toUpperCase()}{(profile.lastName?.[0] || '').toUpperCase() || '?'}
-              </div>
-              <h2 className="text-xl font-semibold text-slate-900">
+              {/* Profile Picture Upload Component */}
+              <ProfilePictureUpload
+                currentAvatarUrl={avatarUrl}
+                onUploadSuccess={(url) => setAvatarUrl(url)}
+              />
+
+              <h2 className="text-xl font-semibold text-slate-900 mt-4">
                 {profile.firstName || 'Unknown'} {profile.lastName || 'User'}
               </h2>
               <p className="text-slate-600 text-sm mb-4">Volunteer Member</p>

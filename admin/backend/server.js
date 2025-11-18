@@ -17,6 +17,7 @@ const historyRoutes = require('./src/routes/history');
 const adminRoutes = require('./src/routes/admin');
 const reportingRoutes = require('./src/routes/reporting');
 const attendanceRoutes = require('./src/routes/attendance');
+const uploadRoutes = require('./src/routes/upload');
 
 // Import middleware
 const errorHandler = require('./src/middleware/errorHandler');
@@ -51,6 +52,7 @@ app.use('/api/history', historyRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin/reporting', reportingRoutes);
 app.use('/api/attendance', attendanceRoutes);
+app.use('/api/upload', uploadRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

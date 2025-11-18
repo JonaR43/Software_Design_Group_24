@@ -39,6 +39,9 @@ services:
       JWT_SECRET: your-super-secret-jwt-key-change-in-production
       JWT_EXPIRES_IN: 7d
       BCRYPT_ROUNDS: 10
+      CLOUDINARY_CLOUD_NAME: dzmwec215
+      CLOUDINARY_API_KEY: 693372823161119
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
     ports:
       - "3001:3001"
     depends_on:
