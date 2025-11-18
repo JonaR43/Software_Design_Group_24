@@ -193,6 +193,7 @@ export interface FrontendEvent {
   description?: string;
   spotsRemaining?: number;
   urgencyLevel?: string;
+  requiredSkills?: Array<{ skillId: string; minLevel: string; required: boolean }>;
 }
 
 export interface BackendProfile {
@@ -209,6 +210,10 @@ export interface BackendProfile {
   skills: Array<{
     skillId: string;
     proficiency: string;
+    skillName?: string;
+    skillCategory?: string;
+    yearsOfExp?: number;
+    certified?: boolean;
   }>;
   availability: Array<{
     dayOfWeek: number;
@@ -349,12 +354,16 @@ export class DataTransformer {
   }
 
   static async transformProfile(backendProfile: BackendProfile): Promise<FrontendProfile> {
-    // Get skill names instead of IDs
-    const skills = await SkillsService.getSkills();
-    const skillMap = new Map(skills.map(skill => [skill.id, skill.name]));
-    const skillNames = backendProfile.skills?.map(skill =>
-      skillMap.get(skill.skillId) || skill.skillId
-    ) || [];
+    // Extract skill names from backend skills array
+    // Backend returns skills with skillName property
+    const skillNames = backendProfile.skills?.map(skill => {
+      // Check if skill has skillName property (backend format)
+      if (skill.skillName) {
+        return skill.skillName;
+      }
+      // Fallback: try to look up by skillId
+      return skill.skillId;
+    }).filter(name => name) || [];
 
     return {
       firstName: backendProfile.firstName,
