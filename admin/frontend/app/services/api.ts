@@ -356,7 +356,9 @@ export class DataTransformer {
   static async transformProfile(backendProfile: BackendProfile): Promise<FrontendProfile> {
     // Extract skill names from backend skills array
     // Backend returns skills with skillName property
+    console.log('Backend profile skills:', backendProfile.skills);
     const skillNames = backendProfile.skills?.map(skill => {
+      console.log('Processing skill:', skill);
       // Check if skill has skillName property (backend format)
       if (skill.skillName) {
         return skill.skillName;
@@ -364,6 +366,7 @@ export class DataTransformer {
       // Fallback: try to look up by skillId
       return skill.skillId;
     }).filter(name => name) || [];
+    console.log('Extracted skill names:', skillNames);
 
     return {
       firstName: backendProfile.firstName,
