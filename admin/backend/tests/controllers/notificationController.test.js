@@ -417,6 +417,18 @@ describe('NotificationController', () => {
       expect(response.body.status).toBe('success');
       expect(response.body.message).toBe('Assignment notification sent');
     });
+
+    it('should return 400 when userId is missing', async () => {
+      const response = await request(app)
+        .post('/notifications/assignment')
+        .send({
+          eventData: { id: 'event_001' },
+          assignmentData: { assignmentId: 'assign_001' }
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.status).toBe('error');
+    });
   });
 
   describe('POST /notifications/reminder', () => {
@@ -439,6 +451,15 @@ describe('NotificationController', () => {
       expect(response.status).toBe(201);
       expect(response.body.status).toBe('success');
       expect(response.body.message).toBe('Reminder notification sent');
+    });
+
+    it('should return 400 when eventData is missing', async () => {
+      const response = await request(app)
+        .post('/notifications/reminder')
+        .send({ userId: 'user_001', reminderType: '24h' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.status).toBe('error');
     });
   });
 
@@ -695,3 +716,31 @@ describe('NotificationController', () => {
     });
   });
 });
+  describe('Validation error tests', () => {
+    it('should return 400 for event-update without updateData', async () => {
+      const response = await request(app)
+        .post('/notifications/event-update')
+        .send({ userId: 'user_001', eventData: { id: 'event_001' } });
+
+      expect(response.status).toBe(400);
+      expect(response.body.status).toBe('error');
+    });
+
+    it('should return 400 for matching-suggestion without matchData', async () => {
+      const response = await request(app)
+        .post('/notifications/matching-suggestion')
+        .send({ userId: 'user_001', eventData: { id: 'event_001' } });
+
+      expect(response.status).toBe(400);
+      expect(response.body.status).toBe('error');
+    });
+
+    it('should return 400 for bulk-send without userIds array', async () => {
+      const response = await request(app)
+        .post('/notifications/bulk-send')
+        .send({ notificationData: { message: 'test' } });
+
+      expect(response.status).toBe(400);
+      expect(response.body.status).toBe('error');
+    });
+  });

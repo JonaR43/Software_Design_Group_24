@@ -243,19 +243,19 @@ describe('EventRepository', () => {
         { id: '2', eventId: 'event-1', volunteerId: 'user-2' }
       ];
 
-      prisma.eventAssignment.findMany.mockResolvedValue(mockAssignments);
+      prisma.assignment.findMany.mockResolvedValue(mockAssignments);
 
       const result = await EventRepository.getAssignments('event-1');
 
       expect(result).toEqual(mockAssignments);
-      expect(prisma.eventAssignment.findMany).toHaveBeenCalledWith({
+      expect(prisma.assignment.findMany).toHaveBeenCalledWith({
         where: { eventId: 'event-1' },
         include: expect.any(Object)
       });
     });
 
     it('should return empty array for event with no assignments', async () => {
-      prisma.eventAssignment.findMany.mockResolvedValue([]);
+      prisma.assignment.findMany.mockResolvedValue([]);
 
       const result = await EventRepository.getAssignments('event-1');
 
@@ -272,12 +272,12 @@ describe('EventRepository', () => {
         status: 'CONFIRMED'
       };
 
-      prisma.eventAssignment.create.mockResolvedValue(mockAssignment);
+      prisma.assignment.create.mockResolvedValue(mockAssignment);
 
       const result = await EventRepository.assignVolunteer('event-1', 'user-1');
 
       expect(result).toEqual(mockAssignment);
-      expect(prisma.eventAssignment.create).toHaveBeenCalledWith({
+      expect(prisma.assignment.create).toHaveBeenCalledWith({
         data: {
           eventId: 'event-1',
           volunteerId: 'user-1',
@@ -288,7 +288,7 @@ describe('EventRepository', () => {
     });
 
     it('should handle duplicate assignment error', async () => {
-      prisma.eventAssignment.create.mockRejectedValue(new Error('Unique constraint failed'));
+      prisma.assignment.create.mockRejectedValue(new Error('Unique constraint failed'));
 
       await expect(EventRepository.assignVolunteer('event-1', 'user-1')).rejects.toThrow();
     });
@@ -297,12 +297,12 @@ describe('EventRepository', () => {
   describe('unassignVolunteer', () => {
     it('should unassign volunteer from event', async () => {
       const mockDeleted = { id: 'assignment-1', eventId: 'event-1', volunteerId: 'user-1' };
-      prisma.eventAssignment.delete.mockResolvedValue(mockDeleted);
+      prisma.assignment.delete.mockResolvedValue(mockDeleted);
 
       const result = await EventRepository.unassignVolunteer('event-1', 'user-1');
 
       expect(result).toEqual(mockDeleted);
-      expect(prisma.eventAssignment.delete).toHaveBeenCalledWith({
+      expect(prisma.assignment.delete).toHaveBeenCalledWith({
         where: {
           eventId_volunteerId: {
             eventId: 'event-1',
@@ -313,7 +313,7 @@ describe('EventRepository', () => {
     });
 
     it('should handle unassigning non-existent assignment', async () => {
-      prisma.eventAssignment.delete.mockRejectedValue(new Error('Record not found'));
+      prisma.assignment.delete.mockRejectedValue(new Error('Record not found'));
 
       await expect(EventRepository.unassignVolunteer('event-1', 'user-1')).rejects.toThrow();
     });
@@ -332,12 +332,12 @@ describe('EventRepository', () => {
         }
       ];
 
-      prisma.eventAssignment.findMany.mockResolvedValue(mockAssignments);
+      prisma.assignment.findMany.mockResolvedValue(mockAssignments);
 
       const result = await EventRepository.findByVolunteer('user-1');
 
       expect(result).toHaveLength(2);
-      expect(prisma.eventAssignment.findMany).toHaveBeenCalledWith({
+      expect(prisma.assignment.findMany).toHaveBeenCalledWith({
         where: { volunteerId: 'user-1' },
         include: expect.any(Object)
       });
@@ -394,7 +394,7 @@ describe('EventRepository', () => {
 
   describe('isVolunteerAssigned', () => {
     it('should return true if volunteer is assigned', async () => {
-      prisma.eventAssignment.findUnique.mockResolvedValue({
+      prisma.assignment.findUnique.mockResolvedValue({
         id: 'assignment-1',
         eventId: 'event-1',
         volunteerId: 'user-1'
@@ -403,7 +403,7 @@ describe('EventRepository', () => {
       const result = await EventRepository.isVolunteerAssigned('event-1', 'user-1');
 
       expect(result).toBe(true);
-      expect(prisma.eventAssignment.findUnique).toHaveBeenCalledWith({
+      expect(prisma.assignment.findUnique).toHaveBeenCalledWith({
         where: {
           eventId_volunteerId: {
             eventId: 'event-1',
@@ -414,7 +414,7 @@ describe('EventRepository', () => {
     });
 
     it('should return false if volunteer is not assigned', async () => {
-      prisma.eventAssignment.findUnique.mockResolvedValue(null);
+      prisma.assignment.findUnique.mockResolvedValue(null);
 
       const result = await EventRepository.isVolunteerAssigned('event-1', 'user-1');
 
@@ -424,12 +424,12 @@ describe('EventRepository', () => {
 
   describe('getVolunteerCount', () => {
     it('should get volunteer count for event', async () => {
-      prisma.eventAssignment.count.mockResolvedValue(15);
+      prisma.assignment.count.mockResolvedValue(15);
 
       const result = await EventRepository.getVolunteerCount('event-1');
 
       expect(result).toBe(15);
-      expect(prisma.eventAssignment.count).toHaveBeenCalledWith({
+      expect(prisma.assignment.count).toHaveBeenCalledWith({
         where: {
           eventId: 'event-1',
           status: 'CONFIRMED'
@@ -438,7 +438,7 @@ describe('EventRepository', () => {
     });
 
     it('should return 0 for event with no volunteers', async () => {
-      prisma.eventAssignment.count.mockResolvedValue(0);
+      prisma.assignment.count.mockResolvedValue(0);
 
       const result = await EventRepository.getVolunteerCount('event-1');
 

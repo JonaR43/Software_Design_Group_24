@@ -31,6 +31,7 @@ app.get('/profile/skills/search', mockAuth, profileController.searchSkills);
 app.get('/profile/proficiency-levels', mockAuth, profileController.getProficiencyLevels);
 app.post('/profile/skills', mockAuth, profileController.addSkills);
 app.delete('/profile/skills', mockAuth, profileController.removeSkills);
+app.post('/profile/create-skill', mockAuth, profileController.createCustomSkill);
 app.put('/profile/availability', mockAuth, profileController.updateAvailability);
 app.get('/profile/availability', mockAuth, profileController.getAvailability);
 app.put('/profile/preferences', mockAuth, profileController.updatePreferences);
@@ -599,4 +600,51 @@ describe('ProfileController', () => {
       expect(response.status).toBe(500);
     });
   });
+  describe('POST /profile/create-skill', () => {
+    it('should return 400 when skill name is missing', async () => {
+      const response = await request(app)
+        .post('/profile/create-skill')
+        .send({ category: 'custom' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toBe('Skill name is required');
+    });
+
+    it('should return 400 when skill name is empty', async () => {
+      const response = await request(app)
+        .post('/profile/create-skill')
+        .send({ name: '   ', category: 'custom' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toBe('Skill name is required');
+    });
+
+    it('should return 409 when skill already exists', async () => {
+      profileService.createCustomSkill.mockRejectedValue(
+        new Error('Skill already exists')
+      );
+
+      const response = await request(app)
+        .post('/profile/create-skill')
+        .send({ name: 'Existing Skill', category: 'custom' });
+
+      expect(response.status).toBe(409);
+      expect(response.body.message).toContain('already exists');
+    });
+
+    it('should create custom skill successfully', async () => {
+      profileService.createCustomSkill.mockResolvedValue({
+        success: true,
+        data: { id: 'skill_new', name: 'New Skill' }
+      });
+
+      const response = await request(app)
+        .post('/profile/create-skill')
+        .send({ name: 'New Skill', category: 'custom' });
+
+      expect(response.status).toBe(201);
+      expect(response.body.status).toBe('success');
+    });
+  });
+
 });

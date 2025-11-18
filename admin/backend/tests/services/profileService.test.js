@@ -99,7 +99,10 @@ describe('ProfileService', () => {
       };
 
       userRepository.updateProfile.mockResolvedValue(updatedProfile);
-      userRepository.getProfile.mockResolvedValueOnce({ ...mockProfile }).mockResolvedValueOnce(updatedProfile);
+      userRepository.getProfile
+        .mockResolvedValueOnce({ ...mockProfile })  // First call: existing profile
+        .mockResolvedValueOnce(updatedProfile)      // Second call: fresh profile after update
+        .mockResolvedValueOnce(updatedProfile);     // Third call: final getProfile
       userRepository.removeSkills.mockResolvedValue();
       userRepository.addSkills.mockResolvedValue();
       userRepository.updateAvailability.mockResolvedValue();
