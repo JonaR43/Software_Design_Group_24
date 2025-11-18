@@ -798,58 +798,67 @@ export class ProfileService {
         backendData.availability = profileData.availability;
       }
 
-      // Convert skill names to skill IDs if skills are being updated
+      // Handle skills - support both formats: skill names (strings) or skill objects ({ skillId, proficiency })
       if (profileData.skills !== undefined) {
-        let allSkills = await SkillsService.getSkills();
-        let skillNameToId = new Map(allSkills.map(skill => [skill.name, skill.id]));
+        // Check if skills are already in the correct format ({ skillId, proficiency })
+        const firstSkill = profileData.skills[0];
+        if (firstSkill && typeof firstSkill === 'object' && 'skillId' in firstSkill) {
+          // Skills are already in the correct format from onboarding
+          console.log('Skills already in correct format:', profileData.skills);
+          backendData.skills = profileData.skills;
+        } else {
+          // Skills are skill names (strings) - convert to { skillId, proficiency } format
+          let allSkills = await SkillsService.getSkills();
+          let skillNameToId = new Map(allSkills.map(skill => [skill.name, skill.id]));
 
-        // Create custom skills that don't exist in the database
-        const newSkills: string[] = [];
-        for (const skillName of profileData.skills) {
-          if (!skillNameToId.has(skillName)) {
-            newSkills.push(skillName);
-          }
-        }
-
-        // Create new skills in the database
-        if (newSkills.length > 0) {
-          console.log('Creating new custom skills:', newSkills);
-          for (const skillName of newSkills) {
-            try {
-              const newSkillResponse = await HttpClient.post<{
-                status: string;
-                data: { skill: { id: string; name: string } };
-              }>('/profile/create-skill', {
-                name: skillName,
-                category: 'custom',
-                description: `Custom skill: ${skillName}`
-              });
-
-              if (newSkillResponse.status === 'success' && newSkillResponse.data.skill) {
-                // Add the newly created skill to our mapping
-                skillNameToId.set(skillName, newSkillResponse.data.skill.id);
-                console.log(`Created custom skill: ${skillName} with ID: ${newSkillResponse.data.skill.id}`);
-              }
-            } catch (error) {
-              console.error(`Failed to create custom skill "${skillName}":`, error);
+          // Create custom skills that don't exist in the database
+          const newSkills: string[] = [];
+          for (const skillName of profileData.skills) {
+            if (!skillNameToId.has(skillName)) {
+              newSkills.push(skillName);
             }
           }
 
-          // Refresh skills cache
-          SkillsService.clearCache();
-        }
+          // Create new skills in the database
+          if (newSkills.length > 0) {
+            console.log('Creating new custom skills:', newSkills);
+            for (const skillName of newSkills) {
+              try {
+                const newSkillResponse = await HttpClient.post<{
+                  status: string;
+                  data: { skill: { id: string; name: string } };
+                }>('/profile/create-skill', {
+                  name: skillName,
+                  category: 'custom',
+                  description: `Custom skill: ${skillName}`
+                });
 
-        backendData.skills = profileData.skills.map(skillName => {
-          const skillId = skillNameToId.get(skillName);
-          if (!skillId) {
-            console.warn(`Skill name "${skillName}" not found in database, skipping`);
-            return null;
+                if (newSkillResponse.status === 'success' && newSkillResponse.data.skill) {
+                  // Add the newly created skill to our mapping
+                  skillNameToId.set(skillName, newSkillResponse.data.skill.id);
+                  console.log(`Created custom skill: ${skillName} with ID: ${newSkillResponse.data.skill.id}`);
+                }
+              } catch (error) {
+                console.error(`Failed to create custom skill "${skillName}":`, error);
+              }
+            }
+
+            // Refresh skills cache
+            SkillsService.clearCache();
           }
-          return {
-            skillId: skillId,
-            proficiency: 'intermediate' // Default proficiency level
-          };
-        }).filter(skill => skill !== null); // Remove null entries
+
+          backendData.skills = profileData.skills.map(skillName => {
+            const skillId = skillNameToId.get(skillName);
+            if (!skillId) {
+              console.warn(`Skill name "${skillName}" not found in database, skipping`);
+              return null;
+            }
+            return {
+              skillId: skillId,
+              proficiency: 'intermediate' // Default proficiency level
+            };
+          }).filter(skill => skill !== null); // Remove null entries
+        }
       }
 
       console.log('Sending backend data:', backendData); // Debug log
