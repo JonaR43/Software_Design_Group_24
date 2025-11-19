@@ -3,20 +3,29 @@ const userRepository = require('../database/repositories/userRepository');
 
 /**
  * Authentication Middleware
- * Verifies JWT tokens and sets user information in req.user
+ * Verifies JWT tokens from httpOnly cookies OR Authorization header
+ * Priority: 1. httpOnly cookie (secure), 2. Authorization header (backwards compatible)
  */
 const authenticate = async (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization;
+    let token = null;
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    // Priority 1: Check for httpOnly cookie (most secure)
+    if (req.cookies && req.cookies.accessToken) {
+      token = req.cookies.accessToken;
+    }
+    // Priority 2: Check Authorization header (backwards compatible)
+    else if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+      token = req.headers.authorization.substring(7); // Remove 'Bearer ' prefix
+    }
+
+    // No token found
+    if (!token) {
       return res.status(401).json({
         status: 'error',
         message: 'No token provided or invalid format'
       });
     }
-
-    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
 
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
@@ -52,7 +61,8 @@ const authenticate = async (req, res, next) => {
     if (error.name === 'TokenExpiredError') {
       return res.status(401).json({
         status: 'error',
-        message: 'Token expired'
+        message: 'Token expired',
+        code: 'TOKEN_EXPIRED'
       });
     }
 

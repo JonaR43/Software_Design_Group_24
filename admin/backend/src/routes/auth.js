@@ -4,6 +4,7 @@ const passport = require('../config/passport');
 const authController = require('../controllers/authController');
 const { authenticate, authorize } = require('../middleware/auth');
 const { validate, schemas } = require('../middleware/validation');
+const { authLimiter } = require('../middleware/rateLimiter');
 
 const router = express.Router();
 
@@ -100,6 +101,7 @@ router.get('/oauth/failure', authController.oauthFailure);
  * @access  Public
  */
 router.post('/register',
+  authLimiter, // Rate limit registration attempts
   validate(schemas.register),
   authController.register
 );
@@ -110,6 +112,7 @@ router.post('/register',
  * @access  Public
  */
 router.post('/login',
+  authLimiter, // Rate limit login attempts (prevent brute force)
   validate(schemas.login),
   authController.login
 );

@@ -5,6 +5,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
+const cookieParser = require('cookie-parser');
 const passport = require('./src/config/passport');
 
 // Import routes
@@ -21,16 +22,23 @@ const uploadRoutes = require('./src/routes/upload');
 
 // Import middleware
 const errorHandler = require('./src/middleware/errorHandler');
+const { apiLimiter } = require('./src/middleware/rateLimiter');
+const { contentSecurityPolicy, strictTransportSecurity } = require('./src/middleware/securityHeaders');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Security middleware
 app.use(helmet());
+app.use(contentSecurityPolicy);
+app.use(strictTransportSecurity);
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:5173',
   credentials: true
 }));
+
+// Rate limiting - Apply to all API routes
+app.use('/api/', apiLimiter);
 
 // Logging middleware
 app.use(morgan('combined'));
@@ -38,6 +46,9 @@ app.use(morgan('combined'));
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// Cookie parsing middleware (for httpOnly cookies)
+app.use(cookieParser());
 
 // Initialize Passport
 app.use(passport.initialize());

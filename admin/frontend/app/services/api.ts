@@ -8,138 +8,345 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
 const API_SERVER_URL = API_BASE_URL.replace('/api', '');
 
 // Auth token management
+// SECURITY UPDATE: Tokens are now stored in httpOnly cookies (secure, XSS-proof)
+// This class is kept for backwards compatibility with localStorage user/profile data
 class TokenManager {
+  // Tokens are now in httpOnly cookies, not accessible via JavaScript
   static getToken(): string | null {
-    return localStorage.getItem('authToken');
+    // Return null - tokens are handled by cookies automatically
+    return null;
   }
 
-  static setToken(token: string): void {
-    localStorage.setItem('authToken', token);
+  static setToken(_token: string): void {
+    // No-op - tokens are set via httpOnly cookies by the backend
+    // Kept for backwards compatibility
   }
 
   static removeToken(): void {
-    localStorage.removeItem('authToken');
+    // Clear user/profile data from localStorage
+    // Actual token clearing happens via API logout call (clears cookies)
+    localStorage.removeItem('user');
+    localStorage.removeItem('profile');
+    localStorage.removeItem('authToken'); // Legacy cleanup
   }
 
   static isAuthenticated(): boolean {
-    return !!this.getToken();
+    // Check if user data exists (indicates logged in session)
+    return !!localStorage.getItem('user');
+  }
+
+  // Helper to get user data (still stored in localStorage for quick access)
+  static getUser(): any {
+    const user = localStorage.getItem('user');
+    return user ? JSON.parse(user) : null;
+  }
+
+  static setUser(user: any): void {
+    localStorage.setItem('user', JSON.stringify(user));
+  }
+
+  static getProfile(): any {
+    const profile = localStorage.getItem('profile');
+    return profile ? JSON.parse(profile) : null;
+  }
+
+  static setProfile(profile: any): void {
+    localStorage.setItem('profile', JSON.stringify(profile));
   }
 }
 
-// HTTP client with auth headers
+// HTTP client with auth headers and automatic token refresh
 class HttpClient {
+  private static isRefreshing = false;
+  private static refreshPromise: Promise<any> | null = null;
+
   private static getHeaders(): Record<string, string> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
 
-    const token = TokenManager.getToken();
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
+    // Note: We don't add Authorization header anymore
+    // Tokens are sent automatically via httpOnly cookies
+    // This is more secure (XSS-proof)
 
     return headers;
   }
 
-  static async get<T>(endpoint: string): Promise<T> {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      method: 'GET',
-      headers: this.getHeaders(),
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+  /**
+   * Automatic token refresh on 401 errors
+   * Uses refresh token from httpOnly cookie
+   */
+  private static async refreshAccessToken(): Promise<void> {
+    if (this.isRefreshing) {
+      // If already refreshing, wait for that request
+      return this.refreshPromise!;
     }
 
-    return response.json();
+    this.isRefreshing = true;
+    this.refreshPromise = fetch(`${API_BASE_URL}/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include', // Send cookies
+      headers: { 'Content-Type': 'application/json' }
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          // Refresh failed, user needs to login again
+          TokenManager.removeToken();
+          throw new Error('Session expired, please login again');
+        }
+        return response.json();
+      })
+      .then((data) => {
+        // Update user data if provided
+        if (data.data?.user) {
+          TokenManager.setUser(data.data.user);
+        }
+      })
+      .finally(() => {
+        this.isRefreshing = false;
+        this.refreshPromise = null;
+      });
+
+    return this.refreshPromise;
+  }
+
+  static async get<T>(endpoint: string): Promise<T> {
+    try {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        method: 'GET',
+        headers: this.getHeaders(),
+        credentials: 'include', // Include cookies for authentication
+      });
+
+      // Handle 401 - Token expired, try to refresh
+      if (response.status === 401) {
+        await this.refreshAccessToken();
+        // Retry the original request
+        const retryResponse = await fetch(`${API_BASE_URL}${endpoint}`, {
+          method: 'GET',
+          headers: this.getHeaders(),
+          credentials: 'include',
+        });
+
+        if (!retryResponse.ok) {
+          throw new Error(`HTTP error! status: ${retryResponse.status}`);
+        }
+
+        return retryResponse.json();
+      }
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('GET request error:', error);
+      throw error;
+    }
   }
 
   static async post<T>(endpoint: string, data: any): Promise<T> {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify(data),
-    });
+    try {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(data),
+        credentials: 'include', // Include cookies for authentication
+      });
 
-    if (!response.ok) {
-      // Try to get the error details from the response
-      let errorMessage = `HTTP error! status: ${response.status}`;
-      try {
-        const errorData = await response.json();
-        console.error('Backend error response:', errorData);
-        if (errorData.errors) {
-          console.error('Validation errors:', errorData.errors);
-        }
-        if (errorData.message) {
-          errorMessage = errorData.message;
-          if (errorData.errors && errorData.errors.length > 0) {
-            errorMessage += ': ' + errorData.errors.map((err: any) => err.message || err).join(', ');
+      // Handle 401 - Token expired, try to refresh
+      if (response.status === 401 && !endpoint.includes('/auth/')) {
+        await this.refreshAccessToken();
+        // Retry the original request
+        const retryResponse = await fetch(`${API_BASE_URL}${endpoint}`, {
+          method: 'POST',
+          headers: this.getHeaders(),
+          body: JSON.stringify(data),
+          credentials: 'include',
+        });
+
+        if (!retryResponse.ok) {
+          let errorMessage = `HTTP error! status: ${retryResponse.status}`;
+          try {
+            const errorData = await retryResponse.json();
+            if (errorData.message) {
+              errorMessage = errorData.message;
+              if (errorData.errors && errorData.errors.length > 0) {
+                errorMessage += ': ' + errorData.errors.map((err: any) => err.message || err).join(', ');
+              }
+            }
+          } catch (e) {
+            // Use default error message
           }
+          throw new Error(errorMessage);
         }
-      } catch (e) {
-        // If we can't parse the error response, use the status
-      }
-      throw new Error(errorMessage);
-    }
 
-    return response.json();
+        return retryResponse.json();
+      }
+
+      if (!response.ok) {
+        // Try to get the error details from the response
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          console.error('Backend error response:', errorData);
+          if (errorData.errors) {
+            console.error('Validation errors:', errorData.errors);
+          }
+          if (errorData.message) {
+            errorMessage = errorData.message;
+            if (errorData.errors && errorData.errors.length > 0) {
+              errorMessage += ': ' + errorData.errors.map((err: any) => err.message || err).join(', ');
+            }
+          }
+        } catch (e) {
+          // If we can't parse the error response, use the status
+        }
+        throw new Error(errorMessage);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('POST request error:', error);
+      throw error;
+    }
   }
 
   static async put<T>(endpoint: string, data: any): Promise<T> {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      method: 'PUT',
-      headers: this.getHeaders(),
-      body: JSON.stringify(data),
-    });
+    try {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        method: 'PUT',
+        headers: this.getHeaders(),
+        body: JSON.stringify(data),
+        credentials: 'include', // Include cookies for authentication
+      });
 
-    if (!response.ok) {
-      // Try to get the error details from the response
-      let errorMessage = `HTTP error! status: ${response.status}`;
-      try {
-        const errorData = await response.json();
-        console.error('Backend error response:', errorData);
-        if (errorData.errors) {
-          console.error('Validation errors:', errorData.errors);
-        }
-        if (errorData.message) {
-          errorMessage = errorData.message;
-          if (errorData.errors && errorData.errors.length > 0) {
-            errorMessage += ': ' + errorData.errors.map((err: any) => err.message || err).join(', ');
+      // Handle 401 - Token expired, try to refresh
+      if (response.status === 401) {
+        await this.refreshAccessToken();
+        // Retry the original request
+        const retryResponse = await fetch(`${API_BASE_URL}${endpoint}`, {
+          method: 'PUT',
+          headers: this.getHeaders(),
+          body: JSON.stringify(data),
+          credentials: 'include',
+        });
+
+        if (!retryResponse.ok) {
+          let errorMessage = `HTTP error! status: ${retryResponse.status}`;
+          try {
+            const errorData = await retryResponse.json();
+            if (errorData.message) {
+              errorMessage = errorData.message;
+            }
+          } catch (e) {
+            // Use default error message
           }
+          throw new Error(errorMessage);
         }
-      } catch (e) {
-        // If we can't parse the error response, use the status
-      }
-      throw new Error(errorMessage);
-    }
 
-    return response.json();
+        return retryResponse.json();
+      }
+
+      if (!response.ok) {
+        // Try to get the error details from the response
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          console.error('Backend error response:', errorData);
+          if (errorData.errors) {
+            console.error('Validation errors:', errorData.errors);
+          }
+          if (errorData.message) {
+            errorMessage = errorData.message;
+            if (errorData.errors && errorData.errors.length > 0) {
+              errorMessage += ': ' + errorData.errors.map((err: any) => err.message || err).join(', ');
+            }
+          }
+        } catch (e) {
+          // If we can't parse the error response, use the status
+        }
+        throw new Error(errorMessage);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('PUT request error:', error);
+      throw error;
+    }
   }
 
   static async delete<T>(endpoint: string): Promise<T> {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      method: 'DELETE',
-      headers: this.getHeaders(),
-    });
+    try {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        method: 'DELETE',
+        headers: this.getHeaders(),
+        credentials: 'include', // Include cookies for authentication
+      });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      // Handle 401 - Token expired, try to refresh
+      if (response.status === 401) {
+        await this.refreshAccessToken();
+        // Retry the original request
+        const retryResponse = await fetch(`${API_BASE_URL}${endpoint}`, {
+          method: 'DELETE',
+          headers: this.getHeaders(),
+          credentials: 'include',
+        });
+
+        if (!retryResponse.ok) {
+          throw new Error(`HTTP error! status: ${retryResponse.status}`);
+        }
+
+        return retryResponse.json();
+      }
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('DELETE request error:', error);
+      throw error;
     }
-
-    return response.json();
   }
 
   static async download(endpoint: string): Promise<Blob> {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      method: 'GET',
-      headers: this.getHeaders(),
-    });
+    try {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        method: 'GET',
+        headers: this.getHeaders(),
+        credentials: 'include', // Include cookies for authentication
+      });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      // Handle 401 - Token expired, try to refresh
+      if (response.status === 401) {
+        await this.refreshAccessToken();
+        // Retry the original request
+        const retryResponse = await fetch(`${API_BASE_URL}${endpoint}`, {
+          method: 'GET',
+          headers: this.getHeaders(),
+          credentials: 'include',
+        });
+
+        if (!retryResponse.ok) {
+          throw new Error(`HTTP error! status: ${retryResponse.status}`);
+        }
+
+        return retryResponse.blob();
+      }
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return response.blob();
+    } catch (error) {
+      console.error('Download request error:', error);
+      throw error;
     }
-
-    return response.blob();
   }
 }
 
@@ -396,9 +603,10 @@ export class AuthService {
       });
 
       if (response.status === 'success') {
-        TokenManager.setToken(response.data.token);
-        localStorage.setItem('user', JSON.stringify(response.data.user));
-        localStorage.setItem('profile', JSON.stringify(response.data.profile));
+        // Tokens are now stored in httpOnly cookies by the backend
+        // We only store user/profile data in localStorage for quick access
+        TokenManager.setUser(response.data.user);
+        TokenManager.setProfile(response.data.profile);
       }
 
       return response;
@@ -415,9 +623,10 @@ export class AuthService {
       });
 
       if (response.status === 'success') {
-        TokenManager.setToken(response.data.token);
-        localStorage.setItem('user', JSON.stringify(response.data.user));
-        localStorage.setItem('profile', JSON.stringify(response.data.profile));
+        // Tokens are now stored in httpOnly cookies by the backend
+        // We only store user/profile data in localStorage for quick access
+        TokenManager.setUser(response.data.user);
+        TokenManager.setProfile(response.data.profile);
       }
 
       return response;
@@ -427,9 +636,16 @@ export class AuthService {
   }
 
   static async logout(): Promise<void> {
-    TokenManager.removeToken();
-    localStorage.removeItem('user');
-    localStorage.removeItem('profile');
+    try {
+      // Call backend to clear httpOnly cookies
+      await HttpClient.post('/auth/logout', {});
+    } catch (error) {
+      // Even if backend call fails, clear local data
+      console.error('Logout API call failed:', error);
+    } finally {
+      // Clear local user/profile data
+      TokenManager.removeToken();
+    }
   }
 
   static getCurrentUser(): User | null {

@@ -270,16 +270,103 @@ class AuthService {
   }
 
   /**
-   * Generate JWT token for user
+   * Generate JWT access token for user
    * @param {string} userId - User ID
-   * @returns {string} JWT token
+   * @returns {string} JWT access token (short-lived)
    */
   generateToken(userId) {
     return jwt.sign(
-      { userId },
+      { userId, type: 'access' },
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
+      { expiresIn: process.env.JWT_EXPIRES_IN || '15m' }
     );
+  }
+
+  /**
+   * Generate refresh token for user
+   * @param {string} userId - User ID
+   * @returns {string} JWT refresh token (long-lived)
+   */
+  generateRefreshToken(userId) {
+    return jwt.sign(
+      { userId, type: 'refresh' },
+      process.env.REFRESH_TOKEN_SECRET,
+      { expiresIn: process.env.REFRESH_TOKEN_EXPIRES_IN || '7d' }
+    );
+  }
+
+  /**
+   * Verify refresh token and generate new access token
+   * @param {string} refreshToken - Refresh token
+   * @returns {Object} New access token
+   */
+  async refreshAccessToken(refreshToken) {
+    try {
+      const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+
+      if (decoded.type !== 'refresh') {
+        throw new Error('Invalid token type');
+      }
+
+      const user = await userRepository.findById(decoded.userId);
+
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      // Generate new access token
+      const newAccessToken = this.generateToken(user.id);
+
+      return {
+        success: true,
+        data: {
+          accessToken: newAccessToken,
+          user: {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            role: user.role.toLowerCase()
+          }
+        }
+      };
+    } catch (error) {
+      throw new Error('Invalid or expired refresh token');
+    }
+  }
+
+  /**
+   * Set authentication cookies
+   * @param {Object} res - Express response object
+   * @param {string} accessToken - Access token
+   * @param {string} refreshToken - Refresh token
+   */
+  setAuthCookies(res, accessToken, refreshToken) {
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    // Access token cookie (short-lived)
+    res.cookie('accessToken', accessToken, {
+      httpOnly: true, // Prevents JavaScript access (XSS protection)
+      secure: isProduction, // HTTPS only in production
+      sameSite: 'strict', // CSRF protection
+      maxAge: 15 * 60 * 1000 // 15 minutes
+    });
+
+    // Refresh token cookie (long-lived)
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
+  }
+
+  /**
+   * Clear authentication cookies (logout)
+   * @param {Object} res - Express response object
+   */
+  clearAuthCookies(res) {
+    res.clearCookie('accessToken');
+    res.clearCookie('refreshToken');
   }
 
   /**

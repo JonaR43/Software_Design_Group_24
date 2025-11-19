@@ -32,12 +32,16 @@ services:
     container_name: shiftpilot-backend
     restart: unless-stopped
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
       PORT: 3001
       DATABASE_URL: postgresql://postgres:postgres123@postgres:5432/shiftpilot
       SHADOW_DATABASE_URL: postgresql://postgres:postgres123@postgres:5432/shiftpilot_shadow
-      JWT_SECRET: your-super-secret-jwt-key-change-in-production
-      JWT_EXPIRES_IN: 7d
+      # Strong JWT secrets (dev environment - generate new ones for production!)
+      JWT_SECRET: db8358973092289b0d9f44dbc79838fc0583361f0f7ea40cbb35bb86a2d54bf70da85814c5c421072d63d70f3b3f720e31fcfe4843068f0040010b9dcaefa169
+      JWT_EXPIRES_IN: 15m
+      REFRESH_TOKEN_SECRET: c1d05fe52d2f2b84ad6b6cf76b0a3e19fca1bf3ce0c79817be490eb606f5719638346a8dc2ad92f729472a1459ec75f384d8e59c47d5c98b47afe348b8d35402
+      REFRESH_TOKEN_EXPIRES_IN: 7d
+      FRONTEND_URL: http://localhost:5173
       BCRYPT_ROUNDS: 10
       CLOUDINARY_CLOUD_NAME: dzmwec215
       CLOUDINARY_API_KEY: 693372823161119

@@ -46,10 +46,20 @@ class AuthController {
     try {
       const result = await authService.register(req.body);
 
+      // Generate refresh token
+      const refreshToken = authService.generateRefreshToken(result.data.user.id);
+
+      // Set httpOnly cookies for secure token storage
+      authService.setAuthCookies(res, result.data.token, refreshToken);
+
       res.status(201).json({
         status: 'success',
         message: result.message,
-        data: result.data,
+        data: {
+          ...result.data,
+          // Also include token in response for backwards compatibility
+          token: result.data.token
+        },
         timestamp: new Date().toISOString()
       });
     } catch (error) {
@@ -74,10 +84,20 @@ class AuthController {
     try {
       const result = await authService.login(req.body);
 
+      // Generate refresh token
+      const refreshToken = authService.generateRefreshToken(result.data.user.id);
+
+      // Set httpOnly cookies for secure token storage
+      authService.setAuthCookies(res, result.data.token, refreshToken);
+
       res.status(200).json({
         status: 'success',
         message: result.message,
-        data: result.data,
+        data: {
+          ...result.data,
+          // Also include token in response for backwards compatibility
+          token: result.data.token
+        },
         timestamp: new Date().toISOString()
       });
     } catch (error) {
@@ -102,6 +122,9 @@ class AuthController {
   async logout(req, res, next) {
     try {
       const result = await authService.logout(req.user.id);
+
+      // Clear authentication cookies
+      authService.clearAuthCookies(res);
 
       res.status(200).json({
         status: 'success',
@@ -212,24 +235,46 @@ class AuthController {
   /**
    * Refresh JWT token
    * POST /api/auth/refresh
+   * Uses refresh token from httpOnly cookie to generate new access token
    */
   async refreshToken(req, res, next) {
     try {
-      // In a real application, this would use refresh tokens
-      // For Assignment 3, we'll just generate a new token with current user
-      const newToken = authService.generateToken(req.user.id);
+      // Get refresh token from cookie
+      const refreshToken = req.cookies?.refreshToken;
+
+      if (!refreshToken) {
+        return res.status(401).json({
+          status: 'error',
+          message: 'No refresh token provided',
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      // Validate refresh token and generate new access token
+      const result = await authService.refreshAccessToken(refreshToken);
+
+      // Set new access token in cookie
+      authService.setAuthCookies(res, result.data.accessToken, refreshToken);
 
       res.status(200).json({
         status: 'success',
         message: 'Token refreshed successfully',
         data: {
-          token: newToken,
-          expiresIn: process.env.JWT_EXPIRES_IN || '24h'
+          token: result.data.accessToken,
+          user: result.data.user,
+          expiresIn: process.env.JWT_EXPIRES_IN || '15m'
         },
         timestamp: new Date().toISOString()
       });
     } catch (error) {
-      next(error);
+      // Clear invalid cookies
+      authService.clearAuthCookies(res);
+
+      return res.status(401).json({
+        status: 'error',
+        message: error.message,
+        timestamp: new Date().toISOString()
+      });
     }
   }
 
