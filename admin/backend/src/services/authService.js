@@ -347,7 +347,7 @@ class AuthService {
     res.cookie('accessToken', accessToken, {
       httpOnly: true, // Prevents JavaScript access (XSS protection)
       secure: isProduction, // HTTPS only in production
-      sameSite: 'strict', // CSRF protection
+      sameSite: isProduction ? 'none' : 'lax', // 'none' for cross-domain in production (requires secure=true)
       maxAge: 15 * 60 * 1000 // 15 minutes
     });
 
@@ -355,7 +355,7 @@ class AuthService {
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       secure: isProduction,
-      sameSite: 'strict',
+      sameSite: isProduction ? 'none' : 'lax', // 'none' for cross-domain in production (requires secure=true)
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
   }
@@ -365,8 +365,19 @@ class AuthService {
    * @param {Object} res - Express response object
    */
   clearAuthCookies(res) {
-    res.clearCookie('accessToken');
-    res.clearCookie('refreshToken');
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    res.clearCookie('accessToken', {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax'
+    });
+
+    res.clearCookie('refreshToken', {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax'
+    });
   }
 
   /**
