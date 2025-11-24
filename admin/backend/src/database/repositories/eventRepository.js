@@ -233,7 +233,7 @@ class EventRepository {
         }
       },
       orderBy: {
-        createdAt: 'desc'
+        assignedAt: 'desc'
       }
     });
   }
