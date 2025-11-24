@@ -227,50 +227,47 @@ class ReportingService {
     });
 
     await doc.table(tableData, {
-      x: 40,
-      y: doc.y,
       width: doc.page.width - 80,
-      columnsSize: [120, 120, 120, 70, 50],
       prepareHeader: () => {
         doc.font('Helvetica-Bold').fontSize(10).fillColor('#ffffff');
       },
-      prepareRow: (row, indexColumn, indexRow, rectRow, rectCell) => {
-        doc.font('Helvetica').fontSize(9).fillColor(textColor);
-        const isEven = indexRow % 2 === 0;
-        if (isEven) {
-          doc.addBackground(rectRow, lightGray, 0.5);
+      prepareRow: (row, indexColumn, indexRow, rectRow) => {
+        doc.font('Helvetica').fontSize(9).fillColor('#1e293b');
+        // Alternating row background
+        if (indexRow % 2 === 0) {
+          doc.addBackground(rectRow, '#f8fafc');
         }
-      },
-      headerBackground: primaryColor,
-      headerColor: '#ffffff'
+      }
     });
 
     // Footer on all pages
     const range = doc.bufferedPageRange();
-    for (let i = range.start; i < range.start + range.count; i++) {
+    const pageCount = range.count;
+
+    for (let i = 0; i < pageCount; i++) {
       doc.switchToPage(i);
 
       // Footer line
-      doc.strokeColor(lightGray).lineWidth(1)
+      doc.strokeColor('#e2e8f0').lineWidth(1)
         .moveTo(40, doc.page.height - 60)
         .lineTo(doc.page.width - 40, doc.page.height - 60)
         .stroke();
 
       // Footer text
-      doc.fillColor(darkGray).fontSize(9).font('Helvetica')
+      doc.fillColor('#64748b').fontSize(9).font('Helvetica')
         .text(
           `JACS ShiftPilot Volunteer Management System`,
           40,
           doc.page.height - 45,
-          { align: 'left' }
+          { align: 'left', width: doc.page.width - 80 }
         );
 
-      doc.fillColor(darkGray).fontSize(9)
+      doc.fillColor('#64748b').fontSize(9)
         .text(
-          `Page ${i + 1} of ${range.count}`,
-          0,
+          `Page ${i + 1} of ${pageCount}`,
+          40,
           doc.page.height - 45,
-          { align: 'right' }
+          { align: 'right', width: doc.page.width - 80 }
         );
     }
 
@@ -391,48 +388,45 @@ class ReportingService {
     });
 
     await doc.table(tableData, {
-      x: 40,
-      y: doc.y,
       width: doc.page.width - 80,
-      columnsSize: [140, 80, 70, 100, 90],
       prepareHeader: () => {
         doc.font('Helvetica-Bold').fontSize(10).fillColor('#ffffff');
       },
-      prepareRow: (row, indexColumn, indexRow, rectRow, rectCell) => {
-        doc.font('Helvetica').fontSize(9).fillColor(textColor);
-        const isEven = indexRow % 2 === 0;
-        if (isEven) {
-          doc.addBackground(rectRow, lightGray, 0.5);
+      prepareRow: (row, indexColumn, indexRow, rectRow) => {
+        doc.font('Helvetica').fontSize(9).fillColor('#1e293b');
+        // Alternating row background
+        if (indexRow % 2 === 0) {
+          doc.addBackground(rectRow, '#f8fafc');
         }
-      },
-      headerBackground: primaryColor,
-      headerColor: '#ffffff'
+      }
     });
 
     // Footer
     const range = doc.bufferedPageRange();
-    for (let i = range.start; i < range.start + range.count; i++) {
+    const pageCount = range.count;
+
+    for (let i = 0; i < pageCount; i++) {
       doc.switchToPage(i);
 
-      doc.strokeColor(lightGray).lineWidth(1)
+      doc.strokeColor('#e2e8f0').lineWidth(1)
         .moveTo(40, doc.page.height - 60)
         .lineTo(doc.page.width - 40, doc.page.height - 60)
         .stroke();
 
-      doc.fillColor(darkGray).fontSize(9).font('Helvetica')
+      doc.fillColor('#64748b').fontSize(9).font('Helvetica')
         .text(
           `JACS ShiftPilot Volunteer Management System`,
           40,
           doc.page.height - 45,
-          { align: 'left' }
+          { align: 'left', width: doc.page.width - 80 }
         );
 
-      doc.fillColor(darkGray).fontSize(9)
+      doc.fillColor('#64748b').fontSize(9)
         .text(
-          `Page ${i + 1} of ${range.count}`,
-          0,
+          `Page ${i + 1} of ${pageCount}`,
+          40,
           doc.page.height - 45,
-          { align: 'right' }
+          { align: 'right', width: doc.page.width - 80 }
         );
     }
 
