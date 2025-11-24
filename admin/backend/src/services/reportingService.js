@@ -200,35 +200,29 @@ class ReportingService {
 
     // Table data
     const tableData = {
-      headers: [
-        { label: "Volunteer", property: 'volunteer', width: 120 },
-        { label: "Email", property: 'email', width: 120 },
-        { label: "Event", property: 'event', width: 120 },
-        { label: "Status", property: 'status', width: 70 },
-        { label: "Hours", property: 'hours', width: 50, align: 'right' }
-      ],
+      headers: ["Volunteer", "Email", "Event", "Status", "Hours"],
       rows: [],
     };
 
     data.forEach(item => {
       if (item.history.length > 0) {
         item.history.forEach(historyItem => {
-          tableData.rows.push({
-            volunteer: `${item.profile?.firstName || ''} ${item.profile?.lastName || ''}`.trim() || item.volunteer.username,
-            email: item.volunteer.email,
-            event: historyItem.event ? historyItem.event.title : 'N/A',
-            status: historyItem.status,
-            hours: historyItem.hoursWorked || '0'
-          });
+          tableData.rows.push([
+            `${item.profile?.firstName || ''} ${item.profile?.lastName || ''}`.trim() || item.volunteer.username,
+            item.volunteer.email,
+            historyItem.event ? historyItem.event.title : 'N/A',
+            historyItem.status,
+            (historyItem.hoursWorked || 0).toString()
+          ]);
         });
       } else {
-        tableData.rows.push({
-          volunteer: `${item.profile?.firstName || ''} ${item.profile?.lastName || ''}`.trim() || item.volunteer.username,
-          email: item.volunteer.email,
-          event: 'No events',
-          status: '-',
-          hours: '0'
-        });
+        tableData.rows.push([
+          `${item.profile?.firstName || ''} ${item.profile?.lastName || ''}`.trim() || item.volunteer.username,
+          item.volunteer.email,
+          'No events',
+          '-',
+          '0'
+        ]);
       }
     });
 
@@ -370,35 +364,29 @@ class ReportingService {
 
     // Table
     const tableData = {
-      headers: [
-        { label: "Event", property: 'event', width: 140 },
-        { label: "Date", property: 'date', width: 80 },
-        { label: "Status", property: 'status', width: 70 },
-        { label: "Volunteer", property: 'volunteer', width: 100 },
-        { label: "Assignment", property: 'assignment', width: 90 }
-      ],
+      headers: ["Event", "Date", "Status", "Volunteer", "Assignment"],
       rows: [],
     };
 
     data.forEach(item => {
       if (item.assignments.length > 0) {
         item.assignments.forEach(assignment => {
-          tableData.rows.push({
-            event: item.event.title,
-            date: new Date(item.event.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-            status: item.event.status,
-            volunteer: assignment.volunteer ? assignment.volunteer.username : 'N/A',
-            assignment: assignment.status
-          });
+          tableData.rows.push([
+            item.event.title,
+            new Date(item.event.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+            item.event.status,
+            assignment.volunteer ? assignment.volunteer.username : 'N/A',
+            assignment.status
+          ]);
         });
       } else {
-        tableData.rows.push({
-          event: item.event.title,
-          date: new Date(item.event.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-          status: item.event.status,
-          volunteer: 'No volunteers',
-          assignment: '-'
-        });
+        tableData.rows.push([
+          item.event.title,
+          new Date(item.event.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          item.event.status,
+          'No volunteers',
+          '-'
+        ]);
       }
     });
 
