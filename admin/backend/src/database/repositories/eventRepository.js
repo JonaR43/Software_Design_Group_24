@@ -216,6 +216,29 @@ class EventRepository {
   }
 
   /**
+   * Get all assignments for a specific volunteer
+   */
+  async getAssignmentsByVolunteer(volunteerId) {
+    return await prisma.assignment.findMany({
+      where: { volunteerId },
+      include: {
+        event: {
+          select: {
+            id: true,
+            title: true,
+            startDate: true,
+            endDate: true,
+            status: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+  }
+
+  /**
    * Get volunteer assignments
    */
   async getVolunteerAssignments(volunteerId) {

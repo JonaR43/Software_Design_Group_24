@@ -14,10 +14,15 @@ class ReportingService {
     for (const volunteer of volunteers) {
       const profile = await userRepository.getProfile(volunteer.id);
       const history = await historyRepository.getVolunteerHistory(volunteer.id);
+
+      // Also get current/upcoming assignments (not yet in history)
+      const assignments = await eventRepository.getAssignmentsByVolunteer(volunteer.id);
+
       reportData.push({
         volunteer,
         profile,
         history,
+        assignments, // Include current assignments
       });
     }
 
@@ -42,7 +47,10 @@ class ReportingService {
   async generateVolunteerCsv(data) {
     const csvData = [];
     data.forEach(item => {
-      if (item.history.length > 0) {
+      const hasData = item.history.length > 0 || item.assignments.length > 0;
+
+      if (hasData) {
+        // Add completed history
         item.history.forEach(historyItem => {
           csvData.push({
             'Volunteer ID': item.volunteer.id,
@@ -56,7 +64,23 @@ class ReportingService {
             'Hours Worked': historyItem.hoursWorked,
           });
         });
+
+        // Add current/upcoming assignments
+        item.assignments.forEach(assignment => {
+          csvData.push({
+            'Volunteer ID': item.volunteer.id,
+            'Username': item.volunteer.username,
+            'Email': item.volunteer.email,
+            'First Name': item.profile ? item.profile.firstName : '',
+            'Last Name': item.profile ? item.profile.lastName : '',
+            'Event ID': assignment.eventId,
+            'Event Title': assignment.event ? assignment.event.title : 'N/A',
+            'Participation Status': assignment.status,
+            'Hours Worked': 'In Progress',
+          });
+        });
       } else {
+        // Volunteer with no events
         csvData.push({
           'Volunteer ID': item.volunteer.id,
           'Username': item.volunteer.username,
@@ -153,7 +177,7 @@ class ReportingService {
 
     // Summary box
     const totalVolunteers = data.length;
-    const totalParticipation = data.reduce((sum, item) => sum + item.history.length, 0);
+    const totalParticipation = data.reduce((sum, item) => sum + item.history.length + item.assignments.length, 0);
     const totalHours = data.reduce((sum, item) =>
       sum + item.history.reduce((hSum, h) => hSum + (h.hoursWorked || 0), 0), 0
     );
@@ -200,24 +224,41 @@ class ReportingService {
 
     // Table data
     const tableData = {
+      title: "",
       headers: ["Volunteer", "Email", "Event", "Status", "Hours"],
       rows: [],
     };
 
     data.forEach(item => {
-      if (item.history.length > 0) {
+      const volunteerName = `${item.profile?.firstName || ''} ${item.profile?.lastName || ''}`.trim() || item.volunteer.username;
+      const hasData = item.history.length > 0 || item.assignments.length > 0;
+
+      if (hasData) {
+        // Add completed history
         item.history.forEach(historyItem => {
           tableData.rows.push([
-            `${item.profile?.firstName || ''} ${item.profile?.lastName || ''}`.trim() || item.volunteer.username,
+            volunteerName,
             item.volunteer.email,
             historyItem.event ? historyItem.event.title : 'N/A',
             historyItem.status,
             (historyItem.hoursWorked || 0).toString()
           ]);
         });
+
+        // Add current/upcoming assignments
+        item.assignments.forEach(assignment => {
+          tableData.rows.push([
+            volunteerName,
+            item.volunteer.email,
+            assignment.event ? assignment.event.title : 'N/A',
+            assignment.status,
+            'In Progress'
+          ]);
+        });
       } else {
+        // Volunteer with no events
         tableData.rows.push([
-          `${item.profile?.firstName || ''} ${item.profile?.lastName || ''}`.trim() || item.volunteer.username,
+          volunteerName,
           item.volunteer.email,
           'No events',
           '-',
@@ -226,14 +267,11 @@ class ReportingService {
       }
     });
 
-    await doc.table(tableData, {
+    doc.table(tableData, {
       width: doc.page.width - 80,
-      prepareHeader: () => {
-        doc.font('Helvetica-Bold').fontSize(10).fillColor('#ffffff');
-      },
+      prepareHeader: () => doc.font('Helvetica-Bold').fontSize(11),
       prepareRow: (row, indexColumn, indexRow, rectRow) => {
-        doc.font('Helvetica').fontSize(9).fillColor('#1e293b');
-        // Alternating row background
+        doc.font('Helvetica').fontSize(9);
         if (indexRow % 2 === 0) {
           doc.addBackground(rectRow, '#f8fafc');
         }
@@ -361,6 +399,7 @@ class ReportingService {
 
     // Table
     const tableData = {
+      title: "",
       headers: ["Event", "Date", "Status", "Volunteer", "Assignment"],
       rows: [],
     };
@@ -387,14 +426,11 @@ class ReportingService {
       }
     });
 
-    await doc.table(tableData, {
+    doc.table(tableData, {
       width: doc.page.width - 80,
-      prepareHeader: () => {
-        doc.font('Helvetica-Bold').fontSize(10).fillColor('#ffffff');
-      },
+      prepareHeader: () => doc.font('Helvetica-Bold').fontSize(11),
       prepareRow: (row, indexColumn, indexRow, rectRow) => {
-        doc.font('Helvetica').fontSize(9).fillColor('#1e293b');
-        // Alternating row background
+        doc.font('Helvetica').fontSize(9);
         if (indexRow % 2 === 0) {
           doc.addBackground(rectRow, '#f8fafc');
         }
