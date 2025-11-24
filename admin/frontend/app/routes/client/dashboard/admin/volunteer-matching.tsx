@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { EventService, MatchingService, EventVolunteerService, type VolunteerMatch } from '../../../../services/api';
+import { showSuccess, showError } from "~/utils/toast";
 
 interface EventOption {
   id: string;
@@ -71,7 +72,7 @@ export default function VolunteerMatchingPage() {
     } catch (error) {
       console.error('Failed to generate matches:', error);
       console.error('Error details:', error instanceof Error ? error.message : 'Unknown error'); // Debug log
-      alert(`Error loading matches: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      showError(`Error loading matches: ${error instanceof Error ? error.message : 'Unknown error'}`);
       setMatches([]);
     } finally {
       setIsGeneratingMatches(false);
@@ -93,10 +94,10 @@ export default function VolunteerMatchingPage() {
       setAssignments(prev => [...prev, volunteerId]);
       setMatches(prev => prev.filter(match => match.volunteer.id !== volunteerId));
 
-      alert('Volunteer successfully assigned to event!');
+      showSuccess('Volunteer successfully assigned to event!');
     } catch (error) {
       console.error('Failed to assign volunteer:', error);
-      alert(`Failed to assign volunteer: ${error instanceof Error ? error.message : 'Please try again.'}`);
+      showError(`Failed to assign volunteer: ${error instanceof Error ? error.message : 'Please try again.'}`);
     }
   };
 

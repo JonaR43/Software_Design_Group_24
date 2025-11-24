@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { HistoryService, type VolunteerHistoryRecord, API_BASE_URL, AttendanceService } from "~/services/api";
+import { showSuccess, showError, showInfo } from "~/utils/toast";
 
 interface MyEvent {
   id: string;
@@ -127,14 +128,14 @@ export default function Schedule() {
         );
         setEditingEvent(null);
         setEditNotes('');
-        alert('Notes updated successfully!');
+        showSuccess('Notes updated successfully!');
       } else {
         const errorData = await response.json();
-        alert(`Failed to update notes: ${errorData.message || 'Unknown error'}`);
+        showError(`Failed to update notes: ${errorData.message || 'Unknown error'}`);
       }
     } catch (err) {
       console.error('Error updating notes:', err);
-      alert('Failed to update notes');
+      showError('Failed to update notes');
     }
   };
 
@@ -156,7 +157,7 @@ export default function Schedule() {
         .then(response => {
           if (response.ok) {
             setUpcomingEvents(events => events.filter(event => event.id !== eventId));
-            alert('Successfully removed event from your schedule');
+            showSuccess('Successfully removed event from your schedule');
           } else {
             return response.json().then(data => {
               throw new Error(data.message || 'Failed to remove event');
@@ -165,17 +166,17 @@ export default function Schedule() {
         })
         .catch(err => {
           console.error('Error removing event:', err);
-          alert(`Failed to remove event: ${err.message}`);
+          showError(`Failed to remove event: ${err.message}`);
         });
     }
   };
 
   const handleViewDetails = (eventId: string) => {
-    alert(`View details functionality for event ${eventId} would show more information here.`);
+    showInfo(`View details functionality for event ${eventId} would show more information here.`);
   };
 
   const handleExportSchedule = () => {
-    alert('Export schedule functionality would generate a PDF or CSV file of your schedule.');
+    showInfo('Export schedule functionality would generate a PDF or CSV file of your schedule.');
   };
 
   const handleAddAvailability = () => {
@@ -205,9 +206,9 @@ export default function Schedule() {
       const status = await AttendanceService.getMyAttendanceStatus(eventId);
       setAttendanceStatus(prev => ({ ...prev, [eventId]: status }));
 
-      alert(`Successfully checked in at ${new Date(result.checkInTime).toLocaleTimeString()}!`);
+      showSuccess(`Successfully checked in at ${new Date(result.checkInTime).toLocaleTimeString()}!`);
     } catch (err) {
-      alert(`Failed to check in: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      showError(`Failed to check in: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setCheckInProcessing(prev => {
         const newSet = new Set(prev);
@@ -228,10 +229,9 @@ export default function Schedule() {
       const status = await AttendanceService.getMyAttendanceStatus(eventId);
       setAttendanceStatus(prev => ({ ...prev, [eventId]: status }));
 
-      alert(
-        `Successfully checked out!\n\n` +
-        `Check-out time: ${new Date(result.checkOutTime).toLocaleTimeString()}\n` +
-        `Hours worked: ${result.hoursWorked}`
+      showSuccess(
+        `Successfully checked out! Check-out time: ${new Date(result.checkOutTime).toLocaleTimeString()}. Hours worked: ${result.hoursWorked}`,
+        { duration: 5000 }
       );
 
       // Reload schedule to refresh completed events
@@ -241,7 +241,7 @@ export default function Schedule() {
       );
       setCompletedEvents(completed);
     } catch (err) {
-      alert(`Failed to check out: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      showError(`Failed to check out: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setCheckInProcessing(prev => {
         const newSet = new Set(prev);

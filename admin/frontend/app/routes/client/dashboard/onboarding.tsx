@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { ProfileService, SkillsService } from "~/services/api";
+import { showError } from "~/utils/toast";
 
 const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const TIME_SLOTS = [
@@ -124,7 +125,7 @@ export default function Onboarding() {
       navigate('/dashboard/home');
     } catch (err) {
       console.error('Failed to save onboarding data:', err);
-      alert('Failed to save your information. Please try again.');
+      showError('Failed to save your information. Please try again.');
     } finally {
       setIsSubmitting(false);
     }

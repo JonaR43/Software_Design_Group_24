@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router';
 import { EventVolunteerService, EventService } from "~/services/api";
+import { showError } from "~/utils/toast";
 
 interface Volunteer {
   id: string;
@@ -144,7 +145,7 @@ export default function EventVolunteersPage() {
       const errorMessage = err instanceof Error ? err.message : 'Failed to save review';
       setError(errorMessage);
       console.error("Error saving review:", err);
-      alert('Error: ' + errorMessage); // Add alert for debugging
+      showError('Error: ' + errorMessage);
     } finally {
       setIsSaving(false);
     }
@@ -168,7 +169,7 @@ export default function EventVolunteersPage() {
       const errorMessage = err instanceof Error ? err.message : 'Failed to remove volunteer';
       setError(errorMessage);
       console.error("Error removing volunteer:", err);
-      alert('Error: ' + errorMessage);
+      showError('Error: ' + errorMessage);
     } finally {
       setIsSaving(false);
     }

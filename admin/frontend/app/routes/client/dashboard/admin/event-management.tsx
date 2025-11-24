@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { EventService, API_BASE_URL } from "~/services/api";
+import { showSuccess, showError } from "~/utils/toast";
 
 interface Event {
   id: string;
@@ -134,10 +135,10 @@ export default function EventManagementPage() {
         await EventService.deleteEvent(eventId);
         // Reload events from backend to get fresh data
         await loadEvents();
-        alert('Event deleted successfully');
+        showSuccess('Event deleted successfully');
       } catch (error) {
         console.error('Error deleting event:', error);
-        alert('Failed to delete event: ' + (error instanceof Error ? error.message : 'Unknown error'));
+        showError('Failed to delete event: ' + (error instanceof Error ? error.message : 'Unknown error'));
       }
     }
   };
@@ -176,10 +177,10 @@ export default function EventManagementPage() {
         e.id === eventId ? { ...e, status: newStatus } : e
       ));
 
-      alert(`Event status updated to ${newStatus} successfully!`);
+      showSuccess(`Event status updated to ${newStatus} successfully!`);
     } catch (error) {
       console.error('Error updating event status:', error);
-      alert('Failed to update event status: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      showError('Failed to update event status: ' + (error instanceof Error ? error.message : 'Unknown error'));
       // Reload events to revert any optimistic updates
       await loadEvents();
     }

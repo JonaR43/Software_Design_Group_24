@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { UserService, type UserData, type CreateUserData, type UpdateUserData } from "~/services/api";
+import { showSuccess, showError } from "~/utils/toast";
 
 export default function UserManagementPage() {
   const [users, setUsers] = useState<UserData[]>([]);
@@ -72,10 +73,10 @@ export default function UserManagementPage() {
         password: '',
         role: 'volunteer'
       });
-      alert('User created successfully');
+      showSuccess('User created successfully');
     } catch (error) {
       console.error('Error creating user:', error);
-      alert('Failed to create user: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      showError('Failed to create user: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
   };
 
@@ -90,10 +91,10 @@ export default function UserManagementPage() {
       setShowEditModal(false);
       setSelectedUser(null);
       setEditFormData({});
-      alert('User updated successfully');
+      showSuccess('User updated successfully');
     } catch (error) {
       console.error('Error updating user:', error);
-      alert('Failed to update user: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      showError('Failed to update user: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
   };
 
@@ -103,10 +104,10 @@ export default function UserManagementPage() {
       try {
         await UserService.deleteUser(userId);
         await loadUsers();
-        alert('User deleted successfully');
+        showSuccess('User deleted successfully');
       } catch (error) {
         console.error('Error deleting user:', error);
-        alert('Failed to delete user: ' + (error instanceof Error ? error.message : 'Unknown error'));
+        showError('Failed to delete user: ' + (error instanceof Error ? error.message : 'Unknown error'));
       }
     }
   };

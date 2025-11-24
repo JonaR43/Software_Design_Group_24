@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { EventService, AuthService, type FrontendEvent, type EventFilters } from "~/services/api";
 import EventsMap from "~/components/EventsMap";
+import { showSuccess, showWarning } from "~/utils/toast";
 
 // Helper function to get event image based on title/category
 const getEventImage = (title: string, description?: string): string => {
@@ -175,7 +176,7 @@ export default function Events() {
         }
       }
 
-      alert('Successfully registered for the event! You will receive a confirmation email shortly.');
+      showSuccess('Successfully registered for the event! You will receive a confirmation email shortly.');
     } catch (err) {
       console.error("Error joining event:", err);
 
@@ -195,7 +196,7 @@ export default function Events() {
           prevRecommended.filter(event => event.id !== eventId)
         );
 
-        alert('You are already registered for this event!');
+        showWarning('You are already registered for this event!');
       } else {
         setError("Failed to join event");
       }

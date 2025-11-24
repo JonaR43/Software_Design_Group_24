@@ -9,6 +9,7 @@ import {
 
 import type { Route } from "./+types/root";
 import { AuthProvider } from "./contexts/AuthContext";
+import { Toaster } from "react-hot-toast";
 import "./app.css";
 
 export const links: Route.LinksFunction = () => [
@@ -45,6 +46,49 @@ export function Layout({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <AuthProvider>
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          // Default options
+          duration: 4000,
+          style: {
+            background: '#fff',
+            color: '#363636',
+            padding: '16px',
+            borderRadius: '8px',
+            boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
+          },
+          // Success toast styling
+          success: {
+            duration: 3000,
+            iconTheme: {
+              primary: '#10b981',
+              secondary: '#fff',
+            },
+            style: {
+              border: '1px solid #10b981',
+            },
+          },
+          // Error toast styling
+          error: {
+            duration: 5000,
+            iconTheme: {
+              primary: '#ef4444',
+              secondary: '#fff',
+            },
+            style: {
+              border: '1px solid #ef4444',
+            },
+          },
+          // Loading toast styling
+          loading: {
+            iconTheme: {
+              primary: '#3b82f6',
+              secondary: '#fff',
+            },
+          },
+        }}
+      />
       <Outlet />
     </AuthProvider>
   );

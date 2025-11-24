@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router";
 import { AttendanceService, type AttendanceRoster, type AttendanceRosterVolunteer } from "~/services/api";
 import { DataTransformer } from "~/services/api";
+import { showSuccess } from "~/utils/toast";
 
 export default function AttendanceRoster() {
   const { eventId } = useParams();
@@ -141,11 +142,9 @@ export default function AttendanceRoster() {
 
       const result = await AttendanceService.finalizeEventAttendance(eventId);
 
-      alert(
-        `Event finalized!\n\n` +
-        `Total volunteers: ${result.summary.totalVolunteers}\n` +
-        `Auto-checked out: ${result.summary.autoCheckedOut}\n` +
-        `Marked no-show: ${result.summary.markedNoShow}`
+      showSuccess(
+        `Event finalized! Total volunteers: ${result.summary.totalVolunteers}, Auto-checked out: ${result.summary.autoCheckedOut}, Marked no-show: ${result.summary.markedNoShow}`,
+        { duration: 6000 }
       );
 
       await loadRoster();

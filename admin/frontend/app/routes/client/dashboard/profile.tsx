@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { ProfileService, SkillsService, DashboardService, EventService, type FrontendProfile } from "~/services/api";
 import AvailabilityCalendar from "~/components/AvailabilityCalendar";
 import ProfilePictureUpload from "~/components/ProfilePictureUpload";
+import { showSuccess, showError, showWarning } from "~/utils/toast";
 
 export default function Profile() {
   const [isEditing, setIsEditing] = useState(false);
@@ -96,10 +97,10 @@ export default function Profile() {
       });
       setIsEditing(false);
       setError("");
-      // Optionally show success message instead of alert
-      alert('Profile changes saved successfully!');
+      showSuccess('Profile changes saved successfully!');
     } catch (err) {
       setError("Failed to save profile changes");
+      showError("Failed to save profile changes");
       console.error("Error saving profile:", err);
     } finally {
       setIsSaving(false);
@@ -111,7 +112,7 @@ export default function Profile() {
 
     // Check if skill already exists
     if (profile.skills.includes(skillName)) {
-      alert('This skill is already added!');
+      showWarning('This skill is already added!');
       return;
     }
 
@@ -129,7 +130,7 @@ export default function Profile() {
     if (newSkill && newSkill.trim()) {
       // Check if skill already exists
       if (profile.skills.includes(newSkill.trim())) {
-        alert('This skill is already added!');
+        showWarning('This skill is already added!');
         return;
       }
 

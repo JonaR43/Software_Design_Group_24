@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { SkillsService, EventService, type FrontendEvent } from "~/services/api";
+import { showSuccess, showError, showWarning } from "~/utils/toast";
 
 interface EventFormData {
   eventName: string;
@@ -77,7 +78,7 @@ export default function EditEventPage() {
         const event = events.find(e => e.id === eventId);
 
         if (!event) {
-          alert('Event not found');
+          showError('Event not found');
           navigate('/dashboard/admin/events');
           return;
         }
@@ -99,7 +100,7 @@ export default function EditEventPage() {
         });
       } catch (error) {
         console.error('Failed to load event:', error);
-        alert('Failed to load event data');
+        showError('Failed to load event data');
         navigate('/dashboard/admin/events');
       } finally {
         setIsLoading(false);
@@ -192,7 +193,7 @@ export default function EditEventPage() {
     }
 
     if (!eventId) {
-      alert('No event ID provided');
+      showWarning('No event ID provided');
       return;
     }
 
@@ -219,7 +220,7 @@ export default function EditEventPage() {
 
     } catch (error) {
       console.error('Error updating event:', error);
-      alert('Failed to update event. Please try again.');
+      showError('Failed to update event. Please try again.');
     } finally {
       setIsSubmitting(false);
     }

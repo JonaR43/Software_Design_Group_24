@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { SkillsService, EventService } from "~/services/api";
+import { showSuccess, showError } from "~/utils/toast";
 
 interface EventFormData {
   eventName: string;
@@ -441,7 +442,7 @@ export default function CreateEventPage() {
 
     } catch (error) {
       console.error('Error creating event:', error);
-      alert(`Failed to create event: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      showError(`Failed to create event: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsSubmitting(false);
     }
