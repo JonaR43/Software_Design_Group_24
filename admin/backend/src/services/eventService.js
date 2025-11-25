@@ -659,7 +659,7 @@ class EventService {
   async getRecommendedEventsByAvailability(userId, availability, limit = 10) {
     // Get all published events that are upcoming
     const { events } = await eventRepository.findAll(
-      { status: 'published' },
+      { status: 'PUBLISHED' },
       { page: 1, limit: 1000 }
     );
 
