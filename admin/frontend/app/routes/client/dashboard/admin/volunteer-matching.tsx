@@ -25,7 +25,7 @@ export default function VolunteerMatchingPage() {
     async function fetchEvents() {
       try {
         setIsLoadingEvents(true);
-        const fetchedEvents = await EventService.getEvents({ status: 'published' });
+        const fetchedEvents = await EventService.getEvents({ status: 'published' }, { limit: 100 });
 
         // Transform to EventOption format
         const eventOptions: EventOption[] = fetchedEvents.map(event => ({

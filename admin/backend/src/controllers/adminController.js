@@ -487,8 +487,8 @@ class AdminController {
         });
       }
 
-      // Event metrics
-      const { events } = await eventRepository.findAll();
+      // Event metrics - fetch all events without pagination
+      const { events } = await eventRepository.findAll({}, { limit: 1000 });
       const totalEvents = events.length;
       const publishedEvents = events.filter(e => e.status.toLowerCase() === 'published').length;
       const completedEvents = events.filter(e => e.status.toLowerCase() === 'completed').length;

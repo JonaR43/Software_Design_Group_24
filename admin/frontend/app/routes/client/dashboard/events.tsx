@@ -64,7 +64,7 @@ export default function Events() {
         setError("");
 
         console.log("📡 Making API call to EventService.getEvents() with filters:", filters);
-        const eventsData = await EventService.getEvents(filters);
+        const eventsData = await EventService.getEvents(filters, { limit: 100 });
 
         console.log("✅ Successfully received events data:", eventsData);
         console.log("📊 Number of events:", eventsData.length);

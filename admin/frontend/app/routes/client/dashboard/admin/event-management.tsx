@@ -26,7 +26,7 @@ export default function EventManagementPage() {
       setIsLoading(true);
 
       // Use direct API call to get full backend event data with actual status
-      const response = await fetch(`${API_BASE_URL}/events`, {
+      const response = await fetch(`${API_BASE_URL}/events?limit=100`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
           'Content-Type': 'application/json'

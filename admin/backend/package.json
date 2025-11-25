@@ -11,7 +11,7 @@
     "test:coverage": "jest --coverage"
   },
   "prisma": {
-    "seed": "node prisma/seed-large.js"
+    "seed": "node prisma/seed-demo.js"
   },
   "keywords": [
     "volunteer",
