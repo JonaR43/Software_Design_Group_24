@@ -74,7 +74,7 @@ export default function EditEventPage() {
       try {
         setIsLoading(true);
         // Get all events and find the one we're editing
-        const events = await EventService.getEvents();
+        const events = await EventService.getEvents({}, { limit: 100 });
         const event = events.find(e => e.id === eventId);
 
         if (!event) {
