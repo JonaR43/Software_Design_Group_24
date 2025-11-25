@@ -26,6 +26,13 @@ const { apiLimiter } = require('./src/middleware/rateLimiter');
 const { contentSecurityPolicy, strictTransportSecurity } = require('./src/middleware/securityHeaders');
 
 const app = express();
+
+const isProduction = process.env.NODE_ENV === 'production';
+
+// Render requires trusting the first proxy to get real client IPs
+if (isProduction) {
+  app.set('trust proxy', 1);
+}
 const PORT = process.env.PORT || 3001;
 
 // Security middleware
@@ -38,7 +45,10 @@ app.use(cors({
 }));
 
 // Rate limiting - Apply to all API routes
-app.use('/api/', apiLimiter);
+// Apply rate limiting only in production (dev should not be limited)
+if (isProduction) {
+  app.use('/api/', apiLimiter);
+}
 
 // Logging middleware
 app.use(morgan('combined'));

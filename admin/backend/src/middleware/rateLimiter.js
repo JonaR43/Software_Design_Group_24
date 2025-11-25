@@ -7,11 +7,11 @@ const rateLimit = require('express-rate-limit');
 
 /**
  * General API Rate Limiter
- * Limit: 100 requests per 15 minutes per IP
+ * Limit: 1000 requests per 15 minutes per IP
  */
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // 100 requests per window
+  max: 1000, // 1000 requests per window (increased for demo/production usage)
   message: {
     status: 'error',
     message: 'Too many requests from this IP, please try again later.'
@@ -77,11 +77,11 @@ const emailVerificationLimiter = rateLimit({
 /**
  * Create Event Rate Limiter
  * Prevent spam event creation
- * Limit: 10 events per hour per user
+ * Limit: 50 events per hour per user
  */
 const createEventLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 10, // 10 events per hour
+  max: 50, // 50 events per hour (increased for demo purposes)
   message: {
     status: 'error',
     message: 'Too many events created, please try again later.'
