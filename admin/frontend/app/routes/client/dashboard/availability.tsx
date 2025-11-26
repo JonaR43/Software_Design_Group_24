@@ -66,7 +66,6 @@ export default function Availability() {
         // Load registered events
         const response = await fetch(`${API_BASE_URL}/events/my-events?limit=100`, {
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
             'Content-Type': 'application/json'
           },
           credentials: 'include'

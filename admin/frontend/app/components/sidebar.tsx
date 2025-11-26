@@ -46,6 +46,7 @@ export default function Sidebar({ onNavigate }: SidebarProps = {}) {
     const fetchUnreadCount = async () => {
       try {
         const count = await NotificationService.getUnreadCount();
+        console.log('Notification badge - Unread count:', count);
         setUnreadCount(count);
       } catch (error) {
         console.error('Failed to fetch unread notification count:', error);

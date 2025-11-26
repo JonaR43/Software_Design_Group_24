@@ -48,7 +48,6 @@ export default function Schedule() {
         // Get upcoming events from assignments (my-events endpoint)
         const response = await fetch(`${API_BASE_URL}/events/my-events?timeFilter=upcoming&limit=100`, {
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
             'Content-Type': 'application/json'
           },
           credentials: 'include'
@@ -112,9 +111,9 @@ export default function Schedule() {
       const response = await fetch(`${API_BASE_URL}/events/${editingEvent.id}/update-notes`, {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
           'Content-Type': 'application/json'
         },
+        credentials: 'include',
         body: JSON.stringify({ notes: editNotes })
       });
 
@@ -151,9 +150,9 @@ export default function Schedule() {
       fetch(`${API_BASE_URL}/events/${eventId}/leave`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
           'Content-Type': 'application/json'
-        }
+        },
+        credentials: 'include'
       })
         .then(response => {
           if (response.ok) {

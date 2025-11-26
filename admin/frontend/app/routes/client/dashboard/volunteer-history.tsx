@@ -21,7 +21,6 @@ export default function VolunteerHistoryPage() {
         const [myEventsResponse, historyData] = await Promise.all([
           fetch(`${API_BASE_URL}/events/my-events?includeCancelled=true&limit=100`, {
             headers: {
-              'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
               'Content-Type': 'application/json'
             },
             credentials: 'include'
