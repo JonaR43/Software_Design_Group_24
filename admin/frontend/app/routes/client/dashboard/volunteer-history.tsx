@@ -19,11 +19,12 @@ export default function VolunteerHistoryPage() {
 
         // Fetch both upcoming/cancelled events (from assignments) and completed events (from history)
         const [myEventsResponse, historyData] = await Promise.all([
-          fetch(`${API_BASE_URL}/events/my-events?includeCancelled=true`, {
+          fetch(`${API_BASE_URL}/events/my-events?includeCancelled=true&limit=100`, {
             headers: {
               'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
               'Content-Type': 'application/json'
-            }
+            },
+            credentials: 'include'
           }),
           HistoryService.getMyHistory()
         ]);

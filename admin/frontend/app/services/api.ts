@@ -722,11 +722,12 @@ export class EventService {
           // Fetch both history records (completed events) and active assignments (upcoming events)
           const [userHistory, myEventsResponse] = await Promise.all([
             HistoryService.getMyHistory(),
-            fetch(`${API_BASE_URL}/events/my-events`, {
+            fetch(`${API_BASE_URL}/events/my-events?limit=100`, {
               headers: {
                 'Authorization': `Bearer ${TokenManager.getToken()}`,
                 'Content-Type': 'application/json'
-              }
+              },
+              credentials: 'include'
             }).catch(() => null)
           ]);
 

@@ -16,11 +16,12 @@ export default function Home() {
         if (user?.role === 'volunteer') {
           // For volunteers, get both their assignments (upcoming) and history (completed)
           const [myEventsResponse, historyRecords] = await Promise.all([
-            fetch(`${API_BASE_URL}/events/my-events`, {
+            fetch(`${API_BASE_URL}/events/my-events?limit=100`, {
               headers: {
                 'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
                 'Content-Type': 'application/json'
-              }
+              },
+              credentials: 'include'
             }),
             HistoryService.getMyHistory()
           ]);

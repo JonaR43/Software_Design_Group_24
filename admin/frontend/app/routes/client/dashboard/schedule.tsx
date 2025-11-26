@@ -46,11 +46,12 @@ export default function Schedule() {
         setError("");
 
         // Get upcoming events from assignments (my-events endpoint)
-        const response = await fetch(`${API_BASE_URL}/events/my-events?timeFilter=upcoming`, {
+        const response = await fetch(`${API_BASE_URL}/events/my-events?timeFilter=upcoming&limit=100`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
             'Content-Type': 'application/json'
-          }
+          },
+          credentials: 'include'
         });
 
         if (response.ok) {
