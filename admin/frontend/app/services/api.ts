@@ -1235,7 +1235,7 @@ export class HistoryService {
         message: string;
         history: any[];
         pagination?: any;
-      }>('/history/my-history');
+      }>('/history/my-history?limit=100');
 
       if (response.success && response.history) {
         // Fetch skills mapping first
