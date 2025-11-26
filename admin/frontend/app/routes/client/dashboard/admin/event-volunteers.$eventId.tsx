@@ -44,7 +44,7 @@ export default function EventVolunteersPage() {
     try {
       setIsLoading(true);
       const [eventData, assignmentsResponse] = await Promise.all([
-        EventService.getEvents({ search: eventId }),
+        EventService.getEvents({ search: eventId }, { limit: 1 }),
         EventVolunteerService.getEventVolunteers(eventId)
       ]);
 

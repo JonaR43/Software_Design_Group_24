@@ -21,7 +21,7 @@ export default function AdminAttendance() {
       setIsLoading(true);
       setError("");
 
-      const eventsData = await EventService.getEvents(filters);
+      const eventsData = await EventService.getEvents(filters, { limit: 100 });
       setEvents(eventsData);
     } catch (err) {
       console.error("Failed to load events:", err);

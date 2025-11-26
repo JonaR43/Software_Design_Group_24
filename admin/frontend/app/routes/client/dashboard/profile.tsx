@@ -30,7 +30,7 @@ export default function Profile() {
           ProfileService.getProfile(),
           SkillsService.getSkills(),
           DashboardService.getDashboardStats(),
-          EventService.getEvents({ status: 'published' }).catch(() => [])
+          EventService.getEvents({ status: 'published' }, { limit: 100 }).catch(() => [])
         ]);
 
         setAvailableSkills(skills);
