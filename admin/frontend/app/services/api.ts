@@ -1690,13 +1690,17 @@ export class NotificationService {
         status: string;
         data: {
           notifications: Notification[];
-          total: number;
-          unreadCount: number;
+          stats: {
+            total: number;
+            unread: number;
+            read: number;
+          };
         };
       }>('/notifications?limit=1');
 
-      if (response.status === 'success') {
-        return response.data.unreadCount;
+      if (response.status === 'success' && response.data.stats) {
+        console.log('Unread count from API:', response.data.stats.unread);
+        return response.data.stats.unread;
       }
 
       return 0;
