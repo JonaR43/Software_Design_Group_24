@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { SkillsService, EventService } from "~/services/api";
-import { showSuccess, showError } from "~/utils/toast";
+import { showError } from "~/utils/toast";
 
 interface EventFormData {
   eventName: string;
@@ -137,7 +137,9 @@ export default function CreateEventPage() {
 
       case 'eventDate':
         if (!value) return 'Event date is required';
-        const selectedDate = new Date(value);
+        // Parse date as local date to avoid timezone issues
+        const [year, month, day] = value.split('-').map(Number);
+        const selectedDate = new Date(year, month - 1, day);
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         if (selectedDate < today) return 'Event date cannot be in the past';
@@ -185,8 +187,10 @@ export default function CreateEventPage() {
   };
 
   const handleDateSelect = (day: number) => {
-    const selectedDate = new Date(selectedYear, selectedMonth, day);
-    const dateString = selectedDate.toISOString().split('T')[0];
+    // Build date string directly to avoid timezone conversion issues
+    const month = String(selectedMonth + 1).padStart(2, '0');
+    const dayStr = String(day).padStart(2, '0');
+    const dateString = `${selectedYear}-${month}-${dayStr}`;
     handleInputChange('eventDate', dateString);
     setShowDatePicker(false);
   };
@@ -211,7 +215,9 @@ export default function CreateEventPage() {
 
   const formatDisplayDate = (dateString: string) => {
     if (!dateString) return 'Select date';
-    const date = new Date(dateString);
+    // Parse date as local date to avoid timezone issues
+    const [year, month, day] = dateString.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
     return date.toLocaleDateString('en-US', {
       weekday: 'long',
       year: 'numeric',
@@ -602,12 +608,12 @@ export default function CreateEventPage() {
         </div>
 
         {/* Event Details */}
-        <div className="card p-6">
+        <div className="card p-6 relative z-30">
           <h3 className="text-lg font-semibold text-slate-800 mb-4">Event Details</h3>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Event Date */}
-            <div className="relative">
+            <div className="relative z-50">
               <label className="label">Event Date *</label>
               <button
                 type="button"
@@ -709,7 +715,7 @@ export default function CreateEventPage() {
         </div>
 
         {/* Required Skills */}
-        <div className="card p-6">
+        <div className="card p-6 relative z-10">
           <h3 className="text-lg font-semibold text-slate-800 mb-4">
             Required Skills *
             <span className="text-sm font-normal text-slate-600 ml-2">

@@ -1132,24 +1132,31 @@ export interface VolunteerHistoryRecord {
   eventDescription: string;
   location: string;
   eventDate: string;
-  participationStatus: 'COMPLETED' | 'NO_SHOW' | 'CANCELLED' | 'UPCOMING';
+  participationStatus: 'COMPLETED' | 'NO_SHOW' | 'CANCELLED' | 'UPCOMING' | 'PENDING' | 'CONFIRMED';
   hoursWorked?: number;
   feedback?: string;
   urgencyLevel: string;
   requiredSkills: string[];
+  startDate?: string;
+  endDate?: string;
 }
 
-function mapBackendStatusToFrontend(backendStatus: string): 'COMPLETED' | 'NO_SHOW' | 'CANCELLED' | 'UPCOMING' {
-  switch (backendStatus) {
+function mapBackendStatusToFrontend(backendStatus: string): 'COMPLETED' | 'NO_SHOW' | 'CANCELLED' | 'UPCOMING' | 'PENDING' | 'CONFIRMED' {
+  switch (backendStatus.toLowerCase()) {
     case 'completed':
       return 'COMPLETED';
     case 'no_show':
+    case 'no-show':
       return 'NO_SHOW';
     case 'cancelled':
       return 'CANCELLED';
-    case 'in_progress':
-    case 'assigned':
+    case 'pending':
+      return 'PENDING';
     case 'confirmed':
+      return 'CONFIRMED';
+    case 'in_progress':
+    case 'in-progress':
+    case 'assigned':
       return 'UPCOMING';
     default:
       return 'UPCOMING';
@@ -1208,16 +1215,16 @@ export class ScheduleService {
       // Get all history and filter for upcoming events
       const allHistory = await HistoryService.getMyHistory();
 
-      // Filter for upcoming events (confirmed, in_progress, or upcoming status)
+      // Filter for upcoming events (pending, confirmed, or upcoming status)
       const upcomingEvents = allHistory.filter(record => {
-        const eventDate = new Date(record.eventDate);
+        const eventStartDate = record.startDate ? new Date(record.startDate) : new Date(record.eventDate);
         const now = new Date();
 
-        // Include events that are in the future or currently happening
-        return (eventDate >= now || record.participationStatus === 'UPCOMING') &&
-               record.participationStatus !== 'COMPLETED' &&
-               record.participationStatus !== 'CANCELLED' &&
-               record.participationStatus !== 'NO_SHOW';
+        // Include events that are in the future and have active status
+        return eventStartDate >= now &&
+               (record.participationStatus === 'PENDING' ||
+                record.participationStatus === 'CONFIRMED' ||
+                record.participationStatus === 'UPCOMING');
       });
 
       return upcomingEvents;
@@ -1243,27 +1250,36 @@ export class HistoryService {
         const skillMap = new Map(skills.map(skill => [skill.id, skill.name]));
         console.log('Skill map created:', Array.from(skillMap.entries()).slice(0, 5)); // Debug log
 
-        return response.history.map(record => ({
-          id: record.id,
-          eventId: record.eventId,
-          eventTitle: record.event ? record.event.title : 'Unknown Event',
-          eventDescription: record.event ? record.event.description : 'No description available',
-          location: record.event ? record.event.location : 'Unknown Location',
-          eventDate: record.participationDate,
-          participationStatus: mapBackendStatusToFrontend(record.status),
-          hoursWorked: record.hoursWorked,
-          feedback: record.feedback,
-          urgencyLevel: record.event ? record.event.urgencyLevel : 'NORMAL',
-          requiredSkills: record.event
-            ? (record.event.requiredSkills || []).map((skill: any) => {
-                if (typeof skill === 'string') return skill;
-                const skillId = skill.skillId || skill.id;
-                const skillName = skillMap.get(skillId);
-                console.log(`Mapping skill ${skillId} to ${skillName}`); // Debug log
-                return skillName || skillId || 'Unknown Skill';
-              })
-            : []
-        }));
+        return response.history.map(record => {
+          // Construct location from address, city, state
+          const location = record.event
+            ? `${record.event.address}, ${record.event.city}, ${record.event.state} ${record.event.zipCode}`
+            : 'Unknown Location';
+
+          return {
+            id: record.id,
+            eventId: record.eventId,
+            eventTitle: record.event ? record.event.title : 'Unknown Event',
+            eventDescription: record.event ? record.event.description : 'No description available',
+            location,
+            eventDate: record.participationDate,
+            participationStatus: mapBackendStatusToFrontend(record.status),
+            hoursWorked: record.hoursWorked,
+            feedback: record.feedback,
+            urgencyLevel: record.event ? record.event.urgencyLevel : 'NORMAL',
+            requiredSkills: record.event
+              ? (record.event.requiredSkills || []).map((skill: any) => {
+                  if (typeof skill === 'string') return skill;
+                  const skillId = skill.skillId || skill.id;
+                  const skillName = skillMap.get(skillId);
+                  console.log(`Mapping skill ${skillId} to ${skillName}`); // Debug log
+                  return skillName || skillId || 'Unknown Skill';
+                })
+              : [],
+            startDate: record.event ? record.event.startDate : record.participationDate,
+            endDate: record.event ? record.event.endDate : record.participationDate
+          };
+        });
       }
 
       throw new Error('Failed to fetch volunteer history');

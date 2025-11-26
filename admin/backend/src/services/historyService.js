@@ -25,8 +25,67 @@ class HistoryService {
         throw new Error('Volunteer not found');
       }
 
-      // Get history with filters (repository handles includes)
-      const allHistory = await historyRepository.getVolunteerHistory(volunteerId, filters);
+      // Get completed history records
+      const historyRecords = await historyRepository.getVolunteerHistory(volunteerId, filters);
+
+      // Get active assignments (upcoming events) - these should also appear in the attendance page
+      const assignments = await prisma.assignment.findMany({
+        where: {
+          volunteerId,
+          status: {
+            in: ['PENDING', 'CONFIRMED']
+          }
+        },
+        include: {
+          event: {
+            include: {
+              creator: {
+                select: {
+                  id: true,
+                  username: true,
+                  email: true
+                }
+              }
+            }
+          },
+          volunteer: {
+            select: {
+              id: true,
+              username: true,
+              email: true,
+              profile: true
+            }
+          }
+        }
+      });
+
+      // Transform assignments to look like history records
+      const transformedAssignments = assignments.map(assignment => ({
+        id: assignment.id,
+        volunteerId: assignment.volunteerId,
+        eventId: assignment.eventId,
+        assignmentId: assignment.id,
+        status: assignment.status, // PENDING or CONFIRMED
+        hoursWorked: 0,
+        performanceRating: null,
+        feedback: null,
+        attendance: 'PENDING',
+        skillsUtilized: [],
+        participationDate: assignment.event.startDate,
+        completionDate: null,
+        recordedBy: null,
+        adminNotes: null,
+        event: assignment.event,
+        volunteer: assignment.volunteer,
+        createdAt: assignment.assignedAt,
+        updatedAt: assignment.updatedAt
+      }));
+
+      // Combine history records and assignments
+      const allHistory = [...historyRecords, ...transformedAssignments];
+
+      // Sort by participation date (descending)
+      allHistory.sort((a, b) => new Date(b.participationDate) - new Date(a.participationDate));
 
       // Apply pagination
       const page = parseInt(options.page) || 1;

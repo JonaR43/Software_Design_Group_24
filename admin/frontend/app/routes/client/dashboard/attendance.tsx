@@ -39,15 +39,29 @@ export default function Attendance() {
         schedule.map(async (event) => {
           try {
             const status = await AttendanceService.getMyAttendanceStatus(event.eventId);
+
+            // Format time from startDate and endDate
+            const startTime = event.startDate ? new Date(event.startDate).toLocaleTimeString('en-US', {
+              hour: 'numeric',
+              minute: '2-digit',
+              hour12: true
+            }) : '';
+            const endTime = event.endDate ? new Date(event.endDate).toLocaleTimeString('en-US', {
+              hour: 'numeric',
+              minute: '2-digit',
+              hour12: true
+            }) : '';
+            const timeString = startTime && endTime ? `${startTime} - ${endTime}` : 'Time TBD';
+
             return {
               id: event.eventId,
               title: event.eventTitle,
-              date: DataTransformer.formatDate(event.eventDate),
-              time: "Event time",
+              date: DataTransformer.formatDate(event.startDate || event.eventDate),
+              time: timeString,
               location: event.location,
               status,
-              startDate: event.eventDate,
-              endDate: event.eventDate
+              startDate: event.startDate || event.eventDate,
+              endDate: event.endDate || event.eventDate
             };
           } catch (err) {
             console.error(`Failed to get status for event ${event.eventId}:`, err);
@@ -207,6 +221,12 @@ export default function Attendance() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
                         {event.date}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        {event.time}
                       </div>
                       <div className="flex items-center gap-1">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
