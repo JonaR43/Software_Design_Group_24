@@ -1683,6 +1683,28 @@ export class NotificationService {
     }
   }
 
+  static async getUnreadCount(): Promise<number> {
+    try {
+      const response = await HttpClient.get<{
+        status: string;
+        data: {
+          notifications: Notification[];
+          total: number;
+          unreadCount: number;
+        };
+      }>('/notifications?limit=1');
+
+      if (response.status === 'success') {
+        return response.data.unreadCount;
+      }
+
+      return 0;
+    } catch (error) {
+      console.error('Error fetching unread count:', error);
+      return 0;
+    }
+  }
+
   static async markAsRead(notificationId: string): Promise<void> {
     try {
       await HttpClient.put(`/notifications/${notificationId}/read`, {});

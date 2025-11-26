@@ -1,7 +1,8 @@
 import { NavLink, useNavigate, useLocation } from "react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import NotificationCenter from "./NotificationCenter";
 import { useAuth } from "~/contexts/AuthContext";
+import { NotificationService } from "~/services/api";
 
 interface SidebarProps {
   onNavigate?: () => void;
@@ -16,6 +17,9 @@ export default function Sidebar({ onNavigate }: SidebarProps = {}) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['events', 'profile', 'admin'])
   );
+
+  // Track unread notification count
+  const [unreadCount, setUnreadCount] = useState<number>(0);
 
   const handleLogout = () => {
     logout();
@@ -36,6 +40,26 @@ export default function Sidebar({ onNavigate }: SidebarProps = {}) {
   const isSectionActive = (routes: string[]) => {
     return routes.some(route => location.pathname.includes(route));
   };
+
+  // Fetch unread notification count
+  useEffect(() => {
+    const fetchUnreadCount = async () => {
+      try {
+        const count = await NotificationService.getUnreadCount();
+        setUnreadCount(count);
+      } catch (error) {
+        console.error('Failed to fetch unread notification count:', error);
+      }
+    };
+
+    // Initial fetch
+    fetchUnreadCount();
+
+    // Poll every 30 seconds
+    const interval = setInterval(fetchUnreadCount, 30000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <aside className="w-full h-full bg-white/90 border-r border-indigo-100 shadow-md backdrop-blur flex flex-col overflow-y-auto">
@@ -246,7 +270,7 @@ export default function Sidebar({ onNavigate }: SidebarProps = {}) {
           to="notifications"
           onClick={onNavigate}
           className={({ isActive }) =>
-            `flex items-center gap-3 p-3 rounded-lg transition-colors ${
+            `flex items-center gap-3 p-3 rounded-lg transition-colors relative ${
               isActive
                 ? "bg-indigo-100 text-indigo-700 font-semibold"
                 : "text-slate-700 hover:bg-indigo-50 hover:text-indigo-600"
@@ -257,6 +281,11 @@ export default function Sidebar({ onNavigate }: SidebarProps = {}) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
           </svg>
           Notifications
+          {unreadCount > 0 && (
+            <span className="absolute left-6 top-2 flex items-center justify-center w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full border-2 border-white shadow-sm">
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
+          )}
         </NavLink>
 
         {/* Admin Section - Only for admins */}
