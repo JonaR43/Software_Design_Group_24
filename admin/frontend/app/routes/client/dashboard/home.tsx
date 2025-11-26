@@ -74,9 +74,12 @@ export default function Home() {
             .reduce((sum, record) => sum + (record.hoursWorked || 0), 0);
 
           // Calculate reliability score (attendance rate)
-          const presentEvents = historyRecords.filter(r => r.attendance === 'PRESENT').length;
+          // Count events where volunteer showed up (not NO_SHOW or CANCELLED)
+          const attendedEvents = historyRecords.filter(r =>
+            r.participationStatus === 'COMPLETED'
+          ).length;
           const reliabilityScore = historyRecords.length > 0
-            ? Math.round((presentEvents / historyRecords.length) * 100)
+            ? Math.round((attendedEvents / historyRecords.length) * 100)
             : 0;
 
           // Create dashboard stats from the data
