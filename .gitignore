@@ -6,8 +6,6 @@ admin/backend/.env
 admin/backend/.env.production
 admin/frontend/.env
 admin/frontend/.env.production
-*.md
-README.md
 
 # Docker
 docker-compose.override.yml
