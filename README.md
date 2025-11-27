@@ -224,16 +224,10 @@ For detailed API documentation, see [PROJECT_DOCUMENTATION.md](PROJECT_DOCUMENTA
 
 ```bash
 # Run all tests
-npm test
-
-# Run backend tests
 cd admin/backend && npm test
 
-# Run frontend tests
-cd admin/frontend && npm test
-
 # Run tests with coverage
-npm test -- --coverage
+npm run test:coverage
 ```
 
 ---
@@ -257,7 +251,6 @@ This project was developed by:
 - **[Jonathan Reyes](https://github.com/JonaR43)** (JonaR43) - Lead Developer
 - **[Ashmal Macknojia](https://github.com/akmackn2)** (akmackn2) - Core Contributor
 - **[Santiago](https://github.com/codigotiago)** (codigotiago) - Core Contributor
-- **Santi** - Contributor
 
 ### Contributing
 
